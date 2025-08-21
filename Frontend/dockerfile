@@ -1,0 +1,23 @@
+# Utiliser une image Node.js
+FROM node:20
+
+# Définir le répertoire de travail
+WORKDIR /app-frontend
+
+# Copier les fichiers package.json et package-lock.json
+COPY package*.json ./
+
+# Installer les dépendances
+RUN npm install
+
+# Copier tout le code source
+COPY . .
+
+# Construire le frontend
+RUN npm run build
+
+# Exposer le port 5173 (par défaut pour Vite.js)
+EXPOSE 5173
+
+# Commande pour démarrer le frontend
+CMD ["npm", "run", "dev"]

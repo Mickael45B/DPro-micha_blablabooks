@@ -1,0 +1,15 @@
+@import './MediaQueries.css';
+#root {
+    display: flex;
+    flex-direction: column;
+    min-width: 100vw;
+    max-width: 100vw;
+    min-height: 100vh;
+    margin: 0 0;
+    text-align: center;
+    color: #ffffff;
+    background: linear-gradient(to bottom, #4a1b6b, #2e1044); /* Dégradé de fond */
+    /* background-position: 0 200px; Position du dégradé */
+    background-repeat: no-repeat; /* Pas de répétition */
+  }
+  

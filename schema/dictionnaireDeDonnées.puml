@@ -1,0 +1,149 @@
+@startuml
+
+skinparam package {
+    BackgroundColor #F5F5F5
+    BorderColor White
+    FontStyle Bold
+}
+
+' Base de données
+package "PostgreSQL" {
+
+    ' Table des utilisateurs
+    entity "UTILISATEUR" {
+        id_utilisateur : UUID <<PK>>
+--
+        nom : VARCHAR [255]
+        email : VARCHAR[255] <<UNIQUE>>
+        mot_de_passe_hache : VARCHAR [255]
+--
+        date_creation : TIMESTAMP
+        date_modification : TIMESTAMP
+    }
+
+    ' Table des bibliothèques
+    entity "BIBLIOTHEQUE" {
+        id_bibliotheque : UUID [PK]
+--
+        id_utilisateur : UUID [FK]
+        nom : VARCHAR [255]
+--
+        date_creation : TIMESTAMP
+        date_modification : TIMESTAMP
+    }
+
+    ' Table des avis
+    entity "AVIS" {
+        id_avis : UUID [PK]
+--
+        id_utilisateur : UUID [FK]
+        id_livre : UUID [FK]
+--
+        note : INTEGER [0-5]
+        commentaire : TEXT
+--
+        date_creation : TIMESTAMP
+        date_modification : TIMESTAMP
+    }
+
+    ' Table des livres
+    entity "LIVRE" {
+        id_livre : UUID [PK]
+--
+        ISBN : VARCHAR
+        titre : VARCHAR
+        auteur : VARCHAR
+        date_publication : DATE
+        prix : DECIMAL
+        genre : VARCHAR
+        editeur : VARCHAR [100]
+        image : VARCHAR
+        limiteAge : INTEGER
+        description : VARCHAR
+--
+        date_creation : TIMESTAMP
+        date_modification : TIMESTAMP
+    }
+
+    ' Table de liaison entre LIVRE et BIBLIOTHEQUE
+    entity "LIVRE_BIBLIOTHEQUE" {
+        id : UUID [PK]
+--
+        id_livre : UUID [FK]
+        id_bibliotheque : UUID [FK]
+--
+        est_favori : BOOLEAN
+        est_lu : BOOLEAN
+--
+        date_creation : TIMESTAMP
+        date_modification : TIMESTAMP
+    }
+
+    ' Table de liaison entre UTILISATEUR et LIVRE
+    entity "UTILISATEUR_LIVRE" {
+        id : UUID [PK]
+--
+        id_utilisateur : UUID [FK]
+        id_livre : UUID [FK]
+--
+        date_creation : TIMESTAMP
+        date_modification : TIMESTAMP
+    }
+
+
+
+}
+
+' API
+package "API" {
+    interface "API_UTILISATEUR" {
+        + GET /utilisateurs
+        + POST /utilisateurs
+        + GET /utilisateurs/{id}
+        + PATCH /utilisateurs/{id}
+        + DELETE /utilisateurs/{id}
+    }
+
+    interface "API_BIBLIOTHEQUE" {
+        + GET /bibliotheques
+        + POST /bibliotheques
+        + GET /bibliotheques/{id}
+        + PATCH /bibliotheques/{id}
+        + DELETE /bibliotheques/{id}
+    }
+
+    interface "API_LIVRE" {
+        + GET /livres
+        + POST /livres
+        + GET /livres/{id}
+        + PATCH /livres/{id}
+        + DELETE /livres/{id}
+    }
+
+    interface "API_AVIS" {
+        + GET /avis
+        + POST /avis
+        + GET /avis/{id}
+        + PATCH /avis/{id}
+        + DELETE /avis/{id}
+    }
+}
+
+' Relations entre entitée
+UTILISATEUR ||--o{ AVIS : écrit
+UTILISATEUR ||--o{ BIBLIOTHEQUE : possede
+LIVRE ||--o{ LIVRE_BIBLIOTHEQUE : appartient
+UTILISATEUR ||--o{ LIVRE_BIBLIOTHEQUE : suivre
+UTILISATEUR_LIVRE }o--|| LIVRE : concerne
+UTILISATEUR ||--o{ UTILISATEUR_LIVRE : consulte
+BIBLIOTHEQUE ||--o{ LIVRE_BIBLIOTHEQUE : depend
+AVIS }o--|| LIVRE : affecte
+
+
+' Connexions API
+API_UTILISATEUR ..> UTILISATEUR : gère
+API_BIBLIOTHEQUE ..> BIBLIOTHEQUE : gère
+API_LIVRE ..> LIVRE : gère
+API_AVIS ..> AVIS : gère
+
+@enduml

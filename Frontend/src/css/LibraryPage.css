@@ -1,0 +1,60 @@
+@import './MediaQueries.css';
+
+.library-page {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 1em;
+  background: linear-gradient(to bottom, #4a1b6b, #2e1044);
+  color: #ffffff;
+  min-height: 100vh;
+}
+
+.library-title {
+  font-size: 1.6rem;
+  margin: 1rem 0;
+  color: #fff;
+}
+
+.book-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  justify-content: center;
+}
+
+.book-card {
+  background-color: rgba(255, 255, 255, 0.05);
+  border-radius: 10px;
+  padding: 0.8rem;
+  width: 100px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  transition: transform 0.3s ease-in-out;
+}
+
+.book-card:hover {
+  transform: translateY(-4px);
+  background-color: rgba(255, 255, 255, 0.08);
+}
+
+.book-image {
+  width: 80px;
+  height: 110px;
+  object-fit: cover;
+  border-radius: 6px;
+}
+
+.book-title {
+  font-size: 0.9em;
+  font-weight: 600;
+  margin: 0.4rem 0 0.1rem;
+  text-align: center;
+}
+
+.book-author {
+  font-size: 0.8em;
+  color: #ccc;
+  text-align: center;
+}

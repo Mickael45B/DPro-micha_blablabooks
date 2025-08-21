@@ -1,0 +1,20 @@
+%%mocodo
+:::
+utilisateur: id_utilisateur, nom, email, mot_de_passe
+:::
+
+
+:
+bibliothèque: code_bibliotheque, nom, est_favoris, #id_utilisateur > utilisateur > id_utilisateur
+:
+utilisateur_livre: #id_utilisateur > utilisateur > id_utilisateur, _#id_livre > livre > id_livre
+:
+AVIS: id_avis, note, commentaire, #id_utilisateur > utilisateur > id_utilisateur, #id_livre > livre > id_livre
+:
+
+
+:
+livre_bibliotheque: #code_bibliotheque > bibliothèque > code_bibliotheque, _#id_utilisateur > utilisateur > id_utilisateur, _#id_livre > livre > id_livre, est_lu, est_favoris
+:
+livre: id_livre, genre, titre, auteur, date_publication, prix
+:::

@@ -1,0 +1,65 @@
+
+services:
+  db:
+    image: postgres:17-alpine
+    restart: always
+    environment:
+      POSTGRES_USER: blablabook
+      POSTGRES_PASSWORD: blablabook
+      POSTGRES_DB: blablabook
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./backend/db/create_table.sql:/docker-entrypoint-initdb.d/create_table.sql
+      - ./backend/db/seeding.sql:/docker-entrypoint-initdb.d/seeding.sql    
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U blablabook"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: blablabooks-backend
+    ports:
+      - "3000:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://blablabook:blablabook@db:5432/blablabook
+      DB_NAME: blablabook
+      DB_USERNAME: blablabook
+      DB_PASSWORD: blablabook
+      DB_HOST: db
+    volumes:
+      - ./backend:/app
+    working_dir: /app
+    command: sh -c "until nc -z db 5432; do echo 'Waiting for DB...'; sleep 2; done; npm install && npm run start"
+    restart: always
+
+  frontend:
+    build:
+      context: ./Frontend
+      dockerfile: Dockerfile
+    container_name: blablabooks-frontend
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
+    environment:
+      VITE_BACKEND_URL: http://localhost:3000
+    volumes:
+      - ./frontend:/app
+    working_dir: /app
+    command: sh -c "npm install && npm run dev -- --host"
+    restart: always
+
+volumes:
+  postgres-data:
+
+  networks:
+  blablabooks-network:
+    driver: bridge

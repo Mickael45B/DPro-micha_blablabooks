@@ -1,0 +1,31 @@
+@import './MediaQueries.css';
+
+.box {
+    display: flex;
+    position: fixed;
+    color: #fff;
+    background-color: #42186200 !important;
+    bottom: 0px;
+    width: 100%;
+  }
+
+.bottomNavigation {
+    display: flex;
+    max-width: 100%;
+    justify-content: space-between;
+    align-items: center;
+    padding: .5rem 0;
+    color: #fff;
+    background-color: #42186200 !important;
+  }
+
+.bottomNavigationAction {
+    color: #fff !important;
+  }
+
+.paper {
+    background-color: rgba(66, 24, 98, 0.3) !important; /* Arrière-plan semi-transparent */
+    -webkit-backdrop-filter: blur(10px); /* Effet en verre givré pour les navigateurs webkit */
+    backdrop-filter: blur(10px); /* Effet de verre givré */
+  }
+

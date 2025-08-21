@@ -1,0 +1,14 @@
+ajouter, 0N UTILISATEUR, 11 bibliothèque
+:
+utilisateur: id_utilisateur, nom, email, mot_de_passe
+ecrire, 0N utilisateur, 11 AVIS
+
+bibliothèque: code_bibliotheque, nom, est_favoris
+:
+utilisateur_livre, 0N utilisateur, 0N livre
+AVIS: id_avis, note, commentaire
+
+livre_bibliotheque, 0N bibliothèque, 0N utilisateur, 0N livre: est_lu, est_favoris
+:
+livre: id_livre, genre, titre, auteur, date_publication, prix
+posseder, 0N livre, 11 AVIS

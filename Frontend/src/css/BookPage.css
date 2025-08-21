@@ -1,0 +1,196 @@
+/* Conteneur pour le contenu principal de la page livre */
+
+@import "./MediaQueries.css";
+
+/* Conteneur principal de la page livre */
+
+.main {
+	all: initial; /* Réinitialise toutes les propriétés */
+}
+
+.main_bookpage {
+	display: flex;
+	flex-direction: column;
+	justify-content: flex-start;
+	align-items: center;
+	width: 100%;
+	text-align: left;
+	margin-top: 0;
+	padding: 0 0 6em 0;
+}
+
+/* Conteneur pour le contenu de la page livre */
+
+.titleAndrating_book {
+	display: flex;
+	flex-direction: row;
+	flex-wrap: nowrap;
+	justify-content: space-between safe;
+	align-items: center;
+	width: 100%;
+	margin-top: 0;
+}
+
+.title_book {
+	display: flex;
+	flex-direction: row;
+	justify-content: start;
+	align-items: center;
+	gap: .5em;
+	width: 49%;
+	color: #f6495c;
+	margin-top: 0;
+	padding: 0 1.2em 0 1.2em;
+}
+
+.rating_book {
+	display: flex;
+	flex-direction: row;
+	justify-content: end;
+	align-items: center;
+	gap: .5em;
+	width: 49%;
+	margin-top: 0;
+	padding: 0 1.2em 0 1.2em;
+}
+
+.book-details {
+	display: flex;
+	flex-direction: row;
+	justify-content: start;
+	align-items: start;
+	gap: .8em;
+	width: 100%;
+}
+
+.left_content_book {
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	align-items: start;
+}
+
+.book-cover {
+	width: 180px;
+	height: 280px;
+	margin-left: .8em;
+}
+
+.right_content_book {
+	display: flex;
+	flex-direction: column;
+	justify-content: start;
+	align-items: start;
+	max-height: 280px;
+}
+
+.data_book {
+	display: flex;
+	flex-direction: row;
+	justify-content: space-between;
+	align-items: end;
+	max-height: 280px;
+	gap: .5em;
+	padding: 0;
+}
+
+.h3 {
+	display: flex;
+	padding: 0;
+	margin: 0;
+	font-size: .9em;
+	max-height: 300px;
+}
+
+.description_content {
+	display: flex;
+	width: 100%;
+	flex-direction: column;
+	justify-content: start;
+	align-items: start;
+	text-align: left;
+}
+
+h2 {
+	padding-left: .5em;
+	font-weight: 500;
+}
+
+.description {
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	align-items: center;
+	text-align: left;
+	padding: 0 .9em 0 .9em;
+	margin: 0;
+}
+
+.description_scroll {
+	display: flex;
+	flex-direction: column;
+	justify-content: flex-start; /* Aligne le contenu en haut */
+	align-items: center;
+	text-align: left;
+	padding: 0;
+	margin: 0;
+	max-height: 100px; /* Limite la hauteur du conteneur */
+	overflow-y: hidden; /* Masque la scrollbar verticale */
+	/* scrollbar-width: none; Masque la scrollbar pour Firefox */
+}
+
+.description_scroll::-webkit-scrollbar {
+	display: none; /* Masque la scrollbar pour les navigateurs WebKit */
+	/* Removed -webkit-overflow-scrolling as it is not supported */
+	overflow-y: overlay; /* Permet un scroll uniquement si nécessaire (si supporté par le navigateur) */
+}
+
+.reviews-section {
+	margin: 2em 0;
+	padding: 1em;
+	/* background-color: #f9f9f9; */
+	border-radius: 8px;
+}
+
+.reviews-section h2 {
+	text-align: center;
+	margin-bottom: 1em;
+}
+
+.reviews-grid {
+	display: grid;
+	grid-template-columns: repeat(3, 1fr); /* 3 colonnes par défaut pour mobile */
+	gap: 1em;
+}
+
+.review-card {
+	min-width: 20rem;
+	margin: 1rem;
+	/* background-color: #fff; */
+	padding: 1rem;
+	border: 1px solid #ddd;
+	border-radius: 8px;
+	box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+.review-info {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+}
+.MuiBox-root {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.review-reviewer {
+	margin: 0 0 0.5em;
+	font-size: 1.2em;
+	color: #f6495c;
+	font-weight: bold;
+}
+.review-card p {
+	font-size: 0.9em;
+	color: #666;
+	margin-bottom: 0.5em;
+}
