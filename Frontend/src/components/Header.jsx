@@ -14,7 +14,7 @@ import "../css/Header.css";
 import "../css/NavBar.css";
 import "../css/MediaQueries.css";
 import "../css/LoginPage.css";
-
+import logoTitre from '../assets/logoTitre.png';
 const Header = () => {
 	const [isNavOpen, setIsNavOpen] = useState(false); // État pour gérer l'ouverture de la barre de navigation
 	const navRef = useRef(null); // Référence pour la barre de navigation
@@ -40,7 +40,7 @@ const Header = () => {
 				<a href="/" className="logo_link">
 					<img
 						className="logo"
-						src="/src/assets/logoTitre.png"
+						src={logoTitre}
 						alt="BlablaBooks Logo"
 					/>
 				</a>
