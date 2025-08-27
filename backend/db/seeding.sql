@@ -3,9 +3,9 @@ BEGIN;
 
 -- Vide les tables, sans toucher à la structure des tables
  TRUNCATE TABLE "users", "book", "library", "reviews", "bookhaslibrary" RESTART IDENTITY;
- --Pa$$w0rd!
+ 
 
-INSERT INTO users (id_user, name, email, password, is_admin, created_at, updated_at) 
+INSERT INTO users (id_user, name, email, password, is_admin, created_at, updated_at) --Pa$$w0rd!
 VALUES ('1e2d3c4b-5a6f-7e8d-9c0b-1a2f3e4d5c6b', 'Alice Dupont', 'alice.dupont@example.com', '23e3fc5b1c95c802a262cdde4fa950f4:a00542662e9c2632082ba4739fe50f75024bb2f717f56f82154421ddad5776bed61dcc68f1ced3e2310a1db8280ccc124c624fa78f904ccbf96840e972999e64', TRUE, '2025-01-01 10:00:00', '2025-01-01 10:00:00'),
 ('2e3d4c5b-6a7f-8e9d-0c1b-2a3f4e5d6c7b', 'Bob Martin', 'bob.martin@example.com', '23e3fc5b1c95c802a262cdde4fa950f4:a00542662e9c2632082ba4739fe50f75024bb2f717f56f82154421ddad5776bed61dcc68f1ced3e2310a1db8280ccc124c624fa78f904ccbf96840e972999e64', TRUE, '2025-01-02 11:00:00', '2025-01-02 11:00:00'),
 ('3f4e5d6c-7b8a-9f0e-1d2c-3b4a5f6e7d8c', 'Charlie Durand', 'charlie.durand@example.com', '23e3fc5b1c95c802a262cdde4fa950f4:a00542662e9c2632082ba4739fe50f75024bb2f717f56f82154421ddad5776bed61dcc68f1ced3e2310a1db8280ccc124c624fa78f904ccbf96840e972999e64', FALSE, '2025-01-03 12:00:00', '2025-01-03 12:00:00'),
