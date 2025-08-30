@@ -1,0 +1,14 @@
+Ajouter, 0N utilisateur, 11 bibliothèque
+utilisateur: id_utilisateur, nom, email, mot_de_passe
+Ecrire, 0N utilisateur, 11 avis
+
+
+
+bibliothèque: code_bibliotheque, nom, est_modifiable 
+:
+avis: id_avis, note, commentaire
+
+
+livre_bibliothèque, 0N livre, 0N bibliothèque
+livre: id_livre, genre, titre, auteur, date_publication, prix
+virtuelement_posseder, 0N livre, 11 avis

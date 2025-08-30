@@ -1,0 +1,35 @@
+{
+  "width": 478,
+  "height": 322,
+  "cx": [
+    [ "AJOUTER", 72 ],
+    [ "UTILISATEUR", 224 ],
+    [ "ECRIRE", 391 ],
+    [ "BIBLIOTHEQUE", 72 ],
+    [ "AVIS", 391 ],
+    [ "LIVRE_BIBLIOTHEQUE", 72 ],
+    [ "LIVRE", 224 ],
+    [ "VIRTUELEMENT_POSSEDER", 391 ]
+  ],
+  "cy": [
+    [ "AJOUTER", 60 ],
+    [ "UTILISATEUR", 60 ],
+    [ "ECRIRE", 60 ],
+    [ "BIBLIOTHEQUE", 152 ],
+    [ "AVIS", 152 ],
+    [ "LIVRE_BIBLIOTHEQUE", 245 ],
+    [ "LIVRE", 245 ],
+    [ "VIRTUELEMENT_POSSEDER", 245 ]
+  ],
+  "shift": [
+    [ "AJOUTER,UTILISATEUR,0", 0 ],
+    [ "AJOUTER,BIBLIOTHEQUE,0", 0 ],
+    [ "ECRIRE,UTILISATEUR,0", 0 ],
+    [ "ECRIRE,AVIS,0", 0 ],
+    [ "LIVRE_BIBLIOTHEQUE,LIVRE,0", 0 ],
+    [ "LIVRE_BIBLIOTHEQUE,BIBLIOTHEQUE,0", 0 ],
+    [ "VIRTUELEMENT_POSSEDER,LIVRE,0", 0 ],
+    [ "VIRTUELEMENT_POSSEDER,AVIS,0", 0 ]
+  ],
+  "ratio": []
+}

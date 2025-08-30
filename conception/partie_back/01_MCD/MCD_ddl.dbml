@@ -1,0 +1,44 @@
+Table "avis" {
+  "id_avis"        VARCHAR(42) [pk, NOT NULL]
+  "note"           VARCHAR(42)
+  "commentaire"    VARCHAR(42)
+  "id_utilisateur" VARCHAR(42) [NOT NULL]
+  "id_livre"       VARCHAR(42) [NOT NULL]
+}
+
+Table "bibliothèque" {
+  "code_bibliotheque" VARCHAR(42) [pk, NOT NULL]
+  "nom"               VARCHAR(42)
+  "est_modifiable"    VARCHAR(42)
+  "id_utilisateur"    VARCHAR(42) [NOT NULL]
+}
+
+Table "livre" {
+  "id_livre"         VARCHAR(42) [pk, NOT NULL]
+  "genre"            VARCHAR(42)
+  "titre"            VARCHAR(42)
+  "auteur"           VARCHAR(42)
+  "date_publication" VARCHAR(42)
+  "prix"             VARCHAR(42)
+}
+
+Table "livre_bibliothèque" {
+  "id_livre"          VARCHAR(42) [NOT NULL]
+  "code_bibliotheque" VARCHAR(42) [NOT NULL]
+  Indexes {
+    ("id_livre", "code_bibliotheque") [pk]
+  }
+}
+
+Table "utilisateur" {
+  "id_utilisateur" VARCHAR(42) [pk, NOT NULL]
+  "nom"            VARCHAR(42)
+  "email"          VARCHAR(42)
+  "mot_de_passe"   VARCHAR(42)
+}
+
+Ref:"avis"."id_utilisateur" > "utilisateur"."id_utilisateur"
+Ref:"avis"."id_livre" > "livre"."id_livre"
+Ref:"bibliothèque"."id_utilisateur" > "utilisateur"."id_utilisateur"
+Ref:"livre_bibliothèque"."id_livre" > "livre"."id_livre"
+Ref:"livre_bibliothèque"."code_bibliotheque" > "bibliothèque"."code_bibliotheque"

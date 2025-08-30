@@ -21,7 +21,7 @@ skinparam classFontName Arial
 skinparam classFontSize 18
 skinparam classHeaderBackgroundColor #92c5de
 
-"UTILISATEUR" "1" --- "*" "bibliothèque": "ajouter"
+"utilisateur" "1" --- "*" "bibliothèque": "Ajouter"
 
 Table("utilisateur") {
     {field} + pk(id_utilisateur)
@@ -30,31 +30,21 @@ Table("utilisateur") {
     {field} + mot_de_passe
 }
 
-"utilisateur" "1" --- "*" "AVIS": "ecrire"
+"utilisateur" "1" --- "*" "avis": "Ecrire"
 
 Table("bibliothèque") {
     {field} + pk(code_bibliotheque)
     {field} + nom
-    {field} + est_favoris
+    {field} + est_modifiable
 }
 
-"utilisateur" "*" --- "*" "livre": "utilisateur_livre"
-
-Table("AVIS") {
+Table("avis") {
     {field} + pk(id_avis)
     {field} + note
     {field} + commentaire
 }
 
-diamond N_ARY_0
-N_ARY_0 -- "*" "bibliothèque"
-N_ARY_0 -- "*" "utilisateur"
-N_ARY_0 -- "*" "livre"
-N_ARY_0 "livre_bibliotheque" .. "livre_bibliotheque"
-Table("livre_bibliotheque") {
-    {field} + est_lu
-    {field} + est_favoris
-}
+"livre" "*" --- "*" "bibliothèque": "livre_bibliothèque"
 
 Table("livre") {
     {field} + pk(id_livre)
@@ -65,6 +55,6 @@ Table("livre") {
     {field} + prix
 }
 
-"livre" "1" --- "*" "AVIS": "posseder"
+"livre" "1" --- "*" "avis": "virtuelement_posseder"
 
 @enduml
