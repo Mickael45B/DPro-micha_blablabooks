@@ -1,0 +1,478 @@
+@startuml
+
+title Recherche de Livres - Site Bibliothèque en Ligne (GraphQL + Apollo Server)
+
+actor Utilisateur as user
+participant "Interface\nRecherche" as searchUI
+participant "Client\nGraphQL" as graphqlClient
+participant "Apollo\nServer" as apolloServer
+participant "Resolver\nBooks" as bookResolver
+participant "Service\nRecherche" as searchService
+participant "Service\nCache" as cacheService
+database "Base de\nDonnées" as db
+participant "Index\nFull-Text" as searchIndex
+
+note over user, searchIndex
+    **Architecture GraphQL pour la recherche :**
+    
+    **Schema GraphQL :**
+    type Book {
+      id: ID!
+      title: String!
+      author: Author
+      genre: Genre
+      isbn: String
+      publication_date: Date
+      avg_rating: Float
+      nb_reviews: Int
+      description: String
+      cover_image: String
+    }
+    
+    type Query {
+      searchBooks(filters: BookFilters!, pagination: PaginationInput): BookSearchResult!
+    }
+    
+    input BookFilters {
+      query: String
+      title: String
+      author: String
+      genre: [String!]
+      rating_min: Float
+      rating_max: Float
+      publication_year_min: Int
+      publication_year_max: Int
+      isbn: String
+    }
+end note
+
+== Initialisation de l'interface de recherche ==
+
+user -> searchUI : Accède à la page de recherche
+activate searchUI
+
+searchUI -> graphqlClient : Charger données pour les filtres
+activate graphqlClient
+
+graphqlClient -> apolloServer : Query initiale
+activate apolloServer
+
+note right of apolloServer
+    Query GraphQL :
+    query InitSearchPage {
+      genres {
+        id
+        name
+        book_count
+      }
+      authors(limit: 100, popular: true) {
+        id
+        full_name
+        book_count
+      }
+      searchStats {
+        total_books
+        avg_rating
+      }
+    }
+end note
+
+apolloServer -> bookResolver : Résoudre données initiales
+activate bookResolver
+
+bookResolver -> cacheService : Vérifier cache des métadonnées
+activate cacheService
+
+alt Données en cache
+    cacheService --> bookResolver : ✅ Données mises en cache (5min TTL)
+    deactivate cacheService
+else Cache expiré
+    cacheService -> db : Récupérer métadonnées fraîches
+    activate db
+    
+    db -> db : SELECT genres avec compteurs
+    db -> db : SELECT auteurs populaires
+    db -> db : SELECT statistiques globales
+    
+    db --> cacheService : Données fraîches
+    deactivate db
+    cacheService -> cacheService : Mettre en cache (5min)
+    cacheService --> bookResolver : ✅ Données actualisées
+    deactivate cacheService
+end
+
+bookResolver --> apolloServer : ✅ Données résolues
+deactivate bookResolver
+
+apolloServer --> graphqlClient : Réponse GraphQL structurée
+deactivate apolloServer
+
+graphqlClient --> searchUI : ✓ Métadonnées pour filtres
+deactivate graphqlClient
+
+searchUI --> user : Interface de recherche\n(barre recherche, filtres genres/auteurs, facettes)
+deactivate searchUI
+
+== Recherche simple - Une seule catégorie ==
+
+user -> searchUI : Saisit "Harry Potter" dans la recherche titre
+activate searchUI
+
+searchUI -> graphqlClient : Recherche en temps réel (debounce 300ms)
+activate graphqlClient
+
+graphqlClient -> apolloServer : Query de recherche simple
+activate apolloServer
+
+note right of apolloServer
+    Query GraphQL :
+    query SearchBooks($filters: BookFilters!, $pagination: PaginationInput) {
+      searchBooks(filters: $filters, pagination: $pagination) {
+        books {
+          id
+          title
+          author { full_name }
+          genre { name color_hex }
+          avg_rating
+          cover_image
+          publication_date
+        }
+        facets {
+          genres { name count }
+          authors { name count }
+          years { year count }
+        }
+        pagination {
+          total_count
+          has_next_page
+          has_previous_page
+        }
+      }
+    }
+    
+    Variables :
+    {
+      "filters": { "title": "Harry Potter" },
+      "pagination": { "first": 20, "offset": 0 }
+    }
+end note
+
+apolloServer -> bookResolver : Résoudre searchBooks
+activate bookResolver
+
+bookResolver -> searchService : Recherche avec filtres
+activate searchService
+
+searchService -> searchService : Construire requête de recherche\n(titre: "Harry Potter")
+
+searchService -> searchIndex : Recherche full-text optimisée
+activate searchIndex
+
+searchIndex -> db : SELECT b.*, a.full_name, g.name as genre_name\nFROM books b\nJOIN authors a ON b.id_author = a.id_author\nJOIN genres g ON b.id_genre = g.id_genre\nWHERE to_tsvector('french', unaccent(b.title)) \n  @@ plainto_tsquery('french', unaccent('Harry Potter'))\nORDER BY ts_rank_cd(...) DESC, b.avg_rating DESC\nLIMIT 20 OFFSET 0
+activate db
+
+db --> searchIndex : Résultats de recherche + scores
+deactivate db
+
+searchIndex --> searchService : ✅ Livres trouvés avec pertinence
+deactivate searchIndex
+
+searchService -> searchService : Calculer facettes pour affinage
+searchService -> db : SELECT g.name, COUNT(*) FROM books b\nJOIN genres g ON b.id_genre = g.id_genre\nWHERE b.id_book IN (résultats_précédents)\nGROUP BY g.name
+activate db
+db --> searchService : Facettes genres
+deactivate db
+
+searchService --> bookResolver : ✅ Résultats + facettes
+deactivate searchService
+
+bookResolver --> apolloServer : ✅ Données complètes résolues
+deactivate bookResolver
+
+apolloServer --> graphqlClient : Réponse GraphQL avec résultats
+deactivate apolloServer
+
+graphqlClient --> searchUI : ✓ Livres trouvés + métadonnées
+deactivate graphqlClient
+
+searchUI --> user : Résultats de recherche\n(X livres trouvés, facettes pour affiner, pagination)
+deactivate searchUI
+
+== Recherche multiple - Plusieurs catégories ==
+
+user -> searchUI : Affine la recherche :\n- Titre: "Harry Potter"\n- Auteur: "Rowling"\n- Genre: "Fantasy"\n- Note min: 4.0
+activate searchUI
+
+searchUI -> graphqlClient : Recherche multicritères
+activate graphqlClient
+
+graphqlClient -> apolloServer : Query complexe avec multiples filtres
+activate apolloServer
+
+note right of apolloServer
+    Query GraphQL avancée :
+    query AdvancedSearchBooks($filters: BookFilters!) {
+      searchBooks(filters: $filters, pagination: { first: 20 }) {
+        books {
+          id
+          title
+          author { id full_name }
+          genre { id name color_hex }
+          avg_rating
+          nb_reviews
+          cover_image
+          publication_date
+          description(truncate: 200)
+        }
+        facets {
+          genres { name count selected }
+          authors { name count selected }
+          rating_ranges { 
+            range { min max }
+            count 
+          }
+          publication_years { year count }
+        }
+        pagination {
+          total_count
+          current_page
+          total_pages
+        }
+        search_metadata {
+          query_time_ms
+          total_matches
+          search_suggestions
+        }
+      }
+    }
+    
+    Variables :
+    {
+      "filters": {
+        "title": "Harry Potter",
+        "author": "Rowling", 
+        "genre": ["Fantasy"],
+        "rating_min": 4.0
+      }
+    }
+end note
+
+apolloServer -> bookResolver : Résoudre recherche complexe
+activate bookResolver
+
+bookResolver -> searchService : Recherche multicritères avancée
+activate searchService
+
+searchService -> searchService : Construire requête SQL complexe\navec tous les filtres
+
+searchService -> cacheService : Vérifier cache de cette requête exacte
+activate cacheService
+
+alt Requête en cache
+    cacheService --> searchService : ✅ Résultats en cache (2min TTL)
+    deactivate cacheService
+else Nouvelle requête
+    cacheService --> searchService : ❌ Pas en cache
+    deactivate cacheService
+    
+    searchService -> searchIndex : Recherche multi-champs optimisée
+    activate searchIndex
+    
+    searchIndex -> db : SELECT DISTINCT b.*, a.full_name, g.name,\n  ts_rank_cd(search_vector, query) as relevance_score\nFROM books b\nJOIN authors a ON b.id_author = a.id_author  \nJOIN genres g ON b.id_genre = g.id_genre\nWHERE 1=1\n  AND to_tsvector('french', unaccent(b.title)) @@ plainto_tsquery('french', unaccent('Harry Potter'))\n  AND to_tsvector('french', unaccent(a.full_name)) @@ plainto_tsquery('french', unaccent('Rowling'))\n  AND g.name = 'Fantasy'\n  AND b.avg_rating >= 4.0\nORDER BY relevance_score DESC, b.avg_rating DESC, b.nb_reviews DESC\nLIMIT 20
+    activate db
+    
+    alt Résultats trouvés
+        db --> searchIndex : Livres correspondants + scores
+        deactivate db
+        
+        searchIndex --> searchService : ✅ Résultats avec pertinence
+        deactivate searchIndex
+        
+        searchService -> searchService : Calculer facettes dynamiques\npour les résultats trouvés
+        
+        searchService -> db : -- Facettes genres pour ces résultats\nSELECT g.name, g.color_hex, COUNT(*) as count,\n  CASE WHEN g.name = 'Fantasy' THEN true ELSE false END as selected\nFROM books b\nJOIN genres g ON b.id_genre = g.id_genre\nWHERE b.id_book IN (liste_résultats)\nGROUP BY g.id_genre, g.name, g.color_hex\nORDER BY count DESC
+        activate db
+        db --> searchService : Facettes genres
+        
+        searchService -> db : -- Facettes auteurs\nSELECT a.full_name, COUNT(*) as count\nFROM books b\nJOIN authors a ON b.id_author = a.id_author\nWHERE b.id_book IN (liste_résultats)\nGROUP BY a.id_author, a.full_name\nORDER BY count DESC
+        db --> searchService : Facettes auteurs
+        
+        searchService -> db : -- Facettes notes\nSELECT \n  CASE \n    WHEN avg_rating >= 4.5 THEN '4.5+'\n    WHEN avg_rating >= 4.0 THEN '4.0-4.5'\n    WHEN avg_rating >= 3.0 THEN '3.0-4.0'\n    ELSE '< 3.0'\n  END as rating_range,\n  COUNT(*) as count\nFROM books b\nWHERE b.id_book IN (liste_résultats)\nGROUP BY rating_range\nORDER BY rating_range DESC
+        db --> searchService : Facettes notes
+        deactivate db
+        
+        searchService -> cacheService : Mettre en cache les résultats
+        activate cacheService
+        cacheService --> searchService : ✅ Résultats mis en cache
+        deactivate cacheService
+        
+    else Aucun résultat
+        db --> searchIndex : 0 résultat trouvé
+        deactivate db
+        searchIndex --> searchService : ❌ Aucun livre correspondant
+        deactivate searchIndex
+        
+        searchService -> searchService : Générer suggestions alternatives\n(relâcher certains critères)
+        
+        searchService -> db : -- Suggestions : sans filtre genre\nSELECT DISTINCT b.title, a.full_name\nFROM books b\nJOIN authors a ON b.id_author = a.id_author\nWHERE to_tsvector('french', b.title) @@ plainto_tsquery('french', 'Harry Potter')\n  AND to_tsvector('french', a.full_name) @@ plainto_tsquery('french', 'Rowling')\nLIMIT 5
+        activate db
+        db --> searchService : Suggestions alternatives
+        deactivate db
+    end
+end
+
+searchService --> bookResolver : ✅ Résultats complets + facettes + métadonnées
+deactivate searchService
+
+bookResolver --> apolloServer : ✅ Données résolues avec richesse
+deactivate bookResolver
+
+apolloServer --> graphqlClient : Réponse GraphQL complète
+deactivate apolloServer
+
+graphqlClient --> searchUI : ✓ Résultats enrichis + suggestions
+deactivate graphqlClient
+
+searchUI --> user : Résultats affinés\n(livres + facettes interactives + stats + suggestions)
+deactivate searchUI
+
+== Fonctionnalités avancées de recherche ==
+
+alt Recherche par ISBN
+    user -> searchUI : Saisit un ISBN dans la recherche
+    searchUI -> graphqlClient : Recherche ISBN exacte
+    activate graphqlClient
+    
+    graphqlClient -> apolloServer : Query spécifique ISBN
+    activate apolloServer
+    
+    note right of apolloServer
+        Query ISBN :
+        query FindByISBN($isbn: String!) {
+          bookByISBN(isbn: $isbn) {
+            id
+            title
+            author { full_name }
+            isbn
+            availability_status
+            libraries_count
+          }
+        }
+    end note
+    
+    apolloServer -> bookResolver : Résoudre par ISBN
+    activate bookResolver
+    bookResolver -> db : SELECT exact par ISBN normalisé
+    activate db
+    db --> bookResolver : Livre trouvé ou non
+    deactivate db
+    bookResolver --> apolloServer : Résultat unique
+    deactivate bookResolver
+    apolloServer --> graphqlClient : Livre exact ou null
+    deactivate apolloServer
+    graphqlClient --> searchUI : Résultat ISBN
+    deactivate graphqlClient
+    searchUI --> user : Livre exact ou "ISBN non trouvé"
+end
+
+alt Recherche avec autocomplétion
+    user -> searchUI : Tape "Harr..." dans la recherche
+    searchUI -> graphqlClient : Suggestions en temps réel
+    activate graphqlClient
+    
+    graphqlClient -> apolloServer : Query suggestions
+    activate apolloServer
+    
+    apolloServer -> bookResolver : Autocomplétion intelligente
+    activate bookResolver
+    bookResolver -> searchService : Suggestions multiples sources
+    activate searchService
+    
+    searchService -> db : SELECT suggestions titres + auteurs
+    activate db
+    db --> searchService : Suggestions mixtes
+    deactivate db
+    searchService --> bookResolver : Top suggestions
+    deactivate searchService
+    bookResolver --> apolloServer : Suggestions classées
+    deactivate bookResolver
+    apolloServer --> graphqlClient : Liste suggestions
+    deactivate apolloServer
+    graphqlClient --> searchUI : Dropdown suggestions
+    deactivate graphqlClient
+    searchUI --> user : Menu déroulant avec suggestions\n(titres, auteurs, séries)
+end
+
+alt Sauvegarde de recherche
+    user -> searchUI : Clic "Sauvegarder cette recherche"
+    searchUI -> graphqlClient : Enregistrer filtres utilisateur
+    activate graphqlClient
+    
+    graphqlClient -> apolloServer : Mutation sauvegarde
+    activate apolloServer
+    
+    note right of apolloServer
+        Mutation :
+        mutation SaveSearch($search: SavedSearchInput!) {
+          saveSearch(input: $search) {
+            id
+            name
+            filters
+            created_at
+          }
+        }
+    end note
+    
+    apolloServer -> bookResolver : Enregistrer recherche utilisateur
+    activate bookResolver
+    bookResolver -> db : INSERT recherche sauvée
+    activate db
+    db --> bookResolver : ✓ Recherche sauvée
+    deactivate db
+    bookResolver --> apolloServer : Confirmation
+    deactivate bookResolver
+    apolloServer --> graphqlClient : Recherche enregistrée
+    deactivate apolloServer
+    graphqlClient --> searchUI : Confirmation sauvegarde
+    deactivate graphqlClient
+    searchUI --> user : "Recherche sauvegardée dans 'Mes recherches'"
+end
+
+== Performance et optimisations ==
+
+note over user, searchIndex
+    **Optimisations GraphQL + Apollo :**
+    
+    **Cache multicouche :**
+    - Apollo Client : cache côté client (requêtes identiques)
+    - Apollo Server : cache resolver (métadonnées, facettes populaires)  
+    - Base données : index full-text + matérialisées views
+    
+    **Performance recherche :**
+    - Debouncing côté client (300ms)
+    - Index GIN pour recherche full-text PostgreSQL
+    - Pagination cursor-based pour grandes listes
+    - Requêtes préparées avec plans optimisés
+    
+    **Fonctionnalités avancées :**
+    - Autocomplétion intelligente (titres + auteurs + séries)
+    - Suggestions de correction ("did you mean...")
+    - Recherches sauvegardées par utilisateur
+    - Historique de recherche
+    - Recherche par ISBN exact
+    - Filtres facettés dynamiques
+    
+    **Analytics recherche :**
+    - Termes les plus recherchés
+    - Taux de clics par résultat  
+    - Recherches sans résultats (pour améliorer le catalogue)
+    - Performance des requêtes (temps de réponse)
+    
+    **Schema GraphQL évolutif :**
+    - Union types pour résultats mixtes (Book | Author | Series)
+    - Interfaces pour entités similaires  
+    - Fragments pour réutilisation côté client
+    - Subscriptions pour recherches temps réel (multi-utilisateurs)
+end note
+
+@enduml

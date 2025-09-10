@@ -1,0 +1,216 @@
+@startuml
+
+title Création d'un compte utilisateur avec bibliothèques par défaut
+
+actor Visiteur as visitor
+participant "Interface\nFormulaire" as form
+participant "Contrôleur\nValidation" as controller
+participant "Service\nUtilisateur" as userService
+database "Base de\nDonnées" as db
+participant "Service\nEmail" as emailService
+participant "Service\nBibliothèque" as libraryService
+participant "Page d'accueil" as homePage
+
+== Phase de saisie et validation ==
+
+visitor -> form : Accède au formulaire d'inscription
+activate form
+
+note right of visitor : Souhaite créer un compte
+
+visitor -> form : Saisit son nom complet
+form -> controller : Valide le nom (longueur, caractères)
+activate controller
+controller --> form : ✓ Nom valide / ✗ Erreur format
+deactivate controller
+
+visitor -> form : Saisit son email
+form -> controller : Valide le format email
+activate controller
+controller -> controller : Vérification regex email
+alt Format email valide
+    controller -> userService : Vérifier disponibilité email
+    activate userService
+    userService -> db : SELECT email FROM users WHERE email = ?
+    activate db
+    alt Email déjà existant
+        db --> userService : Email trouvé
+        userService --> controller : ❌ Email indisponible
+        controller --> form : "Cet email est déjà utilisé"
+    else Email disponible
+        db --> userService : Email non trouvé
+        deactivate db
+        userService --> controller : ✅ Email disponible
+        deactivate userService
+        controller --> form : ✓ Email valide et disponible
+    end
+else Format email invalide
+    controller --> form : ❌ "Format email invalide"
+end
+deactivate controller
+
+visitor -> form : Saisit un pseudo (optionnel)
+alt Pseudo renseigné
+    form -> controller : Valide le pseudo
+    activate controller
+    controller -> controller : Vérification format pseudo\n(longueur, caractères autorisés)
+    alt Format pseudo valide
+        controller -> userService : Vérifier disponibilité pseudo
+        activate userService
+        userService -> db : SELECT pseudo FROM users WHERE pseudo = ?
+        activate db
+        alt Pseudo déjà pris
+            db --> userService : Pseudo trouvé
+            userService --> controller : ❌ Pseudo indisponible
+            controller --> form : "Ce pseudo est déjà pris"
+        else Pseudo disponible
+            db --> userService : Pseudo non trouvé
+            deactivate db
+            userService --> controller : ✅ Pseudo disponible
+            deactivate userService
+            controller --> form : ✓ Pseudo valide et disponible
+        end
+    else Format pseudo invalide
+        controller --> form : ❌ "Format pseudo invalide"
+    end
+    deactivate controller
+end
+
+visitor -> form : Saisit un mot de passe
+form -> controller : Valide la force du mot de passe
+activate controller
+controller -> controller : Vérification critères sécurité\n(longueur, complexité)
+alt Mot de passe fort
+    controller --> form : ✓ Mot de passe accepté
+else Mot de passe faible
+    controller --> form : ❌ "Mot de passe trop faible"
+end
+deactivate controller
+
+visitor -> form : Confirme le mot de passe
+form -> controller : Compare les mots de passe
+activate controller
+alt Mots de passe identiques
+    controller --> form : ✓ Confirmation valide
+else Mots de passe différents
+    controller --> form : ❌ "Les mots de passe ne correspondent pas"
+end
+deactivate controller
+
+== Phase de création du compte ==
+
+visitor -> form : Soumet le formulaire
+form -> controller : Valider et créer le compte
+activate controller
+
+controller -> controller : Validation finale de tous les champs
+
+alt Tous les champs valides
+    controller -> userService : Créer nouveau compte complet
+    activate userService
+    
+    userService -> userService : Hacher le mot de passe
+    
+    userService -> db : BEGIN TRANSACTION
+    activate db
+    
+    userService -> db : INSERT INTO users\n(id_user, name, email, password, pseudo, id_role)\nVALUES (uuid(), ?, ?, ?, ?, 'user_role')
+    alt Insertion utilisateur réussie
+        db --> userService : ✓ Utilisateur créé (id: new_user_id)
+        
+        == Création des bibliothèques par défaut ==
+        
+        userService -> libraryService : Créer bibliothèques par défaut
+        activate libraryService
+        
+        libraryService -> db : INSERT INTO libraries\n(id_library, name, is_editable, id_user)\nVALUES (uuid(), 'Livres lus', false, new_user_id)
+        alt Bibliothèque "Livres lus" créée
+            db --> libraryService : ✓ Bibliothèque "Livres lus" créée
+            
+            libraryService -> db : INSERT INTO libraries\n(id_library, name, is_editable, id_user)\nVALUES (uuid(), 'Livres favoris', false, new_user_id)
+            alt Bibliothèque "Livres favoris" créée
+                db --> libraryService : ✓ Bibliothèque "Livres favoris" créée
+                
+                libraryService --> userService : ✅ Toutes les bibliothèques créées
+                deactivate libraryService
+                
+                userService -> db : COMMIT TRANSACTION
+                deactivate db
+                
+                == Finalisation du compte ==
+                
+                userService -> emailService : Envoyer email de bienvenue
+                activate emailService
+                emailService --> userService : ✓ Email envoyé
+                deactivate emailService
+                
+                userService --> controller : ✅ Compte créé avec succès\n+ bibliothèques configurées
+                deactivate userService
+                
+                controller -> controller : Créer session utilisateur
+                controller --> form : ✓ Compte créé et connecté
+                
+                form -> homePage : Redirection avec message de succès
+                activate homePage
+                homePage --> visitor : "Bienvenue ! Votre compte a été créé\navec vos bibliothèques 'Livres lus' et 'Livres favoris'"
+                deactivate homePage
+                
+            else Erreur création "Livres favoris"
+                db --> libraryService : ❌ Erreur création bibliothèque favoris
+                libraryService --> userService : ❌ Erreur bibliothèques
+                deactivate libraryService
+                userService -> db : ROLLBACK TRANSACTION
+                db --> userService : ❌ Transaction annulée
+                deactivate db
+                userService --> controller : ❌ Erreur création compte
+                deactivate userService
+                controller --> form : "Erreur lors de la configuration des bibliothèques"
+            end
+            
+        else Erreur création "Livres lus"
+            db --> libraryService : ❌ Erreur création bibliothèque lus
+            libraryService --> userService : ❌ Erreur bibliothèques
+            deactivate libraryService
+            userService -> db : ROLLBACK TRANSACTION
+            db --> userService : ❌ Transaction annulée
+            deactivate db
+            userService --> controller : ❌ Erreur création compte
+            deactivate userService
+            controller --> form : "Erreur lors de la configuration des bibliothèques"
+        end
+        
+    else Erreur insertion utilisateur
+        db --> userService : ❌ Erreur création utilisateur
+        userService -> db : ROLLBACK TRANSACTION
+        db --> userService : ❌ Transaction annulée
+        deactivate db
+        userService --> controller : ❌ Erreur création compte
+        deactivate userService
+        controller --> form : "Erreur technique, veuillez réessayer"
+    end
+    
+else Champs invalides
+    controller --> form : ❌ "Veuillez corriger les erreurs"
+end
+
+deactivate controller
+deactivate form
+
+== Gestion des erreurs ==
+
+note over visitor, db
+    En cas d'erreur réseau ou technique :
+    - Affichage d'un message d'erreur explicite
+    - Conservation des données saisies
+    - Rollback automatique (utilisateur + bibliothèques)
+    - Possibilité de renvoyer l'email de confirmation
+    
+    Bibliothèques créées automatiquement :
+    - "Livres lus" : non modifiable, pour tracker les lectures terminées
+    - "Livres favoris" : non modifiable, pour les coups de cœur
+    - L'utilisateur pourra créer d'autres bibliothèques personnalisées plus tard
+    
+    Transaction atomique : tout est créé ou rien (utilisateur + 2 bibliothèques)
+end note
+
+@enduml

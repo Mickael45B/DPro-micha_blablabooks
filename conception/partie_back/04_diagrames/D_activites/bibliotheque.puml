@@ -1,0 +1,288 @@
+@startuml
+
+title Diagramme d'Activité - Gestion des Bibliothèques Utilisateur
+
+start
+
+if (Utilisateur connecté ?) then (non)
+  :call Processus Authentification;
+  note right : Voir "Diagramme Connexion/Inscription"
+  if (Connexion réussie ?) then (non)
+    stop
+  endif
+endif
+
+:Accès à la page "Mes Bibliothèques";
+:Affichage liste bibliothèques;
+
+note right
+  **Ordre d'affichage fixe :**
+  1. "Livres lus" (non déplaçable)
+  2. "Livres favoris" (non déplaçable) 
+  3. Bibliothèques personnelles (ordre modifiable)
+  
+  **Actions possibles par type :**
+  - Système : consultation uniquement
+  - Personnelles : toutes actions possibles
+end note
+
+while (Action choisie ?) is (disponible)
+
+  switch (Type d'action ?)
+  
+  case (Créer nouvelle bibliothèque ➕)
+    :Clic "Créer une bibliothèque";
+    :Ouverture modal création;
+    
+    if (Nom personnalisé souhaité ?) then (oui)
+      repeat :Saisie nom bibliothèque;
+      repeat while (Nom valide ?) is (non)
+      :Affichage "Nom invalide";
+      
+      :Vérification unicité nom;
+      if (Nom déjà utilisé ?) then (oui)
+        :Affichage "Nom déjà existant";
+        :Saisie nom bibliothèque;
+      endif
+      
+    else (non)
+      :Génération nom aléatoire;
+      note right
+        Exemples noms auto :
+        - "Ma collection #X"
+        - "Bibliothèque du [date]"  
+        - "Sélection personnelle #X"
+        - "À lire plus tard #X"
+      end note
+      
+      :Vérification unicité nom généré;
+      while (Nom généré unique ?) is (non)
+        :Génération nouveau nom;
+      endwhile (oui)
+    endif
+    
+    :Calcul position d'affichage;
+    note right : Position = MAX(position_bibliothèques) + 1
+    
+    :Création bibliothèque en base;
+    if (Création réussie ?) then (oui)
+      :Ajout à la liste affichée;
+      :Message "Bibliothèque créée : [nom]";
+      :Fermeture modal;
+    else (non)
+      :Message d'erreur technique;
+    endif
+    
+  case (Modifier nom bibliothèque ✏️)
+    :Sélection bibliothèque à modifier;
+    
+    if (Bibliothèque système ?) then (oui)
+      :Message "Les bibliothèques système\nne peuvent pas être modifiées";
+    else (non)
+      :Ouverture modal modification;
+      :Affichage nom actuel;
+      
+      repeat :Saisie nouveau nom;
+      repeat while (Nom valide ?) is (non)
+      :Affichage "Nom invalide";
+      
+      if (Nom différent de l'actuel ?) then (oui)
+        :Vérification unicité nouveau nom;
+        if (Nom déjà utilisé ?) then (oui)
+          :Affichage "Nom déjà existant";
+          :Saisie nouveau nom;
+        else (non)
+          :Mise à jour nom en base;
+          if (Modification réussie ?) then (oui)
+            :Mise à jour affichage;
+            :Message "Nom modifié avec succès";
+            :Fermeture modal;
+          else (non)
+            :Message d'erreur technique;
+          endif
+        endif
+      else (non)
+        :Annulation - pas de changement;
+        :Fermeture modal;
+      endif
+    endif
+    
+  case (Supprimer bibliothèque 🗑️)
+    :Sélection bibliothèque à supprimer;
+    
+    if (Bibliothèque système ?) then (oui)
+      :Message "Les bibliothèques système\nne peuvent pas être supprimées";
+    else (non)
+      :Vérification contenu bibliothèque;
+      
+      if (Bibliothèque contient des livres ?) then (oui)
+        :Demande confirmation avec détails;
+        note right
+          "Cette bibliothèque contient X livre(s).
+           Êtes-vous sûr de vouloir la supprimer ?
+           Les livres ne seront pas supprimés du catalogue."
+        end note
+        
+        if (Confirmation suppression ?) then (non)
+          :Annulation suppression;
+        else (oui)
+          partition "Suppression avec contenu" {
+            :Suppression relations livre-bibliothèque;
+            :Suppression bibliothèque;
+            :Recalcul positions restantes;
+            :Mise à jour affichage;
+            :Message "Bibliothèque supprimée";
+          }
+        endif
+        
+      else (non)
+        :Demande confirmation simple;
+        if (Confirmation ?) then (oui)
+          :Suppression bibliothèque vide;
+          :Recalcul positions;
+          :Mise à jour affichage;
+          :Message "Bibliothèque supprimée";
+        else (non)
+          :Annulation;
+        endif
+      endif
+    endif
+    
+  case (Réorganiser ordre affichage 🔄)
+    :Activation mode réorganisation;
+    :Affichage poignées de déplacement;
+    
+    note right
+      Interface drag & drop :
+      - "Livres lus" et "Livres favoris" grisés/fixes
+      - Bibliothèques personnelles déplaçables
+      - Indicateurs visuels pendant déplacement
+    end note
+    
+    repeat 
+      :Déplacement bibliothèque;
+      if (Position valide ?) then (non)
+        :Affichage zone interdite;
+        :Retour position d'origine;
+      else (oui)
+        :Mise à jour position temporaire;
+      endif
+    repeat while (Autres déplacements ?) is (oui)
+    
+    if (Modifications effectuées ?) then (oui)
+      :Demande confirmation changements;
+      if (Sauvegarder ordre ?) then (oui)
+        :Recalcul positions en base;
+        :Mise à jour ordre définitif;
+        :Message "Ordre sauvegardé";
+      else (non)
+        :Annulation - retour ordre initial;
+      endif
+    endif
+    
+    :Désactivation mode réorganisation;
+    
+  case (Déplacer livres entre bibliothèques 📚➡️📚)
+    :Sélection bibliothèque source;
+    :Affichage contenu bibliothèque;
+    
+    if (Bibliothèque vide ?) then (oui)
+      :Message "Bibliothèque vide";
+    else (non)
+      :Activation mode sélection livres;
+      
+      repeat :Sélection livre(s) à déplacer;
+      repeat while (Au moins un livre sélectionné ?) is (non)
+      :Message "Sélectionnez au moins un livre";
+      
+      :Ouverture modal choix destination;
+      :Affichage bibliothèques disponibles;
+      
+      if (Bibliothèque destination choisie ?) then (oui)
+        :Vérification conflits éventuels;
+        
+        if (Livres déjà présents en destination ?) then (oui)
+          :Affichage choix d'action;
+          note right
+            Options possibles :
+            - Ignorer doublons
+            - Remplacer en destination
+            - Annuler opération
+          end note
+          
+          switch (Choix utilisateur ?)
+          case (Ignorer doublons)
+            :Déplacement livres uniques seulement;
+          case (Remplacer)
+            :Déplacement tous livres sélectionnés;
+          case (Annuler)
+            :Annulation opération;
+          endswitch
+          
+        else (non)
+          :Déplacement direct possible;
+        endif
+        
+        if (Procéder au déplacement ?) then (oui)
+          partition "Déplacement en lot" {
+            :Début transaction;
+            
+            :Suppression relations source;
+            :Création relations destination;
+            
+            if (Déplacement réussi ?) then (oui)
+              :Validation transaction;
+              :Mise à jour compteurs bibliothèques;
+              :Actualisation affichages;
+              :Message "X livre(s) déplacé(s)";
+            else (non)
+              :Annulation transaction;
+              :Message d'erreur;
+            endif
+          }
+        endif
+        
+      else (non)
+        :Annulation déplacement;
+      endif
+      
+      :Désactivation mode sélection;
+    endif
+    
+  endswitch
+  
+endwhile (aucune)
+
+:Fin gestion bibliothèques;
+
+note left
+  **Règles de gestion :**
+  
+  **Bibliothèques système :**
+  - "Livres lus" et "Livres favoris"  
+  - Position fixe (toujours en haut)
+  - Non modifiables, non supprimables
+  - Créées automatiquement à l'inscription
+  
+  **Bibliothèques personnelles :**
+  - Nom personnalisable ou auto-généré
+  - Position modifiable (drag & drop)
+  - Suppression possible avec confirmation
+  - Gestion des conflits lors déplacements
+  
+  **Contraintes techniques :**
+  - Noms uniques par utilisateur
+  - Positions recalculées automatiquement
+  - Transactions pour opérations multiples
+  - Validation côté client et serveur
+  
+  **UX optimisée :**
+  - Interface drag & drop intuitive
+  - Confirmations contextuelles
+  - Gestion des doublons intelligente
+  - Feedback visuel temps réel
+end note
+
+stop
+
+@enduml

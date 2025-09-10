@@ -21,12 +21,27 @@ skinparam classFontName Arial
 skinparam classFontSize 18
 skinparam classHeaderBackgroundColor #92c5de
 
+Table("autorisations") {
+    {field} + pk(id_autorisations)
+    {field} + nom
+}
+
+"autorisations" "1..*" --- "*" "roles": "Affecter"
+
+Table("roles") {
+    {field} + pk(id_roles)
+    {field} + nom
+}
+
+"roles" "1" --- "*" "utilisateur": "attribuer"
+
 "utilisateur" "1" --- "*" "bibliothèque": "Ajouter"
 
 Table("utilisateur") {
     {field} + pk(id_utilisateur)
     {field} + nom
     {field} + email
+    {field} + pseudo
     {field} + mot_de_passe
 }
 
@@ -48,11 +63,21 @@ Table("avis") {
 
 Table("livre") {
     {field} + pk(id_livre)
+    {field} + isbn
     {field} + genre
     {field} + titre
     {field} + auteur
+    {field} + editeur
     {field} + date_publication
-    {field} + prix
+    {field} + image_vignette
+    {field} + image
+    {field} + description
+    {field} + age_limite
+    {field} + serie
+    {field} + est_dans_favoris
+    {field} + est_dans_bibliotheque
+    {field} + nombre_avis
+    {field} + moyenne_note
 }
 
 "livre" "1" --- "*" "avis": "virtuelement_posseder"

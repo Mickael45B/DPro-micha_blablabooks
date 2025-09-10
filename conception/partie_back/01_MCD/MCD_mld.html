@@ -2,6 +2,28 @@
 
 <div class="mld">
 <div>
+  <details><summary><span class='relation'>Affecter</span> (
+    <span class='foreign primary'>#id_autorisations</span>,
+    <span class='foreign primary'>#id_roles</span>
+  )</summary>
+  <ul>
+    <li>Le champ <i>id_autorisations</i> fait partie de la clé primaire de la table. C'est une clé étrangère qui a migré directement à partir de l'entité <i>autorisations</i>.</li>
+    <li>Le champ <i>id_roles</i> fait partie de la clé primaire de la table. C'est une clé étrangère qui a migré directement à partir de l'entité <i>roles</i>.</li>
+  </ul></details>
+</div>
+
+<div>
+  <details><summary><span class='relation'>autorisations</span> (
+    <span class='primary'>id_autorisations</span>,
+    <span class='normal'>nom</span>
+  )</summary>
+  <ul>
+    <li>Le champ <i>id_autorisations</i> constitue la clé primaire de la table. C'était déjà un identifiant de l'entité <i>autorisations</i>.</li>
+    <li>Le champ <i>nom</i> était déjà un simple attribut de l'entité <i>autorisations</i>.</li>
+  </ul></details>
+</div>
+
+<div>
   <details><summary><span class='relation'>avis</span> (
     <span class='primary'>id_avis</span>,
     <span class='normal'>note</span>,
@@ -34,15 +56,25 @@
 <div>
   <details><summary><span class='relation'>livre</span> (
     <span class='primary'>id_livre</span>,
+    <span class='normal'>isbn</span>,
     <span class='normal'>genre</span>,
     <span class='normal'>titre</span>,
     <span class='normal'>auteur</span>,
+    <span class='normal'>editeur</span>,
     <span class='normal'>date_publication</span>,
-    <span class='normal'>prix</span>
+    <span class='normal'>image_vignette</span>,
+    <span class='normal'>image</span>,
+    <span class='normal'>description</span>,
+    <span class='normal'>age_limite</span>,
+    <span class='normal'>serie</span>,
+    <span class='normal'>est_dans_favoris</span>,
+    <span class='normal'>est_dans_bibliotheque</span>,
+    <span class='normal'>nombre_avis</span>,
+    <span class='normal'>moyenne_note</span>
   )</summary>
   <ul>
     <li>Le champ <i>id_livre</i> constitue la clé primaire de la table. C'était déjà un identifiant de l'entité <i>livre</i>.</li>
-    <li>Les champs <i>genre</i>, <i>titre</i>, <i>auteur</i>, <i>date_publication</i> et <i>prix</i> étaient déjà de simples attributs de l'entité <i>livre</i>.</li>
+    <li>Les champs <i>isbn</i>, <i>genre</i>, <i>titre</i>, <i>auteur</i>, <i>editeur</i>, <i>date_publication</i>, <i>image_vignette</i>, <i>image</i>, <i>description</i>, <i>age_limite</i>, <i>serie</i>, <i>est_dans_favoris</i>, <i>est_dans_bibliotheque</i>, <i>nombre_avis</i> et <i>moyenne_note</i> étaient déjà de simples attributs de l'entité <i>livre</i>.</li>
   </ul></details>
 </div>
 
@@ -58,15 +90,29 @@
 </div>
 
 <div>
+  <details><summary><span class='relation'>roles</span> (
+    <span class='primary'>id_roles</span>,
+    <span class='normal'>nom</span>
+  )</summary>
+  <ul>
+    <li>Le champ <i>id_roles</i> constitue la clé primaire de la table. C'était déjà un identifiant de l'entité <i>roles</i>.</li>
+    <li>Le champ <i>nom</i> était déjà un simple attribut de l'entité <i>roles</i>.</li>
+  </ul></details>
+</div>
+
+<div>
   <details><summary><span class='relation'>utilisateur</span> (
     <span class='primary'>id_utilisateur</span>,
     <span class='normal'>nom</span>,
     <span class='normal'>email</span>,
-    <span class='normal'>mot_de_passe</span>
+    <span class='normal'>pseudo</span>,
+    <span class='normal'>mot_de_passe</span>,
+    <span class='foreign'>#id_roles</span>
   )</summary>
   <ul>
     <li>Le champ <i>id_utilisateur</i> constitue la clé primaire de la table. C'était déjà un identifiant de l'entité <i>utilisateur</i>.</li>
-    <li>Les champs <i>nom</i>, <i>email</i> et <i>mot_de_passe</i> étaient déjà de simples attributs de l'entité <i>utilisateur</i>.</li>
+    <li>Les champs <i>nom</i>, <i>email</i>, <i>pseudo</i> et <i>mot_de_passe</i> étaient déjà de simples attributs de l'entité <i>utilisateur</i>.</li>
+    <li>Le champ <i>id_roles</i> est une clé étrangère. Il a migré par l'association de dépendance fonctionnelle <i>attribuer</i> à partir de l'entité <i>roles</i> en perdant son caractère identifiant.</li>
   </ul></details>
 </div>
 

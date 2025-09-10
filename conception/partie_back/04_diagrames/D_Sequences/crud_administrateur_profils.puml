@@ -1,0 +1,594 @@
+@startuml
+
+title CRUD Administrateur - Gestion des Profils Utilisateur
+
+actor Administrateur as admin
+participant "Interface\nAdmin Users" as userAdminUI
+participant "Contrôleur\nAdmin User" as userAdminController
+participant "Service\nAutorisation" as authService
+participant "Service\nUtilisateur" as userService
+participant "Service\nRôle" as roleService
+database "Base de\nDonnées" as db
+participant "Service\nEmail" as emailService
+participant "Service\nAudit" as auditService
+participant "Service\nNotification" as notificationService
+
+note over admin, notificationService
+    **Tables concernées :**
+    - users : profils utilisateur
+    - roles : rôles système (user, moderator, admin, super_admin)
+    - rolehaspermissions : permissions par rôle
+    - libraries : bibliothèques utilisateur (impact suppressions)
+    - reviews : avis utilisateur (impact suppressions)
+    - contact_messages : messages utilisateur
+    
+    **Hiérarchie des rôles :**
+    - user : utilisateur standard
+    - moderator : modération contenu
+    - admin : administration générale  
+    - super_admin : administration complète
+end note
+
+== Vérification des droits super-administrateur ==
+
+admin -> userAdminUI : Accède à "Gestion des utilisateurs"
+activate userAdminUI
+
+userAdminUI -> userAdminController : Vérifier droits administrateur
+activate userAdminController
+
+userAdminController -> authService : Vérifier permissions utilisateur
+activate authService
+
+authService -> db : SELECT r.role_name, p.permission_name\nFROM users u\nJOIN roles r ON u.id_role = r.id_role\nJOIN rolehaspermissions rhp ON r.id_role = rhp.id_role\nJOIN permissions p ON rhp.id_permission = p.id_permission\nWHERE u.id_user = ? AND u.is_active = TRUE
+activate db
+
+alt Utilisateur a droits admin/super_admin
+    db --> authService : Permissions admin trouvées
+    deactivate db
+    authService --> userAdminController : ✅ Droits administrateur validés + niveau
+    deactivate authService
+    
+    userAdminController -> userService : Récupérer liste des utilisateurs
+    activate userService
+    
+    userService -> db : SELECT u.*, r.role_name,\n  COUNT(DISTINCT l.id_library) as nb_libraries,\n  COUNT(DISTINCT rv.id_review) as nb_reviews,\n  u.created_at, u.updated_at\nFROM users u\nLEFT JOIN roles r ON u.id_role = r.id_role\nLEFT JOIN libraries l ON u.id_user = l.id_user\nLEFT JOIN reviews rv ON u.id_user = rv.id_user\nGROUP BY u.id_user, r.role_name\nORDER BY u.created_at DESC
+    activate db
+    db --> userService : Liste utilisateurs + statistiques
+    deactivate db
+    
+    userService --> userAdminController : ✅ Données utilisateurs complètes
+    deactivate userService
+    
+    userAdminController --> userAdminUI : ✓ Interface admin utilisateurs
+    deactivate userAdminController
+    
+    userAdminUI --> admin : Dashboard utilisateurs\n(liste, filtres, statistiques, actions)
+
+else Droits insuffisants
+    db --> authService : Permissions insuffisantes
+    deactivate db
+    authService --> userAdminController : ❌ Accès refusé
+    deactivate authService
+    userAdminController --> userAdminUI : "Accès non autorisé"
+    deactivate userAdminController
+    userAdminUI --> admin : Redirection vers accueil
+    deactivate userAdminUI
+end
+
+== UPDATE - Modification du pseudo utilisateur ==
+
+admin -> userAdminUI : Clic "Modifier pseudo" sur un utilisateur
+userAdminUI -> userAdminController : Charger formulaire modification (target_user_id)
+activate userAdminController
+
+userAdminController -> authService : Vérifier droits modification
+activate authService
+
+userAdminController -> userService : Récupérer données utilisateur cible
+activate userService
+
+userService -> db : SELECT u.*, r.role_name FROM users u\nJOIN roles r ON u.id_role = r.id_role\nWHERE u.id_user = ?
+activate db
+db --> userService : Données utilisateur à modifier
+deactivate db
+
+alt Utilisateur cible existe
+    userService --> authService : ✅ Utilisateur trouvé + rôle actuel
+    deactivate userService
+    
+    authService -> authService : Vérifier hiérarchie des rôles\n(admin ne peut pas modifier super_admin)
+    
+    alt Modification autorisée selon hiérarchie
+        authService --> userAdminController : ✅ Modification autorisée
+        deactivate authService
+        
+        userAdminController --> userAdminUI : ✓ Formulaire modification pseudo
+        deactivate userAdminController
+        userAdminUI --> admin : Formulaire avec pseudo actuel
+        
+        admin -> userAdminUI : Saisit nouveau pseudo et confirme
+        userAdminUI -> userAdminController : Mettre à jour pseudo
+        activate userAdminController
+        
+        userAdminController -> userService : Valider et modifier pseudo
+        activate userService
+        
+        userService -> userService : Valider format pseudo\n(longueur, caractères autorisés)
+        
+        alt Pseudo valide
+            userService -> db : SELECT COUNT(*) FROM users\nWHERE pseudo = ? AND id_user != ? AND pseudo IS NOT NULL
+            activate db
+            
+            alt Pseudo disponible
+                db --> userService : 0 (pseudo libre)
+                deactivate db
+                
+                userService -> db : UPDATE users SET\npseudo = ?, updated_at = NOW()\nWHERE id_user = ?
+                activate db
+                
+                alt Mise à jour réussie
+                    db --> userService : ✓ Pseudo modifié
+                    deactivate db
+                    
+                    userService -> auditService : Logger modification admin
+                    activate auditService
+                    auditService -> db : INSERT INTO admin_logs\n(admin_id, action, target_user_id, old_value, new_value, timestamp)
+                    activate db
+                    db --> auditService : ✓ Action loggée
+                    deactivate db
+                    deactivate auditService
+                    
+                    userService -> notificationService : Notifier utilisateur modifié
+                    activate notificationService
+                    notificationService -> emailService : Envoyer notification changement
+                    activate emailService
+                    emailService --> notificationService : ✓ Email envoyé
+                    deactivate emailService
+                    deactivate notificationService
+                    
+                    userService --> userAdminController : ✅ "Pseudo modifié avec succès"
+                    deactivate userService
+                    
+                    userAdminController --> userAdminUI : ✅ Confirmation modification
+                    userAdminUI -> userAdminUI : Actualiser liste utilisateurs
+                    userAdminUI --> admin : Liste mise à jour avec nouveau pseudo
+                    
+                else Erreur mise à jour
+                    db --> userService : ❌ Erreur base de données
+                    deactivate db
+                    userService --> userAdminController : ❌ "Erreur lors de la modification"
+                    deactivate userService
+                    userAdminController --> userAdminUI : "Erreur technique"
+                    userAdminUI --> admin : Message d'erreur
+                end
+                
+            else Pseudo déjà pris
+                db --> userService : Pseudo en conflit
+                deactivate db
+                userService --> userAdminController : ❌ "Ce pseudo est déjà utilisé"
+                deactivate userService
+                userAdminController --> userAdminUI : "Pseudo non disponible"
+                userAdminUI --> admin : Formulaire avec erreur
+            end
+            
+        else Pseudo invalide
+            userService --> userAdminController : ❌ "Format de pseudo invalide"
+            deactivate userService
+            userAdminController --> userAdminUI : "Format incorrect"
+            userAdminUI --> admin : Formulaire avec erreur validation
+        end
+        
+    else Modification interdite (hiérarchie)
+        authService --> userAdminController : ❌ "Niveau insuffisant"
+        deactivate authService
+        userAdminController --> userAdminUI : "Impossible de modifier cet utilisateur"
+        userAdminUI --> admin : Message d'erreur hiérarchie
+    end
+    
+else Utilisateur cible inexistant
+    userService --> authService : ❌ Utilisateur non trouvé
+    deactivate userService
+    authService --> userAdminController : ❌ "Utilisateur inexistant"
+    deactivate authService
+    userAdminController --> userAdminUI : "Utilisateur introuvable"
+    userAdminUI --> admin : Message d'erreur
+end
+deactivate userAdminController
+
+== UPDATE - Blocage/Déblocage d'un utilisateur ==
+
+admin -> userAdminUI : Clic "Bloquer/Débloquer" sur un utilisateur
+userAdminUI -> userAdminController : Changer statut utilisateur (target_user_id, action)
+activate userAdminController
+
+userAdminController -> authService : Vérifier droits blocage
+activate authService
+authService -> userService : Vérifier hiérarchie + statut actuel
+activate userService
+
+userService -> db : SELECT u.is_active, r.role_name FROM users u\nJOIN roles r ON u.id_role = r.id_role\nWHERE u.id_user = ?
+activate db
+db --> userService : Statut et rôle utilisateur
+deactivate db
+
+alt Action autorisée selon hiérarchie
+    userService --> authService : ✅ Action permise
+    deactivate userService
+    authService --> userAdminController : ✓ Blocage/déblocage autorisé
+    deactivate authService
+    
+    alt Blocage d'un utilisateur actif
+        userAdminController --> userAdminUI : Demande de confirmation + raison\n"Bloquer cet utilisateur ?\nRaison du blocage :"
+        userAdminUI --> admin : Modal confirmation avec champ raison
+        
+        admin -> userAdminUI : Confirme et indique la raison
+        userAdminUI -> userAdminController : Procéder au blocage avec raison
+        
+        userAdminController -> userService : Bloquer utilisateur
+        activate userService
+        
+        userService -> db : BEGIN TRANSACTION
+        activate db
+        
+        userService -> db : UPDATE users SET\nis_active = FALSE, updated_at = NOW()\nWHERE id_user = ?
+        db --> userService : ✓ Utilisateur bloqué
+        
+        userService -> db : -- Invalider toutes les sessions actives\nDELETE FROM user_sessions WHERE id_user = ?
+        db --> userService : ✓ Sessions supprimées
+        
+        userService -> db : COMMIT TRANSACTION
+        deactivate db
+        
+        userService -> auditService : Logger blocage avec raison
+        activate auditService
+        auditService -> db : INSERT INTO admin_logs\n(admin_id, action, target_user_id, reason, timestamp)\nVALUES (?, 'USER_BLOCKED', ?, ?, NOW())
+        activate db
+        db --> auditService : ✓ Blocage loggé
+        deactivate db
+        deactivate auditService
+        
+        userService -> notificationService : Notifier utilisateur bloqué
+        activate notificationService
+        notificationService -> emailService : Email notification blocage
+        activate emailService
+        emailService --> notificationService : ✓ Notification envoyée
+        deactivate emailService
+        deactivate notificationService
+        
+        userService --> userAdminController : ✅ "Utilisateur bloqué avec succès"
+        deactivate userService
+        
+    else Déblocage d'un utilisateur bloqué
+        userAdminController --> userAdminUI : "Débloquer cet utilisateur ?"
+        userAdminUI --> admin : Confirmation déblocage
+        
+        admin -> userAdminUI : Confirme le déblocage
+        userAdminUI -> userAdminController : Procéder au déblocage
+        
+        userAdminController -> userService : Débloquer utilisateur
+        activate userService
+        
+        userService -> db : UPDATE users SET\nis_active = TRUE, updated_at = NOW()\nWHERE id_user = ?
+        activate db
+        db --> userService : ✓ Utilisateur débloqué
+        deactivate db
+        
+        userService -> auditService : Logger déblocage
+        activate auditService
+        auditService -> db : INSERT INTO admin_logs\n(admin_id, action, target_user_id, timestamp)\nVALUES (?, 'USER_UNBLOCKED', ?, NOW())
+        activate db
+        db --> auditService : ✓ Déblocage loggé
+        deactivate db
+        deactivate auditService
+        
+        userService -> notificationService : Notifier déblocage
+        activate notificationService
+        notificationService -> emailService : Email réactivation compte
+        activate emailService
+        emailService --> notificationService : ✓ Notification envoyée
+        deactivate emailService
+        deactivate notificationService
+        
+        userService --> userAdminController : ✅ "Utilisateur débloqué avec succès"
+        deactivate userService
+    end
+    
+    userAdminController --> userAdminUI : ✅ Confirmation action
+    userAdminUI -> userAdminUI : Actualiser statut dans la liste
+    userAdminUI --> admin : Statut utilisateur mis à jour visuellement
+
+else Action interdite
+    userService --> authService : ❌ Hiérarchie insuffisante
+    deactivate userService
+    authService --> userAdminController : ❌ "Action non autorisée"
+    deactivate authService
+    userAdminController --> userAdminUI : "Impossible de bloquer/débloquer cet utilisateur"
+    userAdminUI --> admin : Message d'erreur
+end
+deactivate userAdminController
+
+== UPDATE - Promotion/Rétrogradation de rôle ==
+
+admin -> userAdminUI : Clic "Changer rôle" sur un utilisateur
+userAdminUI -> userAdminController : Charger modal changement rôle (target_user_id)
+activate userAdminController
+
+userAdminController -> authService : Vérifier droits changement rôle
+activate authService
+
+userAdminController -> roleService : Récupérer rôles disponibles selon niveau admin
+activate roleService
+
+roleService -> db : SELECT r.id_role, r.role_name, r.description\nFROM roles r\nWHERE r.role_name IN (\n  CASE \n    WHEN admin_role = 'super_admin' THEN 'user,moderator,admin,super_admin'\n    WHEN admin_role = 'admin' THEN 'user,moderator,admin'\n    ELSE 'user'\n  END\n)\nORDER BY \n  CASE r.role_name \n    WHEN 'user' THEN 1\n    WHEN 'moderator' THEN 2  \n    WHEN 'admin' THEN 3\n    WHEN 'super_admin' THEN 4\n  END
+activate db
+db --> roleService : Rôles assignables selon niveau
+deactivate db
+
+roleService -> userService : Récupérer rôle actuel utilisateur
+activate userService
+userService -> db : SELECT r.role_name FROM users u\nJOIN roles r ON u.id_role = r.id_role\nWHERE u.id_user = ?
+activate db
+db --> userService : Rôle actuel utilisateur
+deactivate db
+
+alt Changement de rôle autorisé
+    userService --> roleService : ✅ Rôle actuel récupéré
+    deactivate userService
+    roleService --> authService : ✅ Rôles disponibles + actuel
+    deactivate roleService
+    authService --> userAdminController : ✓ Changement autorisé
+    deactivate authService
+    
+    userAdminController --> userAdminUI : ✓ Modal avec rôles disponibles
+    deactivate userAdminController
+    userAdminUI --> admin : Sélecteur de rôles\n(actuel marqué, nouveaux possibles)
+    
+    admin -> userAdminUI : Sélectionne nouveau rôle + raison
+    userAdminUI -> userAdminController : Appliquer changement rôle
+    activate userAdminController
+    
+    userAdminController -> userService : Changer rôle utilisateur
+    activate userService
+    
+    userService -> db : BEGIN TRANSACTION
+    activate db
+    
+    userService -> db : UPDATE users SET\nid_role = (SELECT id_role FROM roles WHERE role_name = ?),\nupdated_at = NOW()\nWHERE id_user = ?
+    
+    alt Changement rôle réussi
+        db --> userService : ✓ Rôle modifié
+        
+        userService -> db : -- Invalider sessions si rétrogradation\nDELETE FROM user_sessions WHERE id_user = ?\nAND ? IN ('admin', 'moderator') -- nouveau rôle moins élevé
+        db --> userService : ✓ Sessions invalidées si nécessaire
+        
+        userService -> db : COMMIT TRANSACTION
+        deactivate db
+        
+        userService -> auditService : Logger changement rôle
+        activate auditService
+        auditService -> db : INSERT INTO admin_logs\n(admin_id, action, target_user_id, old_value, new_value, reason, timestamp)\nVALUES (?, 'ROLE_CHANGED', ?, ?, ?, ?, NOW())
+        activate db
+        db --> auditService : ✓ Changement loggé
+        deactivate db
+        deactivate auditService
+        
+        alt Promotion (rôle plus élevé)
+            userService -> notificationService : Notifier promotion
+            activate notificationService
+            notificationService -> emailService : Email félicitations promotion
+            activate emailService
+            emailService --> notificationService : ✓ Email promotion envoyé
+            deactivate emailService
+            deactivate notificationService
+            
+        else Rétrogradation
+            userService -> notificationService : Notifier rétrogradation
+            activate notificationService
+            notificationService -> emailService : Email notification rétrogradation
+            activate emailService
+            emailService --> notificationService : ✓ Email rétrogradation envoyé
+            deactivate emailService
+            deactivate notificationService
+        end
+        
+        userService --> userAdminController : ✅ "Rôle modifié avec succès"
+        deactivate userService
+        
+        userAdminController --> userAdminUI : ✅ Confirmation changement
+        userAdminUI -> userAdminUI : Actualiser rôle dans la liste
+        userAdminUI --> admin : Rôle utilisateur mis à jour
+        
+    else Erreur changement rôle
+        db --> userService : ❌ Erreur modification
+        userService -> db : ROLLBACK TRANSACTION
+        deactivate db
+        userService --> userAdminController : ❌ "Erreur lors du changement"
+        deactivate userService
+        userAdminController --> userAdminUI : "Erreur technique"
+        userAdminUI --> admin : Message d'erreur
+    end
+
+else Changement non autorisé
+    userService --> roleService : ❌ Hiérarchie insuffisante
+    deactivate userService
+    roleService --> authService : ❌ Droits insuffisants
+    deactivate roleService
+    authService --> userAdminController : ❌ "Changement non autorisé"
+    deactivate authService
+    userAdminController --> userAdminUI : "Niveau insuffisant pour ce changement"
+    userAdminUI --> admin : Message d'erreur
+end
+deactivate userAdminController
+
+== DELETE - Suppression définitive d'un profil ==
+
+admin -> userAdminUI : Clic "Supprimer définitivement" sur un utilisateur
+userAdminUI -> userAdminController : Demander suppression utilisateur (target_user_id)
+activate userAdminController
+
+userAdminController -> authService : Vérifier droits suppression
+activate authService
+
+userAdminController -> userService : Analyser impact suppression
+activate userService
+
+userService -> db : SELECT u.name, u.email, r.role_name,\n  COUNT(DISTINCT l.id_library) as nb_libraries,\n  COUNT(DISTINCT rv.id_review) as nb_reviews,\n  COUNT(DISTINCT cm.id_message) as nb_contacts,\n  COUNT(DISTINCT bhl.id_book) as nb_books_in_libraries\nFROM users u\nJOIN roles r ON u.id_role = r.id_role\nLEFT JOIN libraries l ON u.id_user = l.id_user\nLEFT JOIN reviews rv ON u.id_user = rv.id_user  \nLEFT JOIN contact_messages cm ON u.id_user = cm.id_user\nLEFT JOIN bookhaslibrary bhl ON l.id_library = bhl.id_library\nWHERE u.id_user = ?\nGROUP BY u.id_user, u.name, u.email, r.role_name
+activate db
+
+alt Utilisateur trouvé
+    db --> userService : Impact complet de la suppression
+    deactivate db
+    
+    userService -> authService : Vérifier si suppression autorisée selon rôle
+    
+    alt Suppression autorisée selon hiérarchie
+        userService --> authService : ⚠️ Impact détaillé suppression
+        deactivate userService
+        authService --> userAdminController : ✅ Suppression autorisée + impact
+        deactivate authService
+        
+        userAdminController --> userAdminUI : Alerte critique avec impact\n"SUPPRESSION DÉFINITIVE\nUtilisateur: [nom] ([email])\nImpact:\n- X bibliothèques (Y livres)\n- Z avis\n- W messages contact\n\nCette action est IRRÉVERSIBLE!\nTout le contenu sera PERDU!\n\nÊtes-vous ABSOLUMENT sûr ?"
+        userAdminUI --> admin : Modal de confirmation critique
+        
+        alt Admin confirme malgré l'impact
+            admin -> userAdminUI : Confirme suppression + tape "SUPPRIMER" pour validation
+            userAdminUI -> userAdminController : Procéder à la suppression complète
+            
+            userAdminController -> userService : Suppression en cascade complète
+            activate userService
+            
+            userService -> auditService : Logger suppression AVANT destruction
+            activate auditService
+            auditService -> db : INSERT INTO admin_logs\n(admin_id, action, target_user_id, user_email, impact_data, timestamp)\nVALUES (?, 'USER_DELETED', ?, ?, ?, NOW())
+            activate db
+            db --> auditService : ✓ Suppression pré-loggée
+            deactivate db
+            deactivate auditService
+            
+            userService -> db : BEGIN TRANSACTION
+            activate db
+            
+            userService -> db : -- 1. Supprimer relations bibliothèques\nDELETE FROM bookhaslibrary\nWHERE id_library IN (SELECT id_library FROM libraries WHERE id_user = ?)
+            db --> userService : ✓ Relations livres supprimées
+            
+            userService -> db : -- 2. Supprimer bibliothèques\nDELETE FROM libraries WHERE id_user = ?
+            db --> userService : ✓ Bibliothèques supprimées
+            
+            userService -> db : -- 3. Anonymiser les avis (garder contenu)\nUPDATE reviews SET id_user = NULL, updated_at = NOW()\nWHERE id_user = ?
+            db --> userService : ✓ Avis anonymisés
+            
+            userService -> db : -- 4. Anonymiser messages contact\nUPDATE contact_messages SET id_user = NULL\nWHERE id_user = ?
+            db --> userService : ✓ Messages anonymisés
+            
+            userService -> db : -- 5. Supprimer sessions\nDELETE FROM user_sessions WHERE id_user = ?
+            db --> userService : ✓ Sessions supprimées
+            
+            userService -> db : -- 6. Supprimer utilisateur\nDELETE FROM users WHERE id_user = ?
+            
+            alt Suppression complète réussie
+                db --> userService : ✓ Utilisateur supprimé définitivement
+                
+                userService -> db : COMMIT TRANSACTION
+                deactivate db
+                
+                userService -> bookService : Recalculer compteurs globaux
+                activate bookService
+                bookService -> db : SELECT recalculate_books_counters()
+                activate db
+                db --> bookService : ✓ Compteurs recalculés
+                deactivate db
+                deactivate bookService
+                
+                userService --> userAdminController : ✅ "Utilisateur supprimé définitivement"
+                deactivate userService
+                
+                userAdminController --> userAdminUI : ✅ "Suppression terminée"
+                userAdminUI -> userAdminUI : Retirer utilisateur de la liste
+                userAdminUI --> admin : Utilisateur supprimé de la vue + confirmation
+                
+            else Erreur suppression
+                db --> userService : ❌ Erreur lors de la suppression
+                userService -> db : ROLLBACK TRANSACTION
+                deactivate db
+                userService --> userAdminController : ❌ "Erreur lors de la suppression"
+                deactivate userService
+                userAdminController --> userAdminUI : "Erreur technique, aucune suppression effectuée"
+                userAdminUI --> admin : Message d'erreur
+            end
+            
+        else Admin annule
+            admin -> userAdminUI : Annule la suppression
+            userAdminUI --> admin : Retour à la liste sans modification
+        end
+
+    else Suppression interdite (hiérarchie)
+        userService --> authService : ❌ Niveau insuffisant
+        deactivate userService
+        authService --> userAdminController : ❌ "Suppression non autorisée"
+        deactivate authService
+        userAdminController --> userAdminUI : "Impossible de supprimer cet utilisateur"
+        userAdminUI --> admin : Message erreur hiérarchie
+    end
+
+else Utilisateur non trouvé
+    db --> userService : Utilisateur inexistant
+    deactivate db
+    userService --> authService : ❌ Utilisateur introuvable
+    deactivate userService
+    authService --> userAdminController : ❌ "Utilisateur inexistant"
+    deactivate authService
+    userAdminController --> userAdminUI : "Utilisateur non trouvé"
+    userAdminUI --> admin : Message d'erreur
+end
+deactivate userAdminController
+
+== Fonctionnalités avancées et rapports ==
+
+note over admin, notificationService
+    **Fonctionnalités administratives avancées :**
+    
+    **Audit et traçabilité :**
+    - Log complet de toutes les actions admin
+    - Historique des changements par utilisateur  
+    - Export des logs pour conformité RGPD
+    - Alerte automatique actions sensibles
+    
+    **Statistiques utilisateurs :**
+    - Évolution inscriptions dans le temps
+    - Répartition par rôle et statut
+    - Utilisateurs les plus actifs/inactifs
+    - Métriques d'engagement (connexions, actions)
+    
+    **Actions en lot :**
+    - Blocage/déblocage multiple (selon critères)
+    - Export liste utilisateurs (CSV/Excel)  
+    - Envoi d'emails groupés
+    - Nettoyage comptes inactifs
+    
+    **Sécurité renforcée :**
+    - Confirmation par email pour actions critiques
+    - Double authentification pour suppressions
+    - Limitation tentatives par admin
+    - Notification autres admins pour actions importantes
+    
+    **Hiérarchie des rôles stricte :**
+    - super_admin : peut tout faire
+    - admin : ne peut pas toucher aux super_admin
+    - moderator : actions limitées (blocage uniquement)
+    - Protection contre auto-modification de rôle
+    
+    **Règles de gestion RGPD :**
+    - Anonymisation plutôt que suppression (avis/commentaires)
+    - Export données utilisateur sur demande
+    - Droit à l'oubli avec impact analysis
+    - Logs de toutes les actions sur données personnelles
+    
+    **Performance :**
+    - Pagination sur listes utilisateurs
+    - Index sur colonnes de recherche/tri
+    - Cache des statistiques fréquentes
+    - Requêtes optimisées pour éviter N+1
+end note
+
+@enduml

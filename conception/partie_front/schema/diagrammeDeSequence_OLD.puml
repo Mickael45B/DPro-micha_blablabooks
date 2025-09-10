@@ -1,0 +1,99 @@
+@startuml
+actor Utilisateur
+actor Admin
+participant "Frontend" as FE
+participant "Backend API" as BE
+participant "Base de données" as DB
+participant "Service de Notification" as Notif
+
+== Authentification ==
+Utilisateur -> FE: S'inscrire / Se connecter
+FE -> BE: POST /api/auth/signup ou POST /api/auth/login
+BE -> DB: Vérification des informations utilisateur
+DB --> BE: Résultat (succès ou échec)
+BE -> Notif: Envoi d'un email de confirmation (si inscription)
+Notif --> BE: Confirmation d'envoi
+BE --> FE: Réponse (token ou message d'erreur)
+
+== Gestion de la bibliothèque personnelle ==
+Utilisateur -> FE: Ajouter un livre à ma bibliothèque
+FE -> BE: POST /api/library
+BE -> DB: Ajouter le livre à la bibliothèque de l'utilisateur
+DB --> BE: Confirmation
+BE -> Notif: Envoi d'une notification (ajout de livre)
+Notif --> BE: Confirmation d'envoi
+BE --> FE: Réponse (succès ou échec)
+
+Utilisateur -> FE: Retirer un livre de ma bibliothèque
+FE -> BE: DELETE /api/library/:id
+BE -> DB: Supprimer le livre de la bibliothèque de l'utilisateur
+DB --> BE: Confirmation
+BE --> FE: Réponse (succès ou échec)
+
+== Recherche de livres ==
+Utilisateur -> FE: Rechercher un livre
+FE -> BE: GET /api/search?query=...
+BE -> DB: Requête pour trouver les livres correspondants
+DB --> BE: Résultats de la recherche
+BE --> FE: Liste des livres trouvés
+FE --> Utilisateur: Affichage des résultats
+
+== Consultation des avis ==
+Utilisateur -> FE: Consulter les avis d'un livre
+FE -> BE: GET /api/books/:id/avis
+BE -> DB: Récupérer les avis associés au livre
+DB --> BE: Liste des avis
+BE --> FE: Réponse avec les avis
+FE --> Utilisateur: Affichage des avis
+
+== Ajout d'un avis ==
+Utilisateur -> FE: Ajouter un avis sur un livre
+FE -> BE: POST /api/books/:id/avis
+BE -> DB: Ajouter l'avis à la base de données
+DB --> BE: Confirmation
+BE -> Notif: Envoi d'une notification à l'auteur du livre
+Notif --> BE: Confirmation d'envoi
+BE --> FE: Réponse (succès ou échec)
+
+== Modération (Admin) ==
+Admin -> FE: Bannir un utilisateur
+FE -> BE: PATCH /api/users/:id/ban
+BE -> DB: Mettre à jour est_banni = true
+DB --> BE: Confirmation
+BE -> Notif: Envoi d'une notification à l'utilisateur banni
+Notif --> BE: Confirmation d'envoi
+BE --> FE: Réponse (succès ou échec)
+
+Admin -> FE: Supprimer un utilisateur
+FE -> BE: DELETE /api/users/:id
+BE -> DB: Supprimer l'utilisateur
+DB --> BE: Confirmation
+BE --> FE: Réponse (succès ou échec)
+
+Admin -> FE: Modifier les droits d’un utilisateur
+FE -> BE: PATCH /api/users/:id/role
+BE -> DB: Mettre à jour le champ role
+DB --> BE: Confirmation
+BE --> FE: Réponse (succès ou échec)
+
+== Gestion des livres (Admin) ==
+Admin -> FE: Ajouter ou modifier un livre
+FE -> BE: POST /api/books ou PUT /api/books/:id
+BE -> DB: Ajouter ou mettre à jour les informations du livre
+DB --> BE: Confirmation
+BE --> FE: Réponse (succès ou échec)
+
+Admin -> FE: Supprimer un livre
+FE -> BE: DELETE /api/books/:id
+BE -> DB: Supprimer le livre de la base de données
+DB --> BE: Confirmation
+BE --> FE: Réponse (succès ou échec)
+
+== Notifications ==
+Utilisateur -> FE: Activer ou désactiver les notifications
+FE -> BE: PATCH /api/users/:id/notifications
+BE -> DB: Mettre à jour les préférences de notification
+DB --> BE: Confirmation
+BE --> FE: Réponse (succès ou échec)
+
+@enduml

@@ -18,11 +18,14 @@
 \maketitle
 
 \begin{itemize}
+  \item \relat{Affecter} (\foreign{\prim{id\_autorisations}}, \foreign{\prim{id\_roles}})
+  \item \relat{autorisations} (\prim{id\_autorisations}, \attr{nom})
   \item \relat{avis} (\prim{id\_avis}, \attr{note}, \attr{commentaire}, \foreign{id\_utilisateur}, \foreign{id\_livre})
   \item \relat{bibliothèque} (\prim{code\_bibliotheque}, \attr{nom}, \attr{est\_modifiable}, \foreign{id\_utilisateur})
-  \item \relat{livre} (\prim{id\_livre}, \attr{genre}, \attr{titre}, \attr{auteur}, \attr{date\_publication}, \attr{prix})
+  \item \relat{livre} (\prim{id\_livre}, \attr{isbn}, \attr{genre}, \attr{titre}, \attr{auteur}, \attr{editeur}, \attr{date\_publication}, \attr{image\_vignette}, \attr{image}, \attr{description}, \attr{age\_limite}, \attr{serie}, \attr{est\_dans\_favoris}, \attr{est\_dans\_bibliotheque}, \attr{nombre\_avis}, \attr{moyenne\_note})
   \item \relat{livre\_bibliothèque} (\foreign{\prim{id\_livre}}, \foreign{\prim{code\_bibliotheque}})
-  \item \relat{utilisateur} (\prim{id\_utilisateur}, \attr{nom}, \attr{email}, \attr{mot\_de\_passe})
+  \item \relat{roles} (\prim{id\_roles}, \attr{nom})
+  \item \relat{utilisateur} (\prim{id\_utilisateur}, \attr{nom}, \attr{email}, \attr{pseudo}, \attr{mot\_de\_passe}, \foreign{id\_roles})
 \end{itemize}
 
 \end{document}

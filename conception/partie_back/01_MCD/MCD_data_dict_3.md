@@ -1,18 +1,33 @@
 | Entité ou association | Libellé de l'attribut | Type |
 |:----------------------|:----------------------|:-----|
+| autorisations         | id_autorisations      |      |
+| "                     | nom                   |      |
 | avis                  | commentaire           |      |
 | "                     | id_avis               |      |
 | "                     | note                  |      |
 | bibliothèque          | code_bibliotheque     |      |
 | "                     | est_modifiable        |      |
 | "                     | nom                   |      |
-| livre                 | auteur                |      |
+| livre                 | age_limite            |      |
+| "                     | auteur                |      |
 | "                     | date_publication      |      |
+| "                     | description           |      |
+| "                     | editeur               |      |
+| "                     | est_dans_bibliotheque |      |
+| "                     | est_dans_favoris      |      |
 | "                     | genre                 |      |
 | "                     | id_livre              |      |
-| "                     | prix                  |      |
+| "                     | image                 |      |
+| "                     | image_vignette        |      |
+| "                     | isbn                  |      |
+| "                     | moyenne_note          |      |
+| "                     | nombre_avis           |      |
+| "                     | serie                 |      |
 | "                     | titre                 |      |
+| roles                 | id_roles              |      |
+| "                     | nom                   |      |
 | utilisateur           | email                 |      |
 | "                     | id_utilisateur        |      |
 | "                     | mot_de_passe          |      |
 | "                     | nom                   |      |
+| "                     | pseudo                |      |

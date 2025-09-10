@@ -1,0 +1,444 @@
+@startuml
+
+title CRUD Administrateur - Gestion des Auteurs
+
+actor Administrateur as admin
+participant "Interface\nAuteurs" as authorUI
+participant "Contrôleur\nAuteur" as authorController
+participant "Service\nAutorisation" as authService
+participant "Service\nAuteur" as authorService
+database "Base de\nDonnées" as db
+participant "Service\nValidation" as validationService
+
+note over admin, db
+    **Prérequis : Table Authors**
+    CREATE TABLE authors (
+        id_author VARCHAR(42) PRIMARY KEY,
+        first_name VARCHAR(100),
+        last_name VARCHAR(100) NOT NULL,
+        full_name VARCHAR(255) GENERATED ALWAYS AS (CONCAT(first_name, ' ', last_name)) STORED,
+        biography TEXT,
+        birth_date DATE,
+        death_date DATE,
+        nationality VARCHAR(100),
+        website VARCHAR(255),
+        photo_url VARCHAR(255),
+        is_active BOOLEAN DEFAULT TRUE,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ
+    );
+end note
+
+== Vérification des droits administrateur ==
+
+admin -> authorUI : Accède à "Gestion des auteurs"
+activate authorUI
+
+authorUI -> authorController : Vérifier droits administrateur
+activate authorController
+
+authorController -> authService : Vérifier permissions admin
+activate authService
+authService -> db : SELECT permissions FROM user_permissions WHERE user_id = ?
+activate db
+
+alt Utilisateur a droits admin
+    db --> authService : ✅ Permissions admin trouvées
+    deactivate db
+    authService --> authorController : ✓ Droits validés
+    deactivate authService
+    authorController --> authorUI : ✓ Accès autorisé
+    authorUI --> admin : Interface de gestion des auteurs
+else Droits insuffisants
+    db --> authService : ❌ Permissions insuffisantes
+    deactivate db
+    authService --> authorController : ❌ Accès refusé
+    deactivate authService
+    authorController --> authorUI : "Accès non autorisé"
+    deactivate authorController
+    authorUI --> admin : Redirection vers accueil
+    deactivate authorUI
+end
+
+== CREATE - Création d'un nouvel auteur ==
+
+admin -> authorUI : Clic "Ajouter un auteur"
+authorUI -> authorController : Afficher formulaire création
+activate authorController
+authorController --> authorUI : ✓ Formulaire vierge avec champs
+authorUI --> admin : Formulaire de création\n(prénom, nom*, biographie, dates, nationalité, etc.)
+deactivate authorController
+
+admin -> authorUI : Remplit et soumet le formulaire
+authorUI -> authorController : Créer nouvel auteur
+activate authorController
+
+authorController -> validationService : Valider données auteur
+activate validationService
+
+validationService -> validationService : Vérifier champs obligatoires\n(last_name requis)
+validationService -> validationService : Valider format dates\n(birth_date < death_date si les deux)
+validationService -> validationService : Valider format email/website
+
+alt Toutes les validations passent
+    validationService --> authorController : ✅ Données valides
+    deactivate validationService
+    
+    authorController -> authorService : Vérifier unicité auteur
+    activate authorService
+    
+    authorService -> db : SELECT COUNT(*) FROM authors\nWHERE LOWER(TRIM(first_name)) = LOWER(TRIM(?))\nAND LOWER(TRIM(last_name)) = LOWER(TRIM(?))
+    activate db
+    
+    alt Auteur n'existe pas encore
+        db --> authorService : 0 auteur trouvé
+        deactivate db
+        
+        authorService -> db : INSERT INTO authors\n(id_author, first_name, last_name, biography,\nbirth_date, death_date, nationality, website, photo_url)\nVALUES (uuid(), ?, ?, ?, ?, ?, ?, ?, ?)
+        activate db
+        
+        alt Insertion réussie
+            db --> authorService : ✓ Auteur créé (author_id)
+            deactivate db
+            authorService --> authorController : ✅ "Auteur créé avec succès"
+            deactivate authorService
+            authorController --> authorUI : ✅ "Auteur ajouté avec succès"
+            authorUI -> authorUI : Actualiser liste des auteurs
+            authorUI --> admin : Liste mise à jour avec nouvel auteur
+            
+        else Erreur insertion
+            db --> authorService : ❌ Erreur base de données
+            deactivate db
+            authorService --> authorController : ❌ "Erreur lors de la création"
+            deactivate authorService
+            authorController --> authorUI : "Erreur technique, veuillez réessayer"
+            authorUI --> admin : Formulaire avec message d'erreur
+        end
+        
+    else Auteur existe déjà
+        db --> authorService : Auteur trouvé
+        deactivate db
+        authorService --> authorController : ❌ "Cet auteur existe déjà"
+        deactivate authorService
+        authorController --> authorUI : "Un auteur avec ce nom existe déjà"
+        authorUI --> admin : Formulaire avec erreur de duplication
+    end
+    
+else Erreurs de validation
+    validationService --> authorController : ❌ Liste des erreurs
+    deactivate validationService
+    authorController --> authorUI : Erreurs de validation détaillées
+    authorUI --> admin : Formulaire avec erreurs à corriger
+end
+deactivate authorController
+
+== READ - Consultation des auteurs ==
+
+admin -> authorUI : Affichage liste des auteurs
+authorUI -> authorController : Récupérer liste paginée
+activate authorController
+
+authorController -> authorService : Lister auteurs avec statistiques
+activate authorService
+
+authorService -> db : SELECT a.*,\nCOUNT(b.id_book) as nb_books,\nROUND(AVG(b.avg_rating), 2) as avg_rating_books\nFROM authors a\nLEFT JOIN books b ON a.id_author = b.id_author\nWHERE a.is_active = TRUE\nGROUP BY a.id_author\nORDER BY a.last_name, a.first_name\nLIMIT ? OFFSET ?
+activate db
+
+db --> authorService : Liste auteurs + statistiques
+deactivate db
+authorService --> authorController : ✅ Données auteurs complètes
+deactivate authorService
+
+authorController --> authorUI : ✓ Liste des auteurs
+deactivate authorController
+authorUI --> admin : Tableau auteurs\n(nom, nationalité, nb livres, note moyenne, actions)
+
+alt Recherche d'auteurs
+    admin -> authorUI : Utilise la barre de recherche
+    authorUI -> authorController : Rechercher auteurs
+    activate authorController
+    
+    authorController -> authorService : Recherche par nom/nationalité
+    activate authorService
+    
+    authorService -> db : SELECT a.*, COUNT(b.id_book) as nb_books\nFROM authors a\nLEFT JOIN books b ON a.id_author = b.id_author\nWHERE (LOWER(a.full_name) LIKE LOWER(?)\nOR LOWER(a.nationality) LIKE LOWER(?))\nAND a.is_active = TRUE\nGROUP BY a.id_author\nORDER BY a.last_name, a.first_name
+    activate db
+    
+    db --> authorService : Résultats de recherche
+    deactivate db
+    authorService --> authorController : ✅ Auteurs trouvés
+    deactivate authorService
+    authorController --> authorUI : ✓ Résultats filtrés
+    deactivate authorController
+    authorUI --> admin : Affichage des auteurs correspondants
+end
+
+alt Consultation détaillée d'un auteur
+    admin -> authorUI : Clic "Voir détails" sur un auteur
+    authorUI -> authorController : Afficher détails auteur (author_id)
+    activate authorController
+    
+    authorController -> authorService : Récupérer auteur + ses livres
+    activate authorService
+    
+    authorService -> db : SELECT a.*, b.title, b.publication_date, b.avg_rating\nFROM authors a\nLEFT JOIN books b ON a.id_author = b.id_author\nWHERE a.id_author = ?\nORDER BY b.publication_date DESC
+    activate db
+    
+    db --> authorService : Détails auteur + bibliographie
+    deactivate db
+    authorService --> authorController : ✅ Données complètes auteur
+    deactivate authorService
+    
+    authorController --> authorUI : ✓ Fiche complète auteur
+    deactivate authorController
+    authorUI --> admin : Page détaillée\n(infos perso, biographie, liste des livres)
+end
+
+== UPDATE - Modification d'un auteur ==
+
+admin -> authorUI : Clic "Modifier" sur un auteur
+authorUI -> authorController : Charger formulaire modification (author_id)
+activate authorController
+
+authorController -> authorService : Récupérer données auteur
+activate authorService
+
+authorService -> db : SELECT * FROM authors WHERE id_author = ?
+activate db
+db --> authorService : Données complètes de l'auteur
+deactivate db
+
+authorService --> authorController : ✅ Données auteur
+deactivate authorService
+
+authorController --> authorUI : ✓ Formulaire pré-rempli
+deactivate authorController
+authorUI --> admin : Formulaire de modification avec données actuelles
+
+admin -> authorUI : Modifie les champs et soumet
+authorUI -> authorController : Mettre à jour auteur
+activate authorController
+
+authorController -> validationService : Valider modifications
+activate validationService
+
+alt Modifications valides
+    validationService --> authorController : ✅ Données valides
+    deactivate validationService
+    
+    authorController -> authorService : Vérifier unicité (si nom modifié)
+    activate authorService
+    
+    alt Nom modifié
+        authorService -> db : SELECT COUNT(*) FROM authors\nWHERE LOWER(TRIM(first_name)) = LOWER(TRIM(?))\nAND LOWER(TRIM(last_name)) = LOWER(TRIM(?))\nAND id_author != ?
+        activate db
+        
+        alt Pas de conflit
+            db --> authorService : 0 conflit trouvé
+            deactivate db
+            
+            authorService -> db : UPDATE authors SET\nfirst_name = ?, last_name = ?, biography = ?,\nbirth_date = ?, death_date = ?, nationality = ?,\nwebsite = ?, photo_url = ?, updated_at = NOW()\nWHERE id_author = ?
+            activate db
+            
+            alt Mise à jour réussie
+                db --> authorService : ✓ Auteur mis à jour
+                deactivate db
+                authorService --> authorController : ✅ "Modification réussie"
+                deactivate authorService
+                authorController --> authorUI : ✅ "Auteur modifié avec succès"
+                authorUI --> admin : Retour à la liste avec modifications
+                
+            else Erreur mise à jour
+                db --> authorService : ❌ Erreur base de données
+                deactivate db
+                authorService --> authorController : ❌ "Erreur lors de la modification"
+                deactivate authorService
+                authorController --> authorUI : "Erreur technique"
+                authorUI --> admin : Formulaire avec message d'erreur
+            end
+            
+        else Conflit de nom
+            db --> authorService : Conflit détecté
+            deactivate db
+            authorService --> authorController : ❌ "Un autre auteur a déjà ce nom"
+            deactivate authorService
+            authorController --> authorUI : "Ce nom d'auteur est déjà utilisé"
+            authorUI --> admin : Formulaire avec erreur de duplication
+        end
+        
+    else Nom inchangé
+        authorService -> db : UPDATE authors SET\nbiography = ?, birth_date = ?, death_date = ?,\nnationality = ?, website = ?, photo_url = ?,\nupdated_at = NOW()\nWHERE id_author = ?
+        activate db
+        db --> authorService : ✓ Auteur mis à jour
+        deactivate db
+        authorService --> authorController : ✅ "Modification réussie"
+        deactivate authorService
+        authorController --> authorUI : ✅ "Auteur modifié avec succès"
+        authorUI --> admin : Liste mise à jour
+    end
+    
+else Erreurs de validation
+    validationService --> authorController : ❌ Erreurs détaillées
+    deactivate validationService
+    authorController --> authorUI : Erreurs à corriger
+    authorUI --> admin : Formulaire avec erreurs
+end
+deactivate authorController
+
+== DELETE - Suppression d'un auteur ==
+
+admin -> authorUI : Clic "Supprimer" sur un auteur
+authorUI -> authorController : Demander suppression (author_id)
+activate authorController
+
+authorController -> authorService : Vérifier impact de la suppression
+activate authorService
+
+authorService -> db : SELECT a.full_name,\nCOUNT(b.id_book) as nb_books,\nCOUNT(r.id_review) as nb_reviews\nFROM authors a\nLEFT JOIN books b ON a.id_author = b.id_author\nLEFT JOIN reviews r ON b.id_book = r.id_book\nWHERE a.id_author = ?\nGROUP BY a.id_author, a.full_name
+activate db
+
+db --> authorService : Impact de la suppression
+deactivate db
+
+alt Auteur a des livres
+    authorService --> authorController : ⚠️ "Auteur a X livres avec Y avis"
+    deactivate authorService
+    
+    authorController --> authorUI : Alerte critique\n"Cet auteur a X livres publiés.\nSupprimer l'auteur supprimera aussi :\n- Tous ses livres\n- Tous les avis sur ces livres\n- Toutes les références en bibliothèques\n\nÊtes-vous ABSOLUMENT sûr ?"
+    authorUI --> admin : Modal de confirmation critique
+    
+    alt Admin confirme malgré l'impact
+        admin -> authorUI : Confirme la suppression critique
+        authorUI -> authorController : Procéder à la suppression complète
+        
+        authorController -> authorService : Suppression en cascade
+        activate authorService
+        
+        authorService -> db : BEGIN TRANSACTION
+        activate db
+        
+        authorService -> db : DELETE FROM bookhaslibrary\nWHERE id_book IN (SELECT id_book FROM books WHERE id_author = ?)
+        db --> authorService : ✓ Relations bibliothèques supprimées
+        
+        authorService -> db : DELETE FROM reviews\nWHERE id_book IN (SELECT id_book FROM books WHERE id_author = ?)
+        db --> authorService : ✓ Avis supprimés
+        
+        authorService -> db : DELETE FROM books WHERE id_author = ?
+        db --> authorService : ✓ Livres supprimés
+        
+        authorService -> db : DELETE FROM authors WHERE id_author = ?
+        
+        alt Suppression complète réussie
+            db --> authorService : ✓ Auteur supprimé
+            authorService -> db : COMMIT TRANSACTION
+            deactivate db
+            authorService --> authorController : ✅ "Suppression complète réussie"
+            deactivate authorService
+            authorController --> authorUI : ✅ "Auteur et tous ses livres supprimés"
+            authorUI --> admin : Liste mise à jour
+            
+        else Erreur suppression
+            db --> authorService : ❌ Erreur suppression
+            authorService -> db : ROLLBACK TRANSACTION
+            deactivate db
+            authorService --> authorController : ❌ "Erreur lors de la suppression"
+            deactivate authorService
+            authorController --> authorUI : "Erreur technique, aucune suppression effectuée"
+            authorUI --> admin : Message d'erreur
+        end
+        
+    else Admin annule
+        admin -> authorUI : Annule la suppression
+        authorUI --> admin : Retour à la liste sans suppression
+    end
+    
+else Auteur sans livres
+    authorService --> authorController : ✅ "Suppression sans impact"
+    deactivate authorService
+    
+    authorController --> authorUI : Confirmation simple\n"Supprimer cet auteur ?\n(Aucun livre associé)"
+    authorUI --> admin : Confirmation standard
+    
+    admin -> authorUI : Confirme la suppression
+    authorUI -> authorController : Supprimer auteur
+    
+    authorController -> authorService : Suppression simple
+    activate authorService
+    
+    authorService -> db : DELETE FROM authors WHERE id_author = ?
+    activate db
+    
+    alt Suppression réussie
+        db --> authorService : ✓ Auteur supprimé
+        deactivate db
+        authorService --> authorController : ✅ "Suppression réussie"
+        deactivate authorService
+        authorController --> authorUI : ✅ "Auteur supprimé avec succès"
+        authorUI --> admin : Liste mise à jour
+        
+    else Erreur suppression
+        db --> authorService : ❌ Erreur
+        deactivate db
+        authorService --> authorController : ❌ "Erreur suppression"
+        deactivate authorService
+        authorController --> authorUI : "Erreur technique"
+        authorUI --> admin : Message d'erreur
+    end
+end
+deactivate authorController
+
+== Fonctionnalités avancées ==
+
+alt Désactivation d'un auteur (alternative à la suppression)
+    admin -> authorUI : Clic "Désactiver" sur un auteur
+    authorUI -> authorController : Désactiver auteur (author_id)
+    activate authorController
+    
+    authorController -> authorService : Marquer comme inactif
+    activate authorService
+    
+    authorService -> db : UPDATE authors SET is_active = FALSE, updated_at = NOW()\nWHERE id_author = ?
+    activate db
+    db --> authorService : ✓ Auteur désactivé
+    deactivate db
+    
+    authorService --> authorController : ✅ "Auteur désactivé"
+    deactivate authorService
+    authorController --> authorUI : ✅ "Auteur masqué (peut être réactivé)"
+    deactivate authorController
+    authorUI --> admin : Liste mise à jour (auteur grisé/masqué)
+end
+
+note over admin, db
+    **Règles de gestion CRUD Auteurs :**
+    
+    **Création :**
+    - Nom de famille obligatoire
+    - Vérification unicité (prénom + nom)
+    - Validation des dates (naissance < mort)
+    - Full_name généré automatiquement
+    
+    **Consultation :**
+    - Pagination pour performance
+    - Statistiques (nb livres, note moyenne)
+    - Recherche par nom/nationalité
+    - Vue détaillée avec bibliographie
+    
+    **Modification :**
+    - Vérification unicité si nom modifié
+    - Validation des dates cohérentes
+    - Mise à jour du full_name automatique
+    
+    **Suppression :**
+    - Impact analysis obligatoire
+    - Suppression en cascade pour auteurs avec livres
+    - Alternative : désactivation (is_active = FALSE)
+    - Transaction sécurisée avec rollback
+    
+    **Sécurité :**
+    - Droits admin requis pour toutes les opérations
+    - Logs des modifications importantes
+    - Confirmations selon l'impact
+end note
+
+@enduml

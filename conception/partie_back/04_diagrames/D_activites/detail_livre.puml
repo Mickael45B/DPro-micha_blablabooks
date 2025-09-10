@@ -1,0 +1,215 @@
+@startuml
+
+title Diagramme d'Activité - Consultation Détail Livre et Actions
+
+start
+
+
+
+
+
+if (Utilisateur connecté ?) then (non)
+  :call Processus Authentification;
+  note right : Voir "Diagramme Connexion/Inscription"
+  if (Connexion réussie ?) then (non)
+    :message "erreur lors de la connexion, veuillez réessayer.";
+    stop
+  endif
+  
+  if (Clic sur action nécessitant connexion ?) then (oui)
+    :Modal "Connexion requise";
+    if (Choix utilisateur ?) then (Se connecter)
+      :Redirection vers connexion;
+      stop
+    else (Annuler)
+      :Rester sur page détail;
+    endif
+  endif
+  
+  stop
+
+else (oui)
+  :Affichage de toutes les actions disponibles;
+  :Utilisateur sur la page catalogue;
+:Clic sur un livre pour voir le détail;
+:Affichage page détail du livre;
+
+note right
+  **Page détail contient :**
+  - Informations livre (titre, auteur, description...)
+  - Couverture du livre
+  - Note moyenne et nombre d'avis
+  - Liste des avis existants
+  - Actions possibles selon statut connexion
+end note
+
+
+
+  while (Action choisie ?) is (disponible)
+    
+    switch (Type d'action ?)
+    case (Ajouter aux favoris ❤️)
+      :Clic sur icône cœur;
+      
+      if (Livre déjà en favoris ?) then (oui)
+        :Retirer des favoris;
+        :Mise à jour visuelle icône (cœur vide);
+        :Message "Retiré des favoris";
+      else (non)
+        :Ajouter à la bibliothèque "Livres favoris";
+        :Mise à jour visuelle icône (cœur plein);
+        :Message "Ajouté aux favoris";
+      endif
+      
+    case (Ajouter à une bibliothèque 📚)
+      :Clic sur "Ajouter à bibliothèque";
+      :Ouverture modal sélection bibliothèques;
+      :Affichage liste bibliothèques utilisateur;
+      
+      if (Bibliothèques disponibles ?) then (oui)
+        :Sélection bibliothèque(s) destination;
+        if (Bibliothèque(s) sélectionnée(s) ?) then (oui)
+          :Confirmation ajout;
+          :Ajout livre aux bibliothèques;
+          :Message "Livre ajouté à X bibliothèque(s)";
+          :Fermeture modal;
+        else (non)
+          :Annulation - fermeture modal;
+        endif
+      else (non)
+        :Message "Aucune bibliothèque disponible";
+        :Proposition créer nouvelle bibliothèque;
+      endif
+      
+    case (Laisser/modifier un avis ✍️)
+      
+      if (Utilisateur a déjà un avis ?) then (oui)
+        :Affichage avis existant;
+        
+        if (Action choisie ?) then (Modifier)
+          :Chargement formulaire avec avis actuel;
+          partition "Modification avis" {
+            repeat :Saisie note (1-5 étoiles);
+            repeat while (Note sélectionnée ?) is (non)
+            :Affichage "Note obligatoire";
+            
+            :Saisie/modification commentaire;
+            if (Commentaire valide ?) then (non)
+              :Affichage critères commentaire;
+            else (oui)
+              :Soumission modification;
+              :Mise à jour avis en base;
+              :Recalcul note moyenne livre;
+              :Message "Avis modifié avec succès";
+              :Actualisation affichage avis;
+            endif
+          }
+          
+        elseif (Supprimer) then
+          :Demande confirmation suppression;
+          if (Confirmation ?) then (oui)
+            :Suppression avis de la base;
+            :Recalcul note moyenne livre;
+            :Mise à jour compteur avis;
+            :Message "Avis supprimé";
+            :Actualisation affichage;
+          else (non)
+            :Annulation suppression;
+          endif
+        endif
+        
+      else (non)
+        :Affichage formulaire nouvel avis;
+        
+        partition "Création avis" {
+          repeat :Saisie note (1-5 étoiles);
+          repeat while (Note sélectionnée ?) is (non)
+          :Affichage "Note obligatoire pour publier";
+          
+          repeat :Saisie commentaire;
+          repeat while (Commentaire valide ?) is (non)
+          :Affichage erreurs validation;
+          
+          :Soumission nouvel avis;
+          
+          if (Avis publié avec succès ?) then (oui)
+            :Enregistrement en base;
+            :Recalcul note moyenne livre;
+            :Incrémentation compteur avis;
+            :Message "Avis publié avec succès";
+            :Actualisation page avec nouvel avis;
+          else (non)
+            :Message d'erreur technique;
+          endif
+        }
+      endif
+      
+    case (Signaler un avis ⚠️)
+      :Clic "Signaler" sur un avis;
+      :Ouverture modal de signalement;
+      
+      if (Avis propre à l'utilisateur ?) then (oui)
+        :Message "Impossible de signaler son propre avis";
+      else (non)
+        :Affichage formulaire signalement;
+        
+        :Sélection motif signalement;
+        note right
+          Motifs possibles :
+          - Contenu inapproprié
+          - Langage offensant  
+          - Spam/hors-sujet
+          - Faux avis
+          - Violation CGU
+        end note
+        
+        if (Motif sélectionné ?) then (oui)
+          :Saisie commentaire explicatif (optionnel);
+          :Soumission signalement;
+          
+          if (Signalement enregistré ?) then (oui)
+            :Création signalement en base;
+            :Notification aux administrateurs;
+            :Message "Signalement envoyé aux modérateurs";
+            :Fermeture modal;
+          else (non)
+            :Message d'erreur;
+          endif
+        else (non)
+          :Message "Veuillez sélectionner un motif";
+        endif
+      endif
+      
+    endswitch
+    
+  endwhile (aucune)
+  
+endif
+
+:Fin des actions sur la page détail;
+
+note left
+  **Actions disponibles selon statut :**
+  
+  **Visiteur non connecté :**
+  - Consultation détail livre
+  - Lecture des avis
+  - Invitation à se connecter pour actions
+  
+  **Utilisateur connecté :**
+  - Toutes les actions ci-dessus
+  - Ajouter/retirer des favoris
+  - Ajouter à bibliothèques personnelles  
+  - Créer/modifier/supprimer son avis
+  - Signaler avis d'autres utilisateurs
+  
+  **Règles métier :**
+  - Note obligatoire avec commentaire
+  - Un seul avis par utilisateur par livre
+  - Impossible de signaler son propre avis
+  - Actions temps réel avec feedback visuel
+end note
+
+stop
+
+@enduml

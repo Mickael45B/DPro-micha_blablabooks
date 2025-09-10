@@ -1,0 +1,191 @@
+@startuml
+
+title Diagramme d'Activité - Connexion/Inscription au Site de Bibliothèque
+note 
+  **Sécurité implémentée :**
+  - Limitation tentatives connexion
+  - Hachage sécurisé mot de passe
+  - Validation côté client ET serveur  
+  - Sessions sécurisées
+  - Protection anti-brute force
+  
+  **UX optimisée :**
+  - Messages d'erreur clairs
+  - Validation obligatoire à chaque étape
+  - Option "Se souvenir de moi"
+  - Récupération mot de passe
+  - Création automatique bibliothèques
+  
+  **Validation stricte inscription :**
+  - Impossible de continuer avec nom invalide
+  - Email doit être unique et valide
+  - Pseudo optionnel mais vérifié si saisi
+  - Mots de passe doivent correspondre
+end note
+start
+
+:Utilisateur accède au site;
+
+if (Utilisateur déjà connecté ?) then (oui)
+  :Redirection vers page d'accueil personnalisée;
+  stop
+endif
+
+:Affichage page d'accueil visiteur;
+
+split
+  :Bouton "Se connecter" visible;
+split again
+  :Bouton "Créer un compte" visible;
+end split
+
+if (Utilisateur clique sur ?) then (Se connecter)
+  
+  :Affichage formulaire de connexion;
+  
+  repeat
+    :Saisie email/pseudo et mot de passe;
+    
+    if (Format email/pseudo valide ?) then (non)
+      :Affichage erreur format;
+    else (oui)
+      if (Mot de passe saisi ?) then (non)
+        :Message "Mot de passe requis";
+      else (oui)
+        :Validation côté client OK;
+        :Envoi requête de connexion;
+        
+        if (Trop de tentatives échouées ?) then (oui)
+          :Affichage "Compte temporairement bloqué\n(15 minutes)";
+          stop
+        endif
+        
+        if (Utilisateur existe ?) then (non)
+          :Affichage "Identifiants incorrects";
+        elseif (Mot de passe correct ?) then (non)
+          :Enregistrement tentative échouée;
+          :Affichage "Identifiants incorrects";
+        elseif (Compte actif ?) then (non)
+          :Affichage "Compte suspendu";
+          stop
+        else (oui)
+          :Création session utilisateur;
+          :Récupération profil complet;
+          :Réinitialisation compteur tentatives;
+          :Redirection page d'accueil connecté;
+          
+          if (Option "Se souvenir de moi" ?) then (oui)
+            :Création cookie persistant (30 jours);
+          endif
+          
+          stop
+        endif
+      endif
+    endif
+  repeat while (Réessayer ?) is (oui)
+  
+  if (Lien "Mot de passe oublié" ?) then (cliqué)
+    :Saisie email de récupération;
+    if (Email valide et utilisateur existe ?) then (oui)
+      :Génération token de réinitialisation;
+      :Envoi email de réinitialisation;
+      :Affichage "Email envoyé";
+    else (non)
+      :Affichage "Email non trouvé";
+    endif
+  endif
+  
+
+
+else (Créer un compte)
+
+  :Affichage formulaire d'inscription;
+
+  
+repeat
+  :Saisie email;
+  if (Format email valide ?) then (non)
+    :Afficher "Format email invalide";
+  else (oui)
+    :Vérifier disponibilité email;
+    if (Email déjà utilisé ?) then (oui)
+      :Afficher "Email déjà utilisé";
+
+    else (non)
+      :Email OK -> continuer inscription;
+    endif
+  endif
+repeat while (Format invalide OU Email déjà utilisé ?)
+  
+  if (Pseudo souhaité ?) then (oui)
+    repeat 
+       :Saisie pseudo;
+       if (Format pseudo valide ?) then (non)
+          :Affichage "Format pseudo invalide";
+       else (oui)
+          :Vérification disponibilité pseudo;
+          if (Pseudo déjà pris ?) then (oui)
+             :Affichage "Pseudo indisponible";
+          else (non)
+             :Pseudo OK -> continuer inscription;
+          endif
+       endif
+   repeat while (Format invalide OU Pseudo déjà utilisé ?)
+
+
+
+
+
+
+  endif
+  
+  repeat :Saisie mot de passe;
+  repeat while (Mot de passe fort ?) is (non) not (oui)
+  
+  :Affichage critères sécurité;
+  
+  repeat :Confirmation mot de passe;
+  repeat while (Mots de passe identiques ?) is (non) not (oui)
+
+  :Affichage "Mots de passe différents";
+  
+  :Tous les champs valides;
+  :Soumission formulaire;
+  :Hachage du mot de passe;
+  
+  partition "Création compte complète" {
+    :Début transaction base de données;
+    
+    :Insertion nouvel utilisateur;
+    
+    if (Insertion réussie ?) then (non)
+      :Rollback transaction;
+      :Affichage "Erreur technique";
+      stop
+    endif
+    
+    :Création bibliothèque "Livres lus";
+    :Création bibliothèque "Livres favoris";
+    
+    if (Bibliothèques créées ?) then (non)
+      :Rollback transaction;
+      :Affichage "Erreur configuration";
+      stop
+    endif
+    
+    :Validation transaction;
+    :Envoi email de bienvenue;
+    :Création session automatique;
+    
+    :Affichage message succès\n"Compte créé avec vos bibliothèques";
+    :Redirection page d'accueil connecté;
+  }
+  
+  
+endif
+end
+
+
+
+
+@enduml

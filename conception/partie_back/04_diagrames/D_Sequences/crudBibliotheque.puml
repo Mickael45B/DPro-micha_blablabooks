@@ -1,0 +1,528 @@
+@startuml
+
+title CRUD - Gestion des Livres dans les Bibliothèques Utilisateur
+
+actor Utilisateur as user
+participant "Interface\nBibliothèque" as libraryUI
+participant "Contrôleur\nBibliothèque" as libraryController
+participant "Service\nAuthentification" as authService
+participant "Service\nBibliothèque" as libraryService
+participant "Service\nLivre" as bookService
+database "Base de\nDonnées" as db
+participant "Service\nNotification" as notificationService
+
+note over user, notificationService
+    **Tables concernées :**
+    - books : catalogue des livres
+    - libraries : bibliothèques utilisateur  
+    - bookhaslibrary : relations livre ↔ bibliothèque
+    - users : propriétaires des bibliothèques
+    
+    **Bibliothèques système (is_editable = false) :**
+    - "Livres lus" : pour les livres terminés
+    - "Livres favoris" : pour les coups de cœur
+    
+    **Bibliothèques utilisateur (is_editable = true) :**
+    - Créées par l'utilisateur, noms personnalisés
+end note
+
+== CREATE - Ajout d'un livre à une bibliothèque ==
+
+user -> libraryUI : Clic "Ajouter à une bibliothèque" sur un livre
+activate libraryUI
+
+libraryUI -> libraryController : Charger modal d'ajout (book_id)
+activate libraryController
+
+libraryController -> authService : Vérifier authentification
+activate authService
+
+alt Utilisateur connecté
+    authService -> db : SELECT id_user FROM users WHERE id_user = ? AND is_active = TRUE
+    activate db
+    db --> authService : ✅ Utilisateur valide
+    deactivate db
+    authService --> libraryController : ✓ Utilisateur authentifié (user_id)
+    deactivate authService
+    
+    libraryController -> libraryService : Récupérer bibliothèques utilisateur + statuts livre
+    activate libraryService
+    
+    libraryService -> db : SELECT l.id_library, l.name, l.is_editable,\n  CASE WHEN bhl.id_book IS NOT NULL THEN true ELSE false END as contains_book\nFROM libraries l\nLEFT JOIN bookhaslibrary bhl ON l.id_library = bhl.id_library AND bhl.id_book = ?\nWHERE l.id_user = ?\nORDER BY l.is_editable DESC, l.name ASC
+    activate db
+    db --> libraryService : Liste bibliothèques + statuts
+    deactivate db
+    
+    libraryService --> libraryController : ✅ Bibliothèques avec statuts actuels
+    deactivate libraryService
+    
+    libraryController --> libraryUI : ✓ Modal avec liste des bibliothèques
+    deactivate libraryController
+    
+    libraryUI --> user : Modal "Ajouter à bibliothèque"\n(checkboxes : déjà présent/absent, actions possibles)
+
+else Utilisateur non connecté
+    authService --> libraryController : ❌ Non authentifié
+    deactivate authService
+    libraryController --> libraryUI : "Veuillez vous connecter"
+    deactivate libraryController
+    libraryUI --> user : Redirection vers page de connexion
+    deactivate libraryUI
+end
+
+user -> libraryUI : Sélectionne bibliothèques et confirme
+libraryUI -> libraryController : Ajouter livre aux bibliothèques sélectionnées
+activate libraryController
+
+libraryController -> authService : Vérifier droits utilisateur
+activate authService
+authService --> libraryController : ✓ Droits confirmés
+deactivate authService
+
+libraryController -> libraryService : Traiter ajouts multiples
+activate libraryService
+
+libraryService -> db : BEGIN TRANSACTION
+activate db
+
+loop Pour chaque bibliothèque sélectionnée
+    libraryService -> db : -- Vérifier propriété bibliothèque\nSELECT id_user FROM libraries\nWHERE id_library = ? AND id_user = ?
+    
+    alt Utilisateur = propriétaire
+        db --> libraryService : ✓ Propriétaire confirmé
+        
+        libraryService -> db : -- Vérifier si livre déjà présent\nSELECT COUNT(*) FROM bookhaslibrary\nWHERE id_library = ? AND id_book = ?
+        
+        alt Livre pas encore présent
+            db --> libraryService : 0 (livre absent)
+            
+            libraryService -> db : INSERT INTO bookhaslibrary\n(id_bookhaslibrary, id_library, id_book, is_read, is_favorite)\nVALUES (uuid(), ?, ?, \n  CASE WHEN library_name = 'Livres lus' THEN true ELSE false END,\n  CASE WHEN library_name = 'Livres favoris' THEN true ELSE false END\n)
+            
+            alt Insertion réussie
+                db --> libraryService : ✓ Livre ajouté à la bibliothèque
+                libraryService -> libraryService : Incrémenter compteur succès
+            else Erreur insertion
+                db --> libraryService : ❌ Erreur ajout
+                libraryService -> libraryService : Incrémenter compteur erreurs
+            end
+            
+        else Livre déjà présent
+            db --> libraryService : 1+ (livre déjà présent)
+            libraryService -> libraryService : Ignorer (pas d'erreur)
+        end
+        
+    else Utilisateur ≠ propriétaire
+        db --> libraryService : ❌ Non propriétaire
+        libraryService -> libraryService : Incrémenter compteur erreurs droits
+    end
+end
+
+alt Toutes les opérations réussies
+    libraryService -> db : COMMIT TRANSACTION
+    deactivate db
+    
+    libraryService -> bookService : Mettre à jour compteur is_in_library
+    activate bookService
+    bookService -> db : UPDATE books SET is_in_library = (\n  SELECT COUNT(*) FROM bookhaslibrary WHERE id_book = ?\n) WHERE id_book = ?
+    activate db
+    db --> bookService : ✓ Compteur mis à jour
+    deactivate db
+    deactivate bookService
+    
+    libraryService --> libraryController : ✅ "Livre ajouté à X bibliothèque(s)"
+    deactivate libraryService
+    
+    libraryController -> notificationService : Notification optionnelle
+    activate notificationService
+    notificationService --> libraryController : ✓ Notification envoyée
+    deactivate notificationService
+    
+    libraryController --> libraryUI : ✅ Message de succès détaillé
+    libraryUI --> user : "Livre ajouté avec succès à vos bibliothèques"
+
+else Erreurs lors des opérations  
+    libraryService -> db : ROLLBACK TRANSACTION
+    deactivate db
+    libraryService --> libraryController : ❌ "Erreur lors de l'ajout"
+    deactivate libraryService
+    libraryController --> libraryUI : Message d'erreur avec détails
+    libraryUI --> user : "Erreur : impossible d'ajouter à certaines bibliothèques"
+end
+deactivate libraryController
+deactivate libraryUI
+
+== READ - Consultation des livres d'une bibliothèque ==
+
+user -> libraryUI : Ouvre une bibliothèque spécifique
+activate libraryUI
+
+libraryUI -> libraryController : Afficher contenu bibliothèque (library_id)
+activate libraryController
+
+libraryController -> authService : Vérifier droits d'accès
+activate authService
+
+libraryController -> libraryService : Vérifier propriété bibliothèque
+activate libraryService
+
+libraryService -> db : SELECT id_user, name, is_editable FROM libraries WHERE id_library = ?
+activate db
+db --> libraryService : Données propriétaire bibliothèque
+deactivate db
+
+alt Utilisateur = propriétaire OU bibliothèque publique
+    libraryService --> authService : ✅ Accès autorisé
+    deactivate libraryService
+    authService --> libraryController : ✓ Droits validés
+    deactivate authService
+    
+    libraryController -> libraryService : Récupérer livres de la bibliothèque
+    activate libraryService
+    
+    libraryService -> db : SELECT b.*, bhl.is_read, bhl.is_favorite, bhl.created_at as added_at,\n  a.full_name as author_name, g.name as genre_name, g.color_hex\nFROM bookhaslibrary bhl\nJOIN books b ON bhl.id_book = b.id_book\nJOIN authors a ON b.id_author = a.id_author\nJOIN genres g ON b.id_genre = g.id_genre\nWHERE bhl.id_library = ?\nORDER BY bhl.created_at DESC, b.title ASC
+    activate db
+    db --> libraryService : Liste des livres avec métadonnées
+    deactivate db
+    
+    libraryService -> libraryService : Calculer statistiques bibliothèque\n(total livres, livres lus, favoris, note moyenne)
+    
+    libraryService --> libraryController : ✅ Livres + statistiques
+    deactivate libraryService
+    
+    libraryController --> libraryUI : ✓ Contenu complet bibliothèque
+    deactivate libraryController
+    
+    libraryUI --> user : Affichage bibliothèque\n(liste livres, filtres, stats, actions par livre)
+
+else Accès refusé
+    libraryService --> authService : ❌ Accès interdit
+    deactivate libraryService
+    authService --> libraryController : ❌ Droits insuffisants
+    deactivate authService
+    libraryController --> libraryUI : "Accès non autorisé à cette bibliothèque"
+    deactivate libraryController
+    libraryUI --> user : Message d'erreur + redirection
+end
+deactivate libraryUI
+
+== UPDATE - Modification du statut d'un livre dans une bibliothèque ==
+
+user -> libraryUI : Change statut livre (lu/non-lu, favori/pas favori)
+activate libraryUI
+
+libraryUI -> libraryController : Mettre à jour statut livre (library_id, book_id, nouveaux_statuts)
+activate libraryController
+
+libraryController -> authService : Vérifier droits modification
+activate authService
+authService -> libraryService : Vérifier propriété
+activate libraryService
+
+libraryService -> db : SELECT id_user FROM libraries WHERE id_library = ?
+activate db
+db --> libraryService : Propriétaire de la bibliothèque
+deactivate db
+
+alt Utilisateur = propriétaire
+    libraryService --> authService : ✅ Droits de modification
+    deactivate libraryService
+    authService --> libraryController : ✓ Modification autorisée
+    deactivate authService
+    
+    libraryController -> libraryService : Appliquer modifications statuts
+    activate libraryService
+    
+    libraryService -> db : UPDATE bookhaslibrary SET\n  is_read = ?, is_favorite = ?, updated_at = NOW()\nWHERE id_library = ? AND id_book = ?
+    activate db
+    
+    alt Mise à jour réussie
+        db --> libraryService : ✓ Statuts mis à jour
+        deactivate db
+        
+        libraryService -> bookService : Recalculer compteur favoris global
+        activate bookService
+        bookService -> db : UPDATE books SET is_in_favorite = (\n  SELECT COUNT(*) FROM bookhaslibrary \n  WHERE id_book = ? AND is_favorite = TRUE\n) WHERE id_book = ?
+        activate db
+        db --> bookService : ✓ Compteur global mis à jour
+        deactivate db
+        deactivate bookService
+        
+        libraryService --> libraryController : ✅ "Statut mis à jour"
+        deactivate libraryService
+        
+        libraryController --> libraryUI : ✅ Confirmation modification
+        libraryUI -> libraryUI : Actualiser affichage en temps réel
+        libraryUI --> user : Statut livre mis à jour visuellement
+        
+    else Erreur mise à jour
+        db --> libraryService : ❌ Erreur base de données
+        deactivate db
+        libraryService --> libraryController : ❌ "Erreur lors de la modification"
+        deactivate libraryService
+        libraryController --> libraryUI : "Impossible de modifier le statut"
+        libraryUI --> user : Message d'erreur
+    end
+
+else Utilisateur ≠ propriétaire  
+    libraryService --> authService : ❌ Pas propriétaire
+    deactivate libraryService
+    authService --> libraryController : ❌ Droits insuffisants
+    deactivate authService
+    libraryController --> libraryUI : "Vous ne pouvez pas modifier cette bibliothèque"
+    libraryUI --> user : Message d'erreur droits
+end
+deactivate libraryController
+deactivate libraryUI
+
+== DELETE - Suppression d'un livre d'une bibliothèque ==
+
+user -> libraryUI : Clic "Retirer de la bibliothèque" sur un livre
+libraryUI -> libraryController : Confirmer suppression (library_id, book_id)
+activate libraryController
+
+libraryController -> authService : Vérifier droits suppression
+activate authService
+authService -> libraryService : Vérifier propriété + type bibliothèque
+activate libraryService
+
+libraryService -> db : SELECT l.id_user, l.name, l.is_editable, b.title\nFROM libraries l, books b\nWHERE l.id_library = ? AND b.id_book = ?
+activate db
+db --> libraryService : Infos bibliothèque + livre
+deactivate db
+
+alt Utilisateur = propriétaire AND bibliothèque modifiable
+    libraryService --> authService : ✅ Suppression autorisée
+    deactivate libraryService
+    authService --> libraryController : ✓ Droits validés
+    deactivate authService
+    
+    libraryController --> libraryUI : Demande de confirmation\n"Retirer '[titre_livre]' de '[nom_bibliothèque]' ?"
+    libraryUI --> user : Modal de confirmation
+    
+    user -> libraryUI : Confirme la suppression
+    libraryUI -> libraryController : Procéder à la suppression
+    
+    libraryController -> libraryService : Supprimer livre de la bibliothèque
+    activate libraryService
+    
+    libraryService -> db : DELETE FROM bookhaslibrary\nWHERE id_library = ? AND id_book = ?
+    activate db
+    
+    alt Suppression réussie
+        db --> libraryService : ✓ Livre retiré de la bibliothèque
+        deactivate db
+        
+        libraryService -> bookService : Mettre à jour compteurs globaux
+        activate bookService
+        
+        bookService -> db : UPDATE books SET \n  is_in_library = is_in_library - 1,\n  is_in_favorite = (\n    SELECT COUNT(*) FROM bookhaslibrary \n    WHERE id_book = ? AND is_favorite = TRUE\n  )\nWHERE id_book = ?
+        activate db
+        db --> bookService : ✓ Compteurs mis à jour
+        deactivate db
+        deactivate bookService
+        
+        libraryService --> libraryController : ✅ "Livre retiré avec succès"
+        deactivate libraryService
+        
+        libraryController --> libraryUI : ✅ Confirmation suppression
+        libraryUI -> libraryUI : Retirer livre de l'affichage
+        libraryUI --> user : Livre retiré de la vue + message de succès
+        
+    else Erreur suppression
+        db --> libraryService : ❌ Erreur base de données
+        deactivate db
+        libraryService --> libraryController : ❌ "Erreur lors de la suppression"
+        deactivate libraryService
+        libraryController --> libraryUI : "Impossible de retirer ce livre"
+        libraryUI --> user : Message d'erreur
+    end
+
+else Suppression non autorisée
+    alt Bibliothèque système (non modifiable)
+        libraryService --> authService : ❌ "Bibliothèque système non modifiable"
+        deactivate libraryService
+        authService --> libraryController : ❌ "Action non permise"
+        deactivate authService
+        libraryController --> libraryUI : "Impossible de modifier les bibliothèques système"
+        libraryUI --> user : "Les bibliothèques 'Livres lus' et 'Livres favoris' ne peuvent pas être modifiées directement"
+        
+    else Utilisateur ≠ propriétaire
+        libraryService --> authService : ❌ "Pas propriétaire"
+        deactivate libraryService
+        authService --> libraryController : ❌ Droits insuffisants
+        deactivate authService
+        libraryController --> libraryUI : "Vous ne pouvez pas modifier cette bibliothèque"
+        libraryUI --> user : Message d'erreur droits
+    end
+end
+deactivate libraryController
+
+== MOVE - Déplacement d'un livre d'une bibliothèque à une autre ==
+
+user -> libraryUI : Clic "Déplacer vers..." sur un livre
+activate libraryUI
+
+libraryUI -> libraryController : Charger modal de déplacement (library_source_id, book_id)
+activate libraryController
+
+libraryController -> libraryService : Récupérer bibliothèques destination possibles
+activate libraryService
+
+libraryService -> db : SELECT l.id_library, l.name, l.is_editable,\n  CASE WHEN bhl.id_book IS NOT NULL THEN true ELSE false END as contains_book\nFROM libraries l\nLEFT JOIN bookhaslibrary bhl ON l.id_library = bhl.id_library AND bhl.id_book = ?\nWHERE l.id_user = ? AND l.id_library != ?\nORDER BY l.name ASC
+activate db
+db --> libraryService : Bibliothèques destination + statuts
+deactivate db
+
+libraryService --> libraryController : ✅ Options de destination
+deactivate libraryService
+
+libraryController --> libraryUI : ✓ Modal avec bibliothèques destination
+deactivate libraryController
+
+libraryUI --> user : Modal "Déplacer vers"\n(liste bibliothèques, options copie/déplacement)
+deactivate libraryUI
+
+user -> libraryUI : Sélectionne bibliothèque destination et action
+libraryUI -> libraryController : Effectuer déplacement/copie
+activate libraryController
+
+libraryController -> authService : Vérifier droits sur les deux bibliothèques
+activate authService
+
+authService -> libraryService : Vérifier propriété source et destination
+activate libraryService
+
+libraryService -> db : SELECT COUNT(*) FROM libraries\nWHERE id_library IN (?, ?) AND id_user = ?
+activate db
+
+alt Utilisateur propriétaire des 2 bibliothèques
+    db --> libraryService : 2 bibliothèques trouvées
+    deactivate db
+    libraryService --> authService : ✅ Droits sur source et destination
+    deactivate libraryService
+    authService --> libraryController : ✓ Opération autorisée
+    deactivate authService
+    
+    libraryController -> libraryService : Traiter déplacement/copie
+    activate libraryService
+    
+    libraryService -> db : BEGIN TRANSACTION
+    activate db
+    
+    alt Mode DEPLACER (défaut)
+        libraryService -> db : -- Récupérer statuts actuels\nSELECT is_read, is_favorite FROM bookhaslibrary\nWHERE id_library = ? AND id_book = ?
+        db --> libraryService : Statuts actuels du livre
+        
+        libraryService -> db : -- Supprimer de la source\nDELETE FROM bookhaslibrary\nWHERE id_library = ? AND id_book = ?
+        db --> libraryService : ✓ Supprimé de la source
+        
+        libraryService -> db : -- Vérifier si existe déjà en destination\nSELECT COUNT(*) FROM bookhaslibrary\nWHERE id_library = ? AND id_book = ?
+        
+        alt Pas encore en destination
+            db --> libraryService : 0 (absent de destination)
+            
+            libraryService -> db : INSERT INTO bookhaslibrary\n(id_bookhaslibrary, id_library, id_book, is_read, is_favorite)\nVALUES (uuid(), ?, ?, ?, ?)
+            db --> libraryService : ✓ Ajouté à la destination
+            
+            libraryService -> db : COMMIT TRANSACTION
+            deactivate db
+            libraryService --> libraryController : ✅ "Livre déplacé avec succès"
+            
+        else Déjà présent en destination
+            db --> libraryService : 1+ (déjà présent)
+            deactivate db
+            
+            libraryService -> db : ROLLBACK TRANSACTION
+            activate db
+            
+            libraryService -> db : -- Rétablir en source\nINSERT INTO bookhaslibrary\n(id_bookhaslibrary, id_library, id_book, is_read, is_favorite)\nVALUES (uuid(), ?, ?, ?, ?)
+            db --> libraryService : ✓ Restauré en source
+            deactivate db
+            
+            libraryService --> libraryController : ⚠️ "Le livre est déjà dans la bibliothèque destination"
+        end
+        
+    else Mode COPIER
+        libraryService -> db : -- Vérifier si existe déjà en destination\nSELECT COUNT(*) FROM bookhaslibrary\nWHERE id_library = ? AND id_book = ?
+        
+        alt Pas encore en destination
+            db --> libraryService : 0 (absent)
+            
+            libraryService -> db : -- Récupérer statuts source\nSELECT is_read, is_favorite FROM bookhaslibrary\nWHERE id_library = ? AND id_book = ?
+            db --> libraryService : Statuts à copier
+            
+            libraryService -> db : INSERT INTO bookhaslibrary\n(id_bookhaslibrary, id_library, id_book, is_read, is_favorite)\nVALUES (uuid(), ?, ?, ?, ?)
+            db --> libraryService : ✓ Copié vers destination
+            
+            libraryService -> db : COMMIT TRANSACTION
+            deactivate db
+            libraryService --> libraryController : ✅ "Livre copié avec succès"
+            
+        else Déjà présent en destination
+            db --> libraryService : 1+ (déjà présent)
+            libraryService -> db : ROLLBACK TRANSACTION
+            deactivate db
+            libraryService --> libraryController : ⚠️ "Le livre existe déjà dans cette bibliothèque"
+        end
+    end
+    
+    deactivate libraryService
+    
+    libraryController -> bookService : Recalculer compteurs globaux
+    activate bookService
+    bookService -> db : Recalcul is_in_library et is_in_favorite
+    activate db
+    db --> bookService : ✓ Compteurs mis à jour
+    deactivate db
+    deactivate bookService
+    
+    libraryController --> libraryUI : Message de résultat de l'opération
+    libraryUI --> user : Confirmation déplacement/copie + actualisation des vues
+
+else Droits insuffisants
+    db --> libraryService : < 2 bibliothèques trouvées
+    deactivate db
+    libraryService --> authService : ❌ Droits insuffisants
+    deactivate libraryService
+    authService --> libraryController : ❌ "Accès refusé"
+    deactivate authService
+    libraryController --> libraryUI : "Vous n'avez pas les droits nécessaires"
+    libraryUI --> user : Message d'erreur droits
+end
+deactivate libraryController
+
+== Fonctionnalités avancées ==
+
+note over user, notificationService
+    **Actions en lot disponibles :**
+    - Sélection multiple de livres pour déplacement/suppression
+    - Import/Export de bibliothèques (CSV, JSON)
+    - Fusion de bibliothèques avec gestion des doublons
+    - Synchronisation avec services externes (Goodreads, etc.)
+    
+    **Statistiques bibliothèques :**
+    - Répartition par genre/auteur/année
+    - Évolution dans le temps (ajouts/suppressions)
+    - Livres les plus populaires de la bibliothèque
+    - Temps de lecture estimé (si pages renseignées)
+    
+    **Notifications intelligentes :**
+    - Rappel livres non lus depuis X temps
+    - Suggestions basées sur les goûts (collaborative filtering)
+    - Nouveautés d'auteurs favoris
+    - Recommandations d'amis (si système social)
+    
+    **Intégrité des données :**
+    - Triggers automatiques pour compteurs
+    - Contraintes d'unicité (livre unique par bibliothèque)
+    - Cascade des suppressions si livre supprimé du catalogue
+    - Sauvegarde avant modifications importantes
+    
+    **Performance :**
+    - Index composites sur (id_library, id_book)
+    - Pagination pour grandes bibliothèques
+    - Cache des statistiques bibliothèques
+    - Requêtes optimisées pour éviter N+1
+end note
+
+@enduml

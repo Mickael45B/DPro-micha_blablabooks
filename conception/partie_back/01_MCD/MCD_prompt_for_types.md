@@ -160,18 +160,24 @@ Personnage: id personnage [VARCHAR(20)], nom [VARCHAR(100)], âge [INTEGER], gen
 # MCD à compléter
 
 ```mocodo
+autorisations: id_autorisations [?], nom [?]
+Affecter, 0N autorisations, 1N roles
+roles: id_roles [?], nom [?]
+
+:
+:
+attribuer, 0N roles, 11 utilisateur
+
+
 Ajouter, 0N utilisateur, 11 bibliothèque
-utilisateur: id_utilisateur [?], nom [?], email [?], mot_de_passe [?]
+utilisateur: id_utilisateur [?], nom [?], email [?], pseudo [?], mot_de_passe [?]
 Ecrire, 0N utilisateur, 11 avis
-
-
 
 bibliothèque: code_bibliotheque [?], nom [?], est_modifiable [?] 
 :
 avis: id_avis [?], note [?], commentaire [?]
 
-
 livre_bibliothèque, 0N livre, 0N bibliothèque
-livre: id_livre [?], genre [?], titre [?], auteur [?], date_publication [?], prix [?]
+livre: id_livre [?], isbn [?], genre [?], titre [?], auteur [?], editeur [?], date_publication [?], image_vignette [?],image [?], description [?], age_limite [?], serie [?], est_dans_favoris [?], est_dans_bibliotheque [?],nombre_avis [?], moyenne_note [?]
 virtuelement_posseder, 0N livre, 11 avis
 ```
