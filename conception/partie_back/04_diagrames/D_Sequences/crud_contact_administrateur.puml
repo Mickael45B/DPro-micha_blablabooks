@@ -1,0 +1,360 @@
+@startuml
+!theme plain
+title Contact Administrateur - Site Bibliothèque en Ligne
+
+actor Utilisateur as user
+participant "Interface\nContact" as contactUI
+participant "Contrôleur\nContact" as contactController
+participant "Service\nAuthentification" as authService
+participant "Service\nContact" as contactService
+participant "Service\nValidation" as validationService
+database "Base de\nDonnées" as db
+participant "Service\nEmail" as emailService
+participant "Service\nNotification" as notificationService
+participant "Interface\nAdmin" as adminUI
+actor Administrateur as admin
+
+note over user, admin
+    **Prérequis : Table Contact Messages**
+    CREATE TABLE contact_messages (
+        id_message VARCHAR(42) PRIMARY KEY,
+        id_user VARCHAR(42) REFERENCES users(id_user) ON DELETE SET NULL,
+        email VARCHAR(255) NOT NULL,
+        name VARCHAR(255) NOT NULL,
+        subject VARCHAR(255) NOT NULL,
+        category VARCHAR(50) NOT NULL,
+        message TEXT NOT NULL,
+        priority VARCHAR(20) DEFAULT 'normal',
+        status VARCHAR(20) DEFAULT 'pending',
+        admin_response TEXT,
+        responded_by VARCHAR(42) REFERENCES users(id_user) ON DELETE SET NULL,
+        responded_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ
+    );
+end note
+
+== Accès au formulaire de contact ==
+
+user -> contactUI : Accède à "Nous contacter"
+activate contactUI
+
+contactUI -> contactController : Charger formulaire de contact
+activate contactController
+
+contactController -> authService : Vérifier si utilisateur connecté
+activate authService
+
+alt Utilisateur connecté
+    authService -> db : SELECT name, email FROM users WHERE id_user = ?
+    activate db
+    db --> authService : Données utilisateur
+    deactivate db
+    authService --> contactController : ✅ Utilisateur identifié + données
+    deactivate authService
+    
+    contactController --> contactUI : ✓ Formulaire pré-rempli (nom, email)
+    contactUI --> user : Formulaire avec champs pré-remplis\n(nom*, email*, sujet*, catégorie*, message*)
+    
+else Utilisateur non connecté
+    authService --> contactController : ℹ️ Utilisateur anonyme
+    deactivate authService
+    
+    contactController --> contactUI : ✓ Formulaire vierge
+    contactUI --> user : Formulaire vide à compléter\n(nom*, email*, sujet*, catégorie*, message*)
+end
+deactivate contactController
+
+== Soumission du message de contact ==
+
+user -> contactUI : Remplit et soumet le formulaire
+contactUI -> contactController : Envoyer message de contact
+activate contactController
+
+contactController -> validationService : Valider données du formulaire
+activate validationService
+
+validationService -> validationService : Vérifier champs obligatoires\n(nom, email, sujet, message)
+validationService -> validationService : Valider format email
+validationService -> validationService : Vérifier longueurs (sujet ≤ 255, message ≥ 10 chars)
+validationService -> validationService : Valider catégorie (liste prédéfinie)
+
+alt Toutes les validations passent
+    validationService --> contactController : ✅ Données valides
+    deactivate validationService
+    
+    contactController -> contactService : Créer nouveau message de contact
+    activate contactService
+    
+    contactService -> contactService : Déterminer priorité selon catégorie\n(bug critique = high, suggestion = low)
+    
+    contactService -> db : INSERT INTO contact_messages\n(id_message, id_user, email, name, subject, category,\nmessage, priority, status)\nVALUES (uuid(), ?, ?, ?, ?, ?, ?, ?, 'pending')
+    activate db
+    
+    alt Insertion réussie
+        db --> contactService : ✓ Message enregistré (message_id)
+        deactivate db
+        
+        == Notifications automatiques ==
+        
+        contactService -> emailService : Envoyer confirmation à l'utilisateur
+        activate emailService
+        
+        emailService -> emailService : Composer email de confirmation\n"Votre message a été reçu. Référence: #message_id"
+        emailService --> contactService : ✅ Email confirmation envoyé
+        deactivate emailService
+        
+        contactService -> notificationService : Notifier les administrateurs
+        activate notificationService
+        
+        notificationService -> db : SELECT u.email, u.name FROM users u\nJOIN roles r ON u.id_role = r.id_role\nJOIN rolehaspermissions rhp ON r.id_role = rhp.id_role\nJOIN permissions p ON rhp.id_permission = p.id_permission\nWHERE p.permission_name = 'admin_contact'\nAND u.is_active = TRUE
+        activate db
+        db --> notificationService : Liste des admins à notifier
+        deactivate db
+        
+        alt Message priorité HIGH
+            notificationService -> emailService : Envoyer alerte urgente aux admins
+            activate emailService
+            emailService --> notificationService : ✅ Alerte urgente envoyée
+            deactivate emailService
+            
+            notificationService -> notificationService : Créer notification push/SMS si configuré
+            
+        else Priorité NORMAL ou LOW
+            notificationService -> emailService : Envoyer notification standard
+            activate emailService
+            emailService --> notificationService : ✅ Notification standard envoyée
+            deactivate emailService
+        end
+        
+        notificationService -> db : INSERT INTO admin_notifications\n(id_notification, message_type, content, priority, target_admins)\nVALUES (uuid(), 'new_contact', ?, ?, ?)
+        activate db
+        db --> notificationService : ✓ Notification admin créée
+        deactivate db
+        deactivate notificationService
+        
+        contactService --> contactController : ✅ "Message envoyé avec succès"
+        deactivate contactService
+        
+        contactController --> contactUI : ✅ "Votre message a été envoyé.\nRéférence: #message_id\nNous vous répondrons sous 24-48h."
+        contactUI --> user : Page de confirmation avec numéro de référence
+        
+    else Erreur insertion
+        db --> contactService : ❌ Erreur base de données
+        deactivate db
+        contactService --> contactController : ❌ "Erreur lors de l'envoi"
+        deactivate contactService
+        contactController --> contactUI : "Erreur technique, veuillez réessayer"
+        contactUI --> user : Formulaire avec message d'erreur
+    end
+    
+else Erreurs de validation
+    validationService --> contactController : ❌ Liste des erreurs
+    deactivate validationService
+    contactController --> contactUI : Erreurs de validation détaillées
+    contactUI --> user : Formulaire avec erreurs à corriger
+end
+deactivate contactController
+deactivate contactUI
+
+== Gestion côté administrateur ==
+
+admin -> adminUI : Accède au panel "Messages de contact"
+activate adminUI
+
+adminUI -> contactController : Lister messages en attente
+activate contactController
+
+contactController -> authService : Vérifier droits admin
+activate authService
+authService -> db : Vérifier permissions admin
+activate db
+db --> authService : ✅ Droits admin validés
+deactivate db
+authService --> contactController : ✓ Accès autorisé
+deactivate authService
+
+contactController -> contactService : Récupérer messages par statut/priorité
+activate contactService
+
+contactService -> db : SELECT cm.*, u.name as user_name,\nCASE WHEN cm.created_at > NOW() - INTERVAL '1 hour' THEN 'new'\n     WHEN cm.created_at > NOW() - INTERVAL '1 day' THEN 'recent'\n     ELSE 'old' END as age_category\nFROM contact_messages cm\nLEFT JOIN users u ON cm.id_user = u.id_user\nWHERE cm.status IN ('pending', 'in_progress')\nORDER BY \n  CASE cm.priority \n    WHEN 'high' THEN 1 \n    WHEN 'normal' THEN 2 \n    WHEN 'low' THEN 3 \n  END,\n  cm.created_at DESC
+activate db
+
+db --> contactService : Liste des messages triés par priorité
+deactivate db
+contactService --> contactController : ✅ Messages à traiter
+deactivate contactService
+
+contactController --> adminUI : ✓ Liste des messages
+deactivate contactController
+adminUI --> admin : Dashboard des messages\n(priorité, âge, catégorie, statut, actions)
+
+== Traitement d'un message par l'admin ==
+
+admin -> adminUI : Clic "Répondre" sur un message
+adminUI -> contactController : Charger message détaillé (message_id)
+activate contactController
+
+contactController -> contactService : Récupérer message complet
+activate contactService
+
+contactService -> db : SELECT cm.*, u.name as user_name, u.pseudo\nFROM contact_messages cm\nLEFT JOIN users u ON cm.id_user = u.id_user\nWHERE cm.id_message = ?
+activate db
+db --> contactService : Détails complets du message
+deactivate db
+
+contactService -> db : UPDATE contact_messages \nSET status = 'in_progress', updated_at = NOW()\nWHERE id_message = ? AND status = 'pending'
+activate db
+db --> contactService : ✓ Statut mis à jour
+deactivate db
+
+contactService --> contactController : ✅ Message et historique
+deactivate contactService
+
+contactController --> adminUI : ✓ Détails message + formulaire réponse
+deactivate contactController
+adminUI --> admin : Interface de réponse\n(message original, champ réponse, actions)
+
+admin -> adminUI : Rédige et envoie la réponse
+adminUI -> contactController : Envoyer réponse administrative
+activate contactController
+
+contactController -> validationService : Valider réponse admin
+activate validationService
+alt Réponse valide
+    validationService --> contactController : ✅ Réponse correcte
+    deactivate validationService
+    
+    contactController -> contactService : Enregistrer et envoyer réponse
+    activate contactService
+    
+    contactService -> db : UPDATE contact_messages SET\nadmin_response = ?, status = 'resolved',\nresponded_by = ?, responded_at = NOW(), updated_at = NOW()\nWHERE id_message = ?
+    activate db
+    db --> contactService : ✓ Réponse enregistrée
+    deactivate db
+    
+    contactService -> emailService : Envoyer réponse à l'utilisateur
+    activate emailService
+    
+    emailService -> emailService : Composer email de réponse\n(réponse admin + référence message)
+    emailService --> contactService : ✅ Réponse envoyée à l'utilisateur
+    deactivate emailService
+    
+    alt Utilisateur connecté
+        contactService -> notificationService : Créer notification utilisateur
+        activate notificationService
+        notificationService -> db : INSERT INTO user_notifications\n(id_user, type, content, message_id)
+        activate db
+        db --> notificationService : ✓ Notification utilisateur créée
+        deactivate db
+        deactivate notificationService
+    end
+    
+    contactService --> contactController : ✅ "Réponse envoyée avec succès"
+    deactivate contactService
+    
+    contactController --> adminUI : ✅ "Réponse envoyée, message résolu"
+    adminUI -> adminUI : Actualiser liste des messages
+    adminUI --> admin : Retour au dashboard, message marqué "résolu"
+    
+else Réponse invalide
+    validationService --> contactController : ❌ "Réponse requise"
+    deactivate validationService
+    contactController --> adminUI : "Veuillez saisir une réponse"
+    adminUI --> admin : Formulaire avec erreur
+end
+deactivate contactController
+
+== Actions administratives avancées ==
+
+alt Marquer comme spam/invalide
+    admin -> adminUI : Clic "Marquer comme spam"
+    adminUI -> contactController : Marquer message spam
+    activate contactController
+    
+    contactController -> contactService : Marquer spam + bloquer email
+    activate contactService
+    
+    contactService -> db : UPDATE contact_messages SET status = 'spam'\nWHERE id_message = ?
+    activate db
+    db --> contactService : ✓ Message marqué spam
+    deactivate db
+    
+    contactService -> db : INSERT INTO blocked_emails (email, reason, blocked_by)\nVALUES (?, 'spam', ?)
+    activate db
+    db --> contactService : ✓ Email bloqué
+    deactivate db
+    deactivate contactService
+    
+    contactController --> adminUI : ✅ "Message marqué spam, email bloqué"
+    deactivate contactController
+    adminUI --> admin : Message retiré de la liste
+end
+
+alt Escalader vers autre admin
+    admin -> adminUI : Clic "Escalader"
+    adminUI -> contactController : Assigner à autre admin
+    activate contactController
+    
+    contactController -> contactService : Réassigner message
+    activate contactService
+    
+    contactService -> db : UPDATE contact_messages SET\nassigned_to = ?, priority = 'high', updated_at = NOW()\nWHERE id_message = ?
+    activate db
+    db --> contactService : ✓ Message réassigné
+    deactivate db
+    
+    contactService -> notificationService : Notifier admin assigné
+    activate notificationService
+    notificationService -> emailService : Envoyer notification assignment
+    activate emailService
+    emailService --> notificationService : ✅ Admin notifié
+    deactivate emailService
+    deactivate notificationService
+    deactivate contactService
+    
+    contactController --> adminUI : ✅ "Message escaladé"
+    deactivate contactController
+    adminUI --> admin : Confirmation d'escalade
+end
+
+== Statistiques et reporting ==
+
+note over admin, db
+    **Fonctionnalités avancées disponibles :**
+    
+    **Statistiques temps réel :**
+    - Messages en attente par catégorie
+    - Temps de réponse moyen par admin
+    - Volume de messages par période
+    - Satisfaction utilisateur (si système d'évaluation)
+    
+    **Catégories de contact :**
+    - 'bug' : Signalement de problème technique
+    - 'feature' : Demande de nouvelle fonctionnalité  
+    - 'account' : Problème de compte utilisateur
+    - 'content' : Problème avec un livre/auteur/genre
+    - 'other' : Autre demande
+    
+    **Système de priorité automatique :**
+    - HIGH : bugs critiques, problèmes de sécurité
+    - NORMAL : questions générales, demandes de fonctionnalités
+    - LOW : suggestions, commentaires généraux
+    
+    **États des messages :**
+    - 'pending' : En attente de traitement
+    - 'in_progress' : En cours de traitement
+    - 'resolved' : Traité et réponse envoyée
+    - 'spam' : Marqué comme spam
+    - 'closed' : Fermé sans suite
+    
+    **Notifications intelligentes :**
+    - Email immédiat pour priorité HIGH
+    - Digest quotidien pour NORMAL/LOW
+    - Alertes si messages non traités > 48h
+    - Notifications push pour admins connectés
+end note
+
+deactivate adminUI
+
+@enduml

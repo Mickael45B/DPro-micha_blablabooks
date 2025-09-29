@@ -1,0 +1,379 @@
+@startuml
+!theme plain
+title CRUD Administrateur - Gestion des Livres, Auteurs et Genres
+
+actor Administrateur as admin
+participant "Interface\nAdmin" as adminUI
+participant "Contrôleur\nAdmin" as adminController
+participant "Service\nAutorisation" as authService
+participant "Service\nLivre" as bookService
+participant "Service\nAuteur" as authorService
+participant "Service\nGenre" as genreService
+database "Base de\nDonnées" as db
+participant "Service\nRecalcul" as recalcService
+
+== Vérification des droits administrateur ==
+
+admin -> adminUI : Accède au panel d'administration
+activate adminUI
+
+adminUI -> adminController : Vérifier droits administrateur
+activate adminController
+
+adminController -> authService : Vérifier permissions utilisateur
+activate authService
+
+authService -> db : SELECT p.permission_name\nFROM users u\nJOIN roles r ON u.id_role = r.id_role\nJOIN rolehaspermissions rhp ON r.id_role = rhp.id_role\nJOIN permissions p ON rhp.id_permission = p.id_permission\nWHERE u.id_user = ? AND u.is_active = TRUE
+activate db
+
+alt Utilisateur a les droits admin
+    db --> authService : Permissions admin trouvées
+    authService --> adminController : ✅ Droits administrateur validés
+    adminController --> adminUI : ✓ Accès au panel admin autorisé
+    adminUI --> admin : Affichage du panel d'administration
+else Utilisateur non admin
+    db --> authService : Permissions insuffisantes
+    deactivate db
+    authService --> adminController : ❌ Droits insuffisants
+    deactivate authService
+    adminController --> adminUI : "Accès non autorisé"
+    deactivate adminController
+    adminUI --> admin : Redirection vers page d'accueil
+    deactivate adminUI
+end
+
+== CREATE - Ajout d'un nouveau livre ==
+
+admin -> adminUI : Clic "Ajouter un livre"
+adminUI -> adminController : Afficher formulaire livre
+activate adminController
+adminController --> adminUI : ✓ Formulaire vierge + listes (auteurs, genres)
+
+admin -> adminUI : Remplit le formulaire livre\n(titre, ISBN, date, auteur, éditeur, genre, etc.)
+
+adminUI -> adminController : Valider et créer livre
+adminController -> adminController : Validation des champs obligatoires
+alt Tous les champs valides
+    adminController -> bookService : Créer nouveau livre
+    activate bookService
+    
+    bookService -> bookService : Valider format ISBN
+    alt ISBN valide ou null
+        bookService -> db : INSERT INTO books\n(id_book, title, isbn, publication_date, author, editor, genre,\nvignetteimage, bookimage, age_limit, description, series)\nVALUES (uuid(), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        activate db
+        alt Insertion réussie
+            db --> bookService : ✓ Livre créé (book_id)
+            deactivate db
+            bookService --> adminController : ✅ Livre créé avec succès
+            deactivate bookService
+            adminController --> adminUI : ✅ "Livre ajouté avec succès"
+            adminUI --> admin : Redirection vers liste des livres
+        else Erreur insertion (ex: ISBN déjà existant)
+            db --> bookService : ❌ Erreur contrainte
+            deactivate db
+            bookService --> adminController : ❌ "ISBN déjà existant ou erreur de données"
+            deactivate bookService
+            adminController --> adminUI : Message d'erreur spécifique
+            adminUI --> admin : Formulaire avec erreurs à corriger
+        end
+    else ISBN invalide
+        bookService --> adminController : ❌ "Format ISBN invalide"
+        deactivate bookService
+        adminController --> adminUI : "Veuillez corriger le format ISBN"
+        adminUI --> admin : Formulaire avec erreur ISBN
+    end
+else Champs manquants
+    adminController --> adminUI : ❌ "Veuillez remplir les champs obligatoires"
+    adminUI --> admin : Formulaire avec erreurs de validation
+end
+deactivate adminController
+
+== READ - Consultation et recherche des livres ==
+
+admin -> adminUI : Accède à "Gestion des livres"
+adminUI -> adminController : Lister tous les livres (avec pagination)
+activate adminController
+
+adminController -> bookService : Récupérer livres avec statistiques
+activate bookService
+
+bookService -> db : SELECT b.*, \nCOUNT(r.id_review) as nb_reviews_actual,\nROUND(AVG(r.rating), 2) as avg_rating_actual\nFROM books b\nLEFT JOIN reviews r ON b.id_book = r.id_book\nGROUP BY b.id_book\nORDER BY b.created_at DESC\nLIMIT ? OFFSET ?
+activate db
+db --> bookService : Liste des livres + statistiques
+deactivate db
+
+bookService --> adminController : ✅ Données livres complètes
+deactivate bookService
+adminController --> adminUI : ✓ Liste des livres (admin view)
+deactivate adminController
+adminUI --> admin : Tableau avec actions admin\n(voir, modifier, supprimer, statistiques)
+
+alt Recherche spécifique
+    admin -> adminUI : Utilise la recherche/filtres
+    adminUI -> adminController : Rechercher avec critères
+    activate adminController
+    adminController -> bookService : Recherche avancée
+    activate bookService
+    bookService -> db : SELECT avec WHERE complexe\n(titre, auteur, genre, date, ISBN, etc.)
+    activate db
+    db --> bookService : Résultats filtrés
+    deactivate db
+    bookService --> adminController : ✅ Résultats de recherche
+    deactivate bookService
+    adminController --> adminUI : ✓ Livres correspondant aux critères
+    deactivate adminController
+    adminUI --> admin : Affichage des résultats filtrés
+end
+
+== UPDATE - Modification d'un livre ==
+
+admin -> adminUI : Clic "Modifier" sur un livre
+adminUI -> adminController : Charger formulaire modification (book_id)
+activate adminController
+
+adminController -> bookService : Récupérer détails du livre
+activate bookService
+bookService -> db : SELECT * FROM books WHERE id_book = ?
+activate db
+db --> bookService : Données complètes du livre
+deactivate db
+bookService --> adminController : ✅ Données livre
+deactivate bookService
+
+adminController --> adminUI : ✓ Formulaire pré-rempli
+adminUI --> admin : Formulaire de modification
+deactivate adminController
+
+admin -> adminUI : Modifie les champs et soumet
+adminUI -> adminController : Mettre à jour livre
+activate adminController
+
+adminController -> adminController : Validation des modifications
+alt Modifications valides
+    adminController -> bookService : Mettre à jour livre
+    activate bookService
+    
+    bookService -> db : UPDATE books SET\ntitle = ?, isbn = ?, publication_date = ?, author = ?,\neditor = ?, genre = ?, vignetteimage = ?, bookimage = ?,\nage_limit = ?, description = ?, series = ?, updated_at = NOW()\nWHERE id_book = ?
+    activate db
+    alt Mise à jour réussie
+        db --> bookService : ✓ Livre mis à jour
+        deactivate db
+        
+        bookService -> recalcService : Recalculer statistiques si nécessaire
+        activate recalcService
+        recalcService -> db : Recalcul avg_rating, nb_reviews si modifs importantes
+        activate db
+        db --> recalcService : ✓ Statistiques mises à jour
+        deactivate db
+        deactivate recalcService
+        
+        bookService --> adminController : ✅ Modification réussie
+        deactivate bookService
+        adminController --> adminUI : ✅ "Livre modifié avec succès"
+        adminUI --> admin : Retour à la liste avec modifications visibles
+    else Erreur mise à jour
+        db --> bookService : ❌ Erreur contrainte/données
+        deactivate db
+        bookService --> adminController : ❌ "Erreur lors de la modification"
+        deactivate bookService
+        adminController --> adminUI : Message d'erreur détaillé
+        adminUI --> admin : Formulaire avec erreurs
+    end
+else Modifications invalides
+    adminController --> adminUI : ❌ "Données invalides"
+    adminUI --> admin : Formulaire avec erreurs de validation
+end
+deactivate adminController
+
+== DELETE - Suppression d'un livre ==
+
+admin -> adminUI : Clic "Supprimer" sur un livre
+adminUI -> adminController : Demander suppression (book_id)
+activate adminController
+
+adminController -> bookService : Vérifier impact suppression
+activate bookService
+
+bookService -> db : SELECT \n(SELECT COUNT(*) FROM reviews WHERE id_book = ?) as nb_reviews,\n(SELECT COUNT(*) FROM bookhaslibrary WHERE id_book = ?) as nb_in_libraries,\ntitle FROM books WHERE id_book = ?
+activate db
+db --> bookService : Statistiques d'utilisation du livre
+deactivate db
+
+alt Livre utilisé (reviews ou bibliothèques)
+    bookService --> adminController : ⚠️ "Livre référencé dans le système"
+    deactivate bookService
+    adminController --> adminUI : Confirmation avec détails\n"Ce livre a X avis et est dans Y bibliothèques.\nLa suppression supprimera TOUTES ces données.\nÊtes-vous absolument sûr ?"
+    adminUI --> admin : Modal de confirmation critique
+    
+    admin -> adminUI : Confirme malgré l'impact
+    
+else Livre non utilisé
+    bookService --> adminController : ✅ "Suppression sans impact"
+    deactivate bookService
+    adminController --> adminUI : Confirmation simple\n"Êtes-vous sûr de supprimer ce livre ?"
+    adminUI --> admin : Confirmation standard
+    
+    admin -> adminUI : Confirme la suppression
+end
+
+adminUI -> adminController : Confirmer suppression définitive
+adminController -> bookService : Supprimer livre et dépendances
+activate bookService
+
+bookService -> db : BEGIN TRANSACTION
+activate db
+
+bookService -> db : DELETE FROM bookhaslibrary WHERE id_book = ?
+db --> bookService : ✓ Relations bibliothèques supprimées
+
+bookService -> db : DELETE FROM reviews WHERE id_book = ?
+db --> bookService : ✓ Avis supprimés
+
+bookService -> db : DELETE FROM books WHERE id_book = ?
+alt Suppression réussie
+    db --> bookService : ✓ Livre supprimé
+    bookService -> db : COMMIT TRANSACTION
+    deactivate db
+    bookService --> adminController : ✅ "Suppression complète réussie"
+    deactivate bookService
+    adminController --> adminUI : ✅ "Livre supprimé avec succès"
+    adminUI -> adminUI : Actualiser la liste
+    adminUI --> admin : Liste mise à jour sans le livre
+else Erreur suppression
+    db --> bookService : ❌ Erreur suppression
+    bookService -> db : ROLLBACK TRANSACTION
+    deactivate db
+    bookService --> adminController : ❌ "Erreur lors de la suppression"
+    deactivate bookService
+    adminController --> adminUI : "Erreur technique, livre non supprimé"
+    adminUI --> admin : Message d'erreur
+end
+deactivate adminController
+
+== CRUD - Gestion des Auteurs ==
+
+admin -> adminUI : Accède à "Gestion des auteurs"
+adminUI -> adminController : Lister auteurs avec statistiques
+activate adminController
+
+adminController -> authorService : Récupérer liste des auteurs
+activate authorService
+
+authorService -> db : SELECT author, COUNT(*) as nb_books\nFROM books\nWHERE author IS NOT NULL\nGROUP BY author\nORDER BY nb_books DESC, author ASC
+activate db
+db --> authorService : Liste auteurs + nombre de livres
+deactivate db
+
+authorService --> adminController : ✅ Statistiques auteurs
+deactivate authorService
+adminController --> adminUI : ✓ Liste des auteurs
+deactivate adminController
+adminUI --> admin : Tableau auteurs (nom, nb livres, actions)
+
+alt Modification d'un auteur
+    admin -> adminUI : Clic "Modifier" sur un auteur
+    adminUI -> adminController : Modifier auteur (old_name)
+    activate adminController
+    
+    admin -> adminUI : Saisit nouveau nom d'auteur
+    adminUI -> adminController : Valider et mettre à jour
+    
+    adminController -> authorService : Renommer auteur
+    activate authorService
+    
+    authorService -> db : UPDATE books SET author = ?, updated_at = NOW()\nWHERE author = ?
+    activate db
+    alt Mise à jour réussie
+        db --> authorService : ✓ X livres mis à jour
+        deactivate db
+        authorService --> adminController : ✅ "Auteur renommé sur X livres"
+        deactivate authorService
+        adminController --> adminUI : ✅ "Modification réussie"
+        adminUI --> admin : Liste mise à jour
+    else Erreur mise à jour
+        db --> authorService : ❌ Erreur
+        deactivate db
+        authorService --> adminController : ❌ "Erreur modification"
+        deactivate authorService
+        adminController --> adminUI : "Erreur lors de la modification"
+        adminUI --> admin : Message d'erreur
+    end
+    deactivate adminController
+end
+
+== CRUD - Gestion des Genres ==
+
+admin -> adminUI : Accède à "Gestion des genres"
+adminUI -> adminController : Lister genres avec statistiques
+activate adminController
+
+adminController -> genreService : Récupérer liste des genres
+activate genreService
+
+genreService -> db : SELECT genre, COUNT(*) as nb_books\nFROM books\nWHERE genre IS NOT NULL\nGROUP BY genre\nORDER BY nb_books DESC, genre ASC
+activate db
+db --> genreService : Liste genres + nombre de livres
+deactivate db
+
+genreService --> adminController : ✅ Statistiques genres
+deactivate genreService
+adminController --> adminUI : ✓ Liste des genres
+deactivate adminController
+adminUI --> admin : Tableau genres (nom, nb livres, actions)
+
+alt Ajout d'un nouveau genre
+    admin -> adminUI : Clic "Ajouter genre"
+    adminUI -> adminController : Nouveau genre
+    activate adminController
+    
+    admin -> adminUI : Saisit nom du genre
+    adminUI -> adminController : Valider genre
+    
+    adminController -> genreService : Vérifier/créer genre
+    activate genreService
+    
+    genreService -> db : SELECT COUNT(*) FROM books WHERE genre = ?
+    activate db
+    alt Genre n'existe pas
+        db --> genreService : 0 livre avec ce genre
+        genreService --> adminController : ✅ "Genre disponible"
+        adminController --> adminUI : ✅ "Genre créé (utilisable pour nouveaux livres)"
+    else Genre existe déjà
+        db --> genreService : X livres avec ce genre
+        deactivate db
+        genreService --> adminController : ❌ "Genre déjà existant"
+        deactivate genreService
+        adminController --> adminUI : "Ce genre existe déjà"
+    end
+    deactivate adminController
+    adminUI --> admin : Réponse appropriée
+end
+
+== Fonctionnalités avancées ==
+
+note over admin, db
+    **Fonctionnalités administrateur avancées :**
+    
+    **Statistiques globales :**
+    - Nombre total de livres, auteurs, genres
+    - Top des livres les mieux notés
+    - Livres sans avis, jamais ajoutés en bibliothèque
+    - Genres les plus populaires
+    
+    **Maintenance :**
+    - Recalcul des moyennes et compteurs (fonction recalculate_books_counters())
+    - Nettoyage des données orphelines
+    - Export/Import de données
+    
+    **Sécurité :**
+    - Logs des actions administrateur
+    - Validation stricte des droits sur chaque opération
+    - Sauvegarde avant suppressions importantes
+    
+    **Optimisations :**
+    - Pagination sur toutes les listes
+    - Recherche full-text pour les livres
+    - Mise en cache des statistiques fréquentes
+end note
+
+@enduml

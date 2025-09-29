@@ -1,0 +1,329 @@
+@startuml
+!theme plain
+title CRUD des Bibliothèques - Site Bibliothèque en Ligne
+
+actor Utilisateur as user
+participant "Interface\nBibliothèques" as libraryUI
+participant "Contrôleur\nBibliothèque" as libraryController
+participant "Service\nBibliothèque" as libraryService
+participant "Service\nAutorisation" as authService
+database "Base de\nDonnées" as db
+participant "Interface\nListe" as listUI
+
+== CREATE - Création d'une nouvelle bibliothèque ==
+
+user -> libraryUI : Accède à "Créer une bibliothèque"
+activate libraryUI
+
+user -> libraryUI : Saisit le nom de la bibliothèque
+libraryUI -> libraryController : Valider nom bibliothèque
+activate libraryController
+libraryController -> libraryController : Vérification format nom\n(longueur, caractères autorisés)
+
+alt Nom valide
+    libraryController --> libraryUI : ✓ Nom valide
+    
+    user -> libraryUI : Soumet le formulaire de création
+    libraryUI -> libraryController : Créer nouvelle bibliothèque
+    
+    libraryController -> authService : Vérifier authentification utilisateur
+    activate authService
+    alt Utilisateur authentifié
+        authService --> libraryController : ✓ Utilisateur valide (user_id)
+        deactivate authService
+        
+        libraryController -> libraryService : Créer bibliothèque pour utilisateur
+        activate libraryService
+        
+        libraryService -> db : INSERT INTO libraries\n(id_library, name, is_editable, id_user)\nVALUES (uuid(), ?, true, ?)
+        activate db
+        alt Création réussie
+            db --> libraryService : ✓ Bibliothèque créée (library_id)
+            deactivate db
+            libraryService --> libraryController : ✅ Bibliothèque créée avec succès
+            deactivate libraryService
+            libraryController --> libraryUI : ✅ "Bibliothèque créée avec succès"
+            libraryUI -> listUI : Redirection vers liste des bibliothèques
+            activate listUI
+            listUI --> user : Affichage avec nouvelle bibliothèque
+            deactivate listUI
+        else Erreur création
+            db --> libraryService : ❌ Erreur base de données
+            deactivate db
+            libraryService --> libraryController : ❌ Erreur création
+            deactivate libraryService
+            libraryController --> libraryUI : "Erreur lors de la création"
+        end
+    else Utilisateur non authentifié
+        authService --> libraryController : ❌ Non authentifié
+        deactivate authService
+        libraryController --> libraryUI : "Veuillez vous connecter"
+    end
+else Nom invalide
+    libraryController --> libraryUI : ❌ "Nom de bibliothèque invalide"
+end
+deactivate libraryController
+
+== READ - Affichage des bibliothèques ==
+
+user -> listUI : Accède à "Mes bibliothèques"
+activate listUI
+
+listUI -> libraryController : Récupérer bibliothèques utilisateur
+activate libraryController
+
+libraryController -> authService : Vérifier authentification
+activate authService
+authService --> libraryController : ✓ Utilisateur valide (user_id)
+deactivate authService
+
+libraryController -> libraryService : Récupérer bibliothèques de l'utilisateur
+activate libraryService
+
+libraryService -> db : SELECT l.*, COUNT(bhl.id_book) as nb_books\nFROM libraries l\nLEFT JOIN bookhaslibrary bhl ON l.id_library = bhl.id_library\nWHERE l.id_user = ?\nGROUP BY l.id_library\nORDER BY l.created_at DESC
+activate db
+db --> libraryService : Liste des bibliothèques + nombre de livres
+deactivate db
+
+libraryService --> libraryController : ✅ Données bibliothèques
+deactivate libraryService
+
+libraryController --> listUI : ✓ Liste des bibliothèques
+deactivate libraryController
+
+listUI --> user : Affichage des bibliothèques\n(nom, nb livres, actions)
+deactivate listUI
+
+== READ - Consultation d'une bibliothèque spécifique ==
+
+user -> listUI : Clic sur une bibliothèque
+activate listUI
+
+listUI -> libraryController : Afficher détails bibliothèque (library_id)
+activate libraryController
+
+libraryController -> authService : Vérifier droits d'accès
+activate authService
+libraryController -> libraryService : Vérifier propriétaire
+activate libraryService
+libraryService -> db : SELECT id_user FROM libraries WHERE id_library = ?
+activate db
+db --> libraryService : Propriétaire de la bibliothèque
+deactivate db
+
+alt Utilisateur = Propriétaire
+    libraryService --> authService : ✓ Accès autorisé
+    deactivate libraryService
+    authService --> libraryController : ✅ Droits validés
+    deactivate authService
+    
+    libraryController -> libraryService : Récupérer détails + livres
+    activate libraryService
+    libraryService -> db : SELECT l.*, b.title, b.author, b.avg_rating\nFROM libraries l\nJOIN bookhaslibrary bhl ON l.id_library = bhl.id_library\nJOIN books b ON bhl.id_book = b.id_book\nWHERE l.id_library = ?
+    activate db
+    db --> libraryService : Détails bibliothèque + livres
+    deactivate db
+    libraryService --> libraryController : ✅ Données complètes
+    deactivate libraryService
+    
+    libraryController --> listUI : ✓ Détails bibliothèque
+    listUI --> user : Affichage détaillé\n(livres, actions possibles)
+else Utilisateur ≠ Propriétaire
+    libraryService --> authService : ❌ Accès refusé
+    deactivate libraryService
+    authService --> libraryController : ❌ Droits insuffisants
+    deactivate authService
+    libraryController --> listUI : "Accès non autorisé"
+    listUI --> user : Message d'erreur
+end
+deactivate libraryController
+deactivate listUI
+
+== UPDATE - Modification d'une bibliothèque ==
+
+user -> libraryUI : Clic "Modifier" sur une bibliothèque
+activate libraryUI
+
+libraryUI -> libraryController : Charger formulaire modification (library_id)
+activate libraryController
+
+libraryController -> authService : Vérifier droits modification
+activate authService
+libraryController -> libraryService : Vérifier propriétaire + modifiable
+activate libraryService
+
+libraryService -> db : SELECT name, is_editable, id_user\nFROM libraries WHERE id_library = ?
+activate db
+db --> libraryService : Données bibliothèque
+deactivate db
+
+alt Utilisateur = Propriétaire AND is_editable = true
+    libraryService --> authService : ✓ Modification autorisée
+    deactivate libraryService
+    authService --> libraryController : ✅ Droits validés
+    deactivate authService
+    
+    libraryController --> libraryUI : ✓ Formulaire de modification
+    deactivate libraryController
+    
+    user -> libraryUI : Modifie le nom et soumet
+    libraryUI -> libraryController : Mettre à jour bibliothèque
+    activate libraryController
+    
+    libraryController -> libraryController : Valider nouveau nom
+    alt Nom valide
+        libraryController -> libraryService : Mettre à jour bibliothèque
+        activate libraryService
+        libraryService -> db : UPDATE libraries\nSET name = ?, updated_at = NOW()\nWHERE id_library = ? AND id_user = ?
+        activate db
+        alt Mise à jour réussie
+            db --> libraryService : ✓ Bibliothèque mise à jour
+            deactivate db
+            libraryService --> libraryController : ✅ Modification réussie
+            deactivate libraryService
+            libraryController --> libraryUI : ✅ "Bibliothèque modifiée avec succès"
+            libraryUI -> listUI : Redirection vers liste actualisée
+            activate listUI
+            listUI --> user : Affichage avec modifications
+            deactivate listUI
+        else Erreur mise à jour
+            db --> libraryService : ❌ Erreur base de données
+            deactivate db
+            libraryService --> libraryController : ❌ Erreur modification
+            deactivate libraryService
+            libraryController --> libraryUI : "Erreur lors de la modification"
+        end
+    else Nom invalide
+        libraryController --> libraryUI : ❌ "Nom de bibliothèque invalide"
+    end
+    deactivate libraryController
+    
+else Bibliothèque non modifiable OU utilisateur différent
+    alt is_editable = false
+        libraryService --> authService : ❌ Bibliothèque non modifiable
+        deactivate libraryService
+        authService --> libraryController : ❌ "Cette bibliothèque ne peut pas être modifiée"
+        deactivate authService
+        libraryController --> libraryUI : "Les bibliothèques système ne peuvent pas être modifiées"
+    else Utilisateur ≠ Propriétaire
+        libraryService --> authService : ❌ Accès refusé
+        deactivate libraryService
+        authService --> libraryController : ❌ Droits insuffisants
+        deactivate authService
+        libraryController --> libraryUI : "Accès non autorisé"
+    end
+    deactivate libraryController
+    libraryUI --> user : Message d'erreur approprié
+end
+deactivate libraryUI
+
+== DELETE - Suppression d'une bibliothèque ==
+
+user -> listUI : Clic "Supprimer" sur une bibliothèque
+activate listUI
+
+listUI -> libraryController : Demander suppression (library_id)
+activate libraryController
+
+libraryController -> authService : Vérifier droits suppression
+activate authService
+libraryController -> libraryService : Vérifier propriétaire + modifiable
+activate libraryService
+
+libraryService -> db : SELECT name, is_editable, id_user,\n(SELECT COUNT(*) FROM bookhaslibrary WHERE id_library = ?) as nb_books\nFROM libraries WHERE id_library = ?
+activate db
+db --> libraryService : Données bibliothèque + nombre de livres
+deactivate db
+
+alt Utilisateur = Propriétaire AND is_editable = true
+    libraryService --> authService : ✓ Suppression autorisée
+    deactivate libraryService
+    authService --> libraryController : ✅ Droits validés
+    deactivate authService
+    
+    alt Bibliothèque contient des livres
+        libraryController --> listUI : Demande de confirmation\n"Cette bibliothèque contient X livres.\nÊtes-vous sûr de vouloir la supprimer ?"
+        listUI --> user : Modal de confirmation
+        
+        user -> listUI : Confirme la suppression
+        listUI -> libraryController : Confirmer suppression
+        
+    else Bibliothèque vide
+        libraryController --> listUI : Demande de confirmation simple
+        listUI --> user : "Êtes-vous sûr ?"
+        
+        user -> listUI : Confirme la suppression
+        listUI -> libraryController : Confirmer suppression
+    end
+    
+    libraryController -> libraryService : Supprimer bibliothèque
+    activate libraryService
+    libraryService -> db : BEGIN TRANSACTION
+    activate db
+    
+    libraryService -> db : DELETE FROM bookhaslibrary WHERE id_library = ?
+    db --> libraryService : ✓ Relations supprimées
+    
+    libraryService -> db : DELETE FROM libraries WHERE id_library = ? AND id_user = ?
+    alt Suppression réussie
+        db --> libraryService : ✓ Bibliothèque supprimée
+        libraryService -> db : COMMIT TRANSACTION
+        deactivate db
+        libraryService --> libraryController : ✅ Suppression réussie
+        deactivate libraryService
+        libraryController --> listUI : ✅ "Bibliothèque supprimée avec succès"
+        listUI -> listUI : Actualiser la liste
+        listUI --> user : Liste mise à jour sans la bibliothèque
+    else Erreur suppression
+        db --> libraryService : ❌ Erreur suppression
+        libraryService -> db : ROLLBACK TRANSACTION
+        deactivate db
+        libraryService --> libraryController : ❌ Erreur suppression
+        deactivate libraryService
+        libraryController --> listUI : "Erreur lors de la suppression"
+        listUI --> user : Message d'erreur
+    end
+    
+else Bibliothèque non supprimable OU utilisateur différent
+    alt is_editable = false
+        libraryService --> authService : ❌ Bibliothèque système
+        deactivate libraryService
+        authService --> libraryController : ❌ "Bibliothèque système"
+        deactivate authService
+        libraryController --> listUI : "Les bibliothèques système ne peuvent pas être supprimées"
+    else Utilisateur ≠ Propriétaire
+        libraryService --> authService : ❌ Accès refusé
+        deactivate libraryService
+        authService --> libraryController : ❌ Droits insuffisants
+        deactivate authService
+        libraryController --> listUI : "Accès non autorisé"
+    end
+    libraryUI --> user : Message d'erreur
+end
+
+deactivate libraryController
+deactivate listUI
+
+== Gestion des cas particuliers ==
+
+note over user, db
+    Règles de gestion importantes :
+    
+    **Bibliothèques système (is_editable = false) :**
+    - "Livres lus" et "Livres favoris" ne peuvent pas être modifiées/supprimées
+    - Seule la consultation est autorisée
+    
+    **Sécurité :**
+    - Vérification systématique de la propriété (id_user)
+    - Actions autorisées seulement pour le propriétaire
+    
+    **Suppression :**
+    - Suppression en cascade des relations bookhaslibrary
+    - Confirmation obligatoire, spécialement si la bibliothèque contient des livres
+    
+    **Performance :**
+    - Comptage des livres via LEFT JOIN pour l'affichage
+    - Transactions pour les opérations critiques
+end note
+
+@enduml

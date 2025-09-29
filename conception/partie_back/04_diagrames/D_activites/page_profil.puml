@@ -1,0 +1,381 @@
+@startuml
+
+title Diagramme d'Activité - Tableau de Bord Utilisateur
+
+start
+
+if (Utilisateur connecté ?) then (non)
+  :call Processus Authentification;
+  note right : Voir "Diagramme Connexion/Inscription"
+  if (Connexion réussie ?) then (non)
+    stop
+  endif
+endif
+
+:Accès au tableau de bord personnel;
+:Chargement données utilisateur;
+
+partition "Calcul des statistiques personnelles" {
+  :Récupération bibliothèques utilisateur;
+  :Calcul total livres possédés;
+  :Calcul livres lus vs non lus;
+  :Calcul livres favoris;
+  :Calcul note moyenne donnée;
+  :Calcul nombre d'avis rédigés;
+  :Analyse répartition genres;
+  :Calcul objectifs de lecture;
+}
+
+:Affichage dashboard principal;
+
+note right
+  **Sections du dashboard :**
+  - Statistiques personnelles
+  - Activité récente
+  - Recommandations personnalisées
+  - Objectifs de lecture
+  - Tendances de lecture
+  - Accès rapide aux bibliothèques
+  - Nouveautés suggérées
+end note
+
+while (Section consultée ?) is (disponible)
+
+  switch (Type de section ?)
+  
+  case (Statistiques personnelles 📊)
+    :Affichage widgets statistiques;
+    
+    note right
+      **Métriques affichées :**
+      - 📚 Total livres (toutes bibliothèques)
+      - ✅ Livres lus / ⏳ En cours / 📋 À lire
+      - ❤️ Favoris marqués
+      - ⭐ Note moyenne attribuée
+      - 💬 Avis rédigés
+      - 📈 Évolution mensuelle
+    end note
+    
+    while (Statistique détaillée ?) is (souhaitée)
+      
+      switch (Détail demandé ?)
+      case (Répartition par genres 🏷️)
+        :Génération graphique camembert;
+        :Affichage top genres lus;
+        :Comparaison avec tendances globales;
+        
+        if (Découvrir nouveaux genres ?) then (oui)
+          :Suggestions genres peu explorés;
+          :Livres populaires autres genres;
+        endif
+        
+      case (Évolution dans le temps 📈)
+        :Génération graphique temporel;
+        :Courbe livres lus par mois;
+        :Identification périodes actives/calmes;
+        
+        if (Définir objectif ?) then (oui)
+          :call Processus Définition Objectif;
+        endif
+        
+      case (Auteurs préférés ✍️)
+        :Classement auteurs par nb livres lus;
+        :Affichage notes moyennes par auteur;
+        :Découverte autres œuvres auteurs aimés;
+        
+      case (Analyse notes attribuées ⭐)
+        :Distribution notes données (1-5);
+        :Comparaison sévérité vs communauté;
+        :Livres les mieux/moins bien notés;
+        
+      endswitch
+      
+    endwhile (aucune)
+    
+  case (Activité récente 🕒)
+    :Affichage timeline activités;
+    
+    note right
+      **Types d'activités :**
+      - Livres ajoutés aux bibliothèques
+      - Avis rédigés/modifiés
+      - Livres marqués comme lus
+      - Nouveaux favoris
+      - Bibliothèques créées/modifiées
+      - Objectifs atteints
+    end note
+    
+    while (Période d'activité ?) is (sélectionnée)
+      
+      switch (Filtre temporel ?)
+      case (Aujourd'hui 📅)
+        :Activités dernières 24h;
+      case (Cette semaine 📆)
+        :Activités 7 derniers jours;
+      case (Ce mois 🗓️)
+        :Activités 30 derniers jours;
+      case (Cette année 📊)
+        :Activités année en cours;
+      endswitch
+      
+      :Mise à jour timeline filtrée;
+      
+    endwhile (aucune)
+    
+    if (Partager activité ?) then (oui)
+      :Génération lien partage activité;
+      :Options réseaux sociaux;
+    endif
+    
+  case (Recommandations personnalisées 🎯)
+    :Génération recommandations intelligentes;
+    
+    partition "Algorithme de recommandation" {
+      :Analyse genres préférés utilisateur;
+      :Analyse auteurs appréciés;
+      :Analyse notes données (>= 4/5);
+      :Recherche utilisateurs profils similaires;
+      :Pondération popularité vs découverte;
+    }
+    
+    while (Type recommandation ?) is (disponible)
+      
+      switch (Base de recommandation ?)
+      case (Basées sur vos goûts 👤)
+        :Livres genres aimés;
+        :Autres œuvres auteurs favoris;
+        :Livres note élevée utilisateurs similaires;
+        
+      case (Découvertes suggérées 🔍)
+        :Genres peu explorés mais populaires;
+        :Nouveaux auteurs tendances;
+        :Classiques incontournables manqués;
+        
+      case (Basées sur activité récente 🔥)
+        :Suites de séries commencées;
+        :Même genre que derniers livres lus;
+        :Recommandations communauté;
+        
+      case (Nouveautés personnalisées 🆕)
+        :Sorties récentes genres aimés;
+        :Nouveaux auteurs suivis;
+        :Préventes disponibles;
+        
+      endswitch
+      
+      :Affichage recommandations avec scores;
+      
+      if (Recommandation intéressante ?) then (oui)
+        switch (Action choisie ?)
+        case (Voir détails 👁️)
+          :Redirection page détail livre;
+        case (Ajouter à bibliothèque 📚)
+          :call Processus Ajout Bibliothèque;
+        case (Marquer "Pas intéressé" 👎)
+          :Mise à jour profil préférences;
+          :Retrait recommandation;
+        case (Partager recommandation 🔗)
+          :Génération lien partage;
+        endswitch
+      endif
+      
+    endwhile (aucune)
+    
+  case (Objectifs de lecture 🎯)
+    :Affichage objectifs actuels;
+    
+    if (Objectifs existants ?) then (oui)
+      while (Objectif à consulter ?) is (disponible)
+        
+        switch (Type objectif ?)
+        case (Nombre livres/période 📚)
+          :Affichage progression (X/Y livres);
+          :Graphique progression temporelle;
+          :Estimation date accomplissement;
+          
+        case (Pages lues/période 📄)
+          :Calcul pages lues récemment;
+          :Projection sur période objectif;
+          
+        case (Genres à explorer 🏷️)
+          :Liste genres objectif;
+          :Progression par genre;
+          :Suggestions livres manquants;
+          
+        case (Auteurs à découvrir ✍️)
+          :Liste auteurs objectif;
+          :Œuvres recommandées par auteur;
+          
+        endswitch
+        
+        :Affichage statut objectif;
+        
+        if (Objectif atteint ?) then (oui)
+          :Animation félicitations;
+          :Proposition nouvel objectif;
+          :Partage accomplissement;
+        elseif (Objectif en retard ?) then (oui)
+          :Suggestions rattrapage;
+          :Ajustement objectif possible;
+        endif
+        
+      endwhile (aucun)
+      
+    else (non)
+      :Proposition création premier objectif;
+      
+      switch (Type objectif souhaité ?)
+      case (Quantité lecture 📊)
+        :Saisie nombre livres/mois;
+        :Calcul objectif réaliste selon historique;
+        
+      case (Diversité genres 🌈)
+        :Sélection genres à explorer;
+        :Définition nombre par genre;
+        
+      case (Défi spécifique 🏆)
+        :Choix parmi défis prédéfinis;
+        note right
+          **Défis populaires :**
+          - 52 livres en 1 an
+          - Tour du monde littéraire
+          - Classiques incontournables
+          - Auteurs de son pays
+          - Prix littéraires récents
+        end note
+        
+      endswitch
+      
+      :Création objectif personnalisé;
+    endif
+    
+  case (Tendances personnelles 📈)
+    :Analyse patterns de lecture;
+    
+    switch (Analyse demandée ?)
+    case (Rythme de lecture 📊)
+      :Graphique évolution livres/mois;
+      :Identification pics/creux activité;
+      :Corrélation avec saisons/événements;
+      
+    case (Préférences évolutives 🔄)
+      :Évolution goûts dans le temps;
+      :Changements genres préférés;
+      :Évolution sévérité notes;
+      
+    case (Comparaison communauté 👥)
+      :Position vs moyenne communauté;
+      :Genres sur/sous-représentés;
+      :Découverte utilisateurs similaires;
+      
+    endswitch
+    
+  case (Accès rapide bibliothèques 🚀)
+    :Affichage miniatures bibliothèques;
+    
+    while (Bibliothèque sélectionnée ?) is (oui)
+      :call Consultation Bibliothèque;
+      note right : Voir "Diagramme Gestion Bibliothèques"
+    endwhile (non)
+    
+    if (Créer nouvelle bibliothèque ?) then (oui)
+      :call Création Bibliothèque;
+      note right : Voir "Diagramme Gestion Bibliothèques"
+    endif
+    
+  case (Nouveautés suggérées 🆕)
+    :Récupération nouveautés catalogue;
+    :Filtrage selon profil utilisateur;
+    
+    while (Nouveauté intéressante ?) is (disponible)
+      :Affichage détails nouveauté;
+      
+      if (Action sur nouveauté ?) then (choisie)
+        switch (Action ?)
+        case (Consulter détail 👁️)
+          :call Consultation Détail Livre;
+          note right : Voir "Diagramme Détail Livre"
+        case (Ajouter à liste "À lire" 📋)
+          :Ajout bibliothèque appropriée;
+        case (Marquer comme "Pas intéressé" 👎)
+          :Mise à jour algorithme recommandations;
+        endswitch
+      endif
+      
+    endwhile (aucune)
+    
+  endswitch
+  
+endwhile (aucune)
+
+partition "Personnalisation dashboard" {
+  if (Personnalisation souhaitée ?) then (oui)
+    :Ouverture mode édition dashboard;
+    
+    while (Widget à modifier ?) is (disponible)
+      
+      switch (Action widget ?)
+      case (Déplacer 🔄)
+        :Drag & drop vers nouvelle position;
+        :Sauvegarde nouvel agencement;
+        
+      case (Redimensionner 📏)
+        :Ajustement taille widget;
+        :Adaptation contenu à nouvelle taille;
+        
+      case (Configurer ⚙️)
+        :Ouverture paramètres widget;
+        :Modification options affichage;
+        
+      case (Masquer/Afficher 👁️)
+        :Toggle visibilité widget;
+        :Réorganisation automatique espace;
+        
+      endswitch
+      
+    endwhile (aucun)
+    
+    :Sauvegarde configuration dashboard;
+    :Sortie mode édition;
+  endif
+}
+
+:Fin consultation dashboard;
+
+note left
+  **Widgets disponibles :**
+  
+  **📊 Statistiques :**
+  - Compteurs principaux (livres, avis)
+  - Graphiques répartition genres
+  - Évolution temporelle lecture
+  - Comparaison objectifs/réalisé
+  
+  **🎯 Personnalisé :**
+  - Recommandations intelligentes
+  - Nouveautés filtrées
+  - Objectifs en cours
+  - Activité récente
+  
+  **🚀 Actions rapides :**
+  - Accès bibliothèques
+  - Recherche personnalisée
+  - Derniers livres consultés
+  - Favoris récents
+  
+  **📱 Responsive :**
+  - Adaptation mobile/tablette
+  - Widgets redimensionnables
+  - Agencement personnalisable
+  - Mode sombre/clair
+  
+  **🔄 Temps réel :**
+  - Mise à jour automatique stats
+  - Notifications accomplissements
+  - Suggestions contextuelles
+  - Synchronisation multi-appareils
+end note
+
+stop
+
+@enduml

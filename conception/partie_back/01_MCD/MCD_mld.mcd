@@ -1,0 +1,28 @@
+%%mocodo
+:
+autorisations: id_autorisations, nom
+:
+Affecter: #id_autorisations > autorisations > id_autorisations, _#id_roles > roles > id_roles
+:
+roles: id_roles, nom
+:
+
+
+
+:::
+utilisateur: id_utilisateur, nom, email, pseudo, mot_de_passe, #id_roles > roles > id_roles
+:::
+
+
+:
+bibliothèque: code_bibliotheque, nom, est_modifiable, #id_utilisateur > utilisateur > id_utilisateur
+:::
+avis: id_avis, note, commentaire, #id_utilisateur > utilisateur > id_utilisateur, #id_livre > livre > id_livre
+:
+
+
+:
+livre_bibliothèque: #id_livre > livre > id_livre, _#code_bibliotheque > bibliothèque > code_bibliotheque
+:
+livre: id_livre, isbn, genre, titre, auteur, editeur, date_publication, image_vignette, image, description, age_limite, serie, est_dans_favoris, est_dans_bibliotheque, nombre_avis, moyenne_note
+:::

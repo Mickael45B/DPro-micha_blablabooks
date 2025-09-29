@@ -1,0 +1,77 @@
+Table "Affecter" {
+  "id_autorisations" VARCHAR(42) [NOT NULL]
+  "id_roles"         VARCHAR(42) [NOT NULL]
+  Indexes {
+    ("id_autorisations", "id_roles") [pk]
+  }
+}
+
+Table "autorisations" {
+  "id_autorisations" VARCHAR(42) [pk, NOT NULL]
+  "nom"              VARCHAR(42)
+}
+
+Table "avis" {
+  "id_avis"        VARCHAR(42) [pk, NOT NULL]
+  "note"           VARCHAR(42)
+  "commentaire"    VARCHAR(42)
+  "id_utilisateur" VARCHAR(42) [NOT NULL]
+  "id_livre"       VARCHAR(42) [NOT NULL]
+}
+
+Table "bibliothèque" {
+  "code_bibliotheque" VARCHAR(42) [pk, NOT NULL]
+  "nom"               VARCHAR(42)
+  "est_modifiable"    VARCHAR(42)
+  "id_utilisateur"    VARCHAR(42) [NOT NULL]
+}
+
+Table "livre" {
+  "id_livre"              VARCHAR(42) [pk, NOT NULL]
+  "isbn"                  VARCHAR(42)
+  "genre"                 VARCHAR(42)
+  "titre"                 VARCHAR(42)
+  "auteur"                VARCHAR(42)
+  "editeur"               VARCHAR(42)
+  "date_publication"      VARCHAR(42)
+  "image_vignette"        VARCHAR(42)
+  "image"                 VARCHAR(42)
+  "description"           VARCHAR(42)
+  "age_limite"            VARCHAR(42)
+  "serie"                 VARCHAR(42)
+  "est_dans_favoris"      VARCHAR(42)
+  "est_dans_bibliotheque" VARCHAR(42)
+  "nombre_avis"           VARCHAR(42)
+  "moyenne_note"          VARCHAR(42)
+}
+
+Table "livre_bibliothèque" {
+  "id_livre"          VARCHAR(42) [NOT NULL]
+  "code_bibliotheque" VARCHAR(42) [NOT NULL]
+  Indexes {
+    ("id_livre", "code_bibliotheque") [pk]
+  }
+}
+
+Table "roles" {
+  "id_roles" VARCHAR(42) [pk, NOT NULL]
+  "nom"      VARCHAR(42)
+}
+
+Table "utilisateur" {
+  "id_utilisateur" VARCHAR(42) [pk, NOT NULL]
+  "nom"            VARCHAR(42)
+  "email"          VARCHAR(42)
+  "pseudo"         VARCHAR(42)
+  "mot_de_passe"   VARCHAR(42)
+  "id_roles"       VARCHAR(42) [NOT NULL]
+}
+
+Ref:"Affecter"."id_autorisations" > "autorisations"."id_autorisations"
+Ref:"Affecter"."id_roles" > "roles"."id_roles"
+Ref:"avis"."id_utilisateur" > "utilisateur"."id_utilisateur"
+Ref:"avis"."id_livre" > "livre"."id_livre"
+Ref:"bibliothèque"."id_utilisateur" > "utilisateur"."id_utilisateur"
+Ref:"livre_bibliothèque"."id_livre" > "livre"."id_livre"
+Ref:"livre_bibliothèque"."code_bibliotheque" > "bibliothèque"."code_bibliotheque"
+Ref:"utilisateur"."id_roles" > "roles"."id_roles"

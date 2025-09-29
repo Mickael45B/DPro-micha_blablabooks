@@ -1,0 +1,333 @@
+@startuml
+
+title Diagramme d'Activité - Page d'Administration
+
+start
+
+if (Utilisateur connecté ?) then (non)
+  :call Processus Authentification;
+  note right : Voir "Diagramme Connexion/Inscription"
+  if (Connexion réussie ?) then (non)
+    stop
+  endif
+endif
+
+:Vérification droits administrateur;
+if (Droits admin/super_admin ?) then (non)
+  :Message "Accès refusé";
+  :Redirection page d'accueil;
+  stop
+endif
+
+:Accès au panel d'administration;
+:Affichage dashboard principal;
+
+note right
+  **Dashboard contient :**
+  - Statistiques globales du site
+  - Notifications urgentes
+  - Raccourcis vers sections principales
+  - Activité récente des utilisateurs
+  - Signalements en attente
+end note
+
+while (Section choisie ?) is (disponible)
+
+  switch (Type de gestion ?)
+  
+  case (Gestion des utilisateurs 👥)
+    :Accès section utilisateurs;
+    :Affichage liste complète utilisateurs;
+    
+    note right
+      **Informations affichées :**
+      - Nom, email, pseudo
+      - Statut : En ligne 🟢 / Hors ligne ⚫
+      - Grade : User/Moderator/Admin/Super_Admin
+      - État : Actif ✅ / Bloqué ❌
+      - Date dernière connexion
+      - Statistiques (nb bibliothèques, avis)
+    end note
+    
+    :Sélection filtres/tri;
+    if (Filtres appliqués ?) then (oui)
+      :Mise à jour liste selon critères;
+    endif
+    
+    while (Action utilisateur ?) is (choisie)
+      :Sélection utilisateur cible;
+      
+      switch (Action ?)
+      case (Voir détails 👁️)
+        :Affichage profil complet;
+        :Historique des actions;
+        :Statistiques détaillées;
+        
+      case (Promouvoir 📈)
+        :call Processus Promotion;
+        note right : Voir "Diagramme CRUD Admin Users"
+        
+      case (Rétrograder 📉)
+        :call Processus Rétrogradation;
+        note right : Voir "Diagramme CRUD Admin Users"
+        
+      case (Bloquer/Débloquer 🚫)
+        :call Processus Blocage;
+        note right : Voir "Diagramme CRUD Admin Users"
+        
+      case (Modifier profil ✏️)
+        :call Processus Modification;
+        note right : Voir "Diagramme CRUD Admin Users"
+        
+      case (Supprimer définitivement 💀)
+        :call Processus Suppression;
+        note right : Voir "Diagramme CRUD Admin Users"
+        
+      endswitch
+      
+      :Actualisation liste utilisateurs;
+    endwhile (aucune)
+    
+  case (Gestion des livres 📚)
+    :Accès section livres;
+    
+    while (Action livre ?) is (choisie)
+      switch (Type action ?)
+      case (Voir tous les livres 📋)
+        :call Processus Liste Livres;
+        note right : Voir "Diagramme CRUD Admin Livres"
+        
+      case (Créer nouveau livre ➕)
+        :call Processus Création Livre;
+        note right : Voir "Diagramme CRUD Admin Livres"
+        
+      case (Modifier livre existant ✏️)
+        :Sélection livre à modifier;
+        :call Processus Modification Livre;
+        note right : Voir "Diagramme CRUD Admin Livres"
+        
+      case (Supprimer livre 🗑️)
+        :Sélection livre à supprimer;
+        :call Processus Suppression Livre;
+        note right : Voir "Diagramme CRUD Admin Livres"
+        
+      case (Gestion en lot 📦)
+        :Sélection multiple livres;
+        :Actions groupées (suppression, modification);
+        
+      endswitch
+    endwhile (aucune)
+    
+  case (Gestion des auteurs ✍️)
+    :Accès section auteurs;
+    
+    while (Action auteur ?) is (choisie)
+      switch (Type action ?)
+      case (Voir tous les auteurs 📋)
+        :call Processus Liste Auteurs;
+        note right : Voir "Diagramme CRUD Admin Auteurs"
+        
+      case (Créer nouvel auteur ➕)
+        :call Processus Création Auteur;
+        note right : Voir "Diagramme CRUD Admin Auteurs"
+        
+      case (Modifier auteur existant ✏️)
+        :Sélection auteur à modifier;
+        :call Processus Modification Auteur;
+        note right : Voir "Diagramme CRUD Admin Auteurs"
+        
+      case (Supprimer auteur 🗑️)
+        :Sélection auteur à supprimer;
+        :call Processus Suppression Auteur;
+        note right : Voir "Diagramme CRUD Admin Auteurs"
+        
+      endswitch
+    endwhile (aucune)
+    
+  case (Gestion des genres 🏷️)
+    :Accès section genres;
+    
+    while (Action genre ?) is (choisie)
+      switch (Type action ?)
+      case (Voir tous les genres 📋)
+        :call Processus Liste Genres;
+        note right : Voir "Diagramme CRUD Admin Genres"
+        
+      case (Créer nouveau genre ➕)
+        :call Processus Création Genre;
+        note right : Voir "Diagramme CRUD Admin Genres"
+        
+      case (Modifier genre existant ✏️)
+        :Sélection genre à modifier;
+        :call Processus Modification Genre;
+        note right : Voir "Diagramme CRUD Admin Genres"
+        
+      case (Réorganiser hiérarchie 🔄)
+        :Interface drag & drop genres;
+        :Modification parent/enfant relations;
+        
+      case (Supprimer genre 🗑️)
+        :Sélection genre à supprimer;
+        :call Processus Suppression Genre;
+        note right : Voir "Diagramme CRUD Admin Genres"
+        
+      endswitch
+    endwhile (aucune)
+    
+  case (Gestion des signalements ⚠️)
+    :Accès section signalements;
+    :Affichage signalements en attente;
+    
+    note right
+      **Tri par priorité :**
+      - 🔴 Urgents (contenu offensant)
+      - 🟡 Normaux (spam, hors-sujet)
+      - 🟢 Informatifs (suggestions)
+      
+      **Informations affichées :**
+      - Type : Avis signalé / Contact / Autre
+      - Motif du signalement
+      - Utilisateur signaleur
+      - Date signalement
+      - Statut : En attente / En cours / Traité
+    end note
+    
+    while (Signalement à traiter ?) is (disponible)
+      :Sélection signalement;
+      :Affichage détails complets;
+      
+      switch (Type de signalement ?)
+      case (Avis signalé 💬)
+        :Consultation avis incriminé;
+        :Consultation motif signalement;
+        
+        switch (Décision admin ?)
+        case (Avis conforme ✅)
+          :Marquer signalement comme "Non fondé";
+          :Notification signaleur (rejet);
+          :Aucune action sur l'avis;
+          
+        case (Avis problématique ⚠️)
+          :Demande modification à l'auteur;
+          :Notification auteur avis;
+          :Marquer "En attente correction";
+          
+        case (Avis à supprimer 🗑️)
+          :Suppression avis;
+          :Notification auteur (suppression);
+          :Éventuel avertissement utilisateur;
+          :Marquer signalement "Traité - Supprimé";
+          
+        case (Bloquer utilisateur 🚫)
+          :call Processus Blocage Utilisateur;
+          :Suppression avis;
+          :Marquer signalement "Traité - Utilisateur bloqué";
+          
+        endswitch
+        
+      case (Message contact 📧)
+        :call Processus Réponse Contact;
+        note right : Voir "Diagramme Contact Admin"
+        
+      case (Signalement général 📝)
+        :Analyse contenu signalé;
+        :Décision action appropriée;
+        :Réponse personnalisée;
+        
+      endswitch
+      
+      :Marquer signalement comme traité;
+      :Mise à jour statistiques;
+      
+    endwhile (aucun)
+    
+  case (Statistiques et rapports 📊)
+    :Accès section statistiques;
+    
+    switch (Type de rapport ?)
+    case (Activité utilisateurs 👥)
+      :Génération rapport connexions;
+      :Statistiques inscriptions/suppressions;
+      :Top utilisateurs actifs;
+      
+    case (Contenu du site 📚)
+      :Statistiques livres/auteurs/genres;
+      :Évolution catalogue dans le temps;
+      :Livres les plus populaires;
+      
+    case (Modération 🛡️)
+      :Rapport signalements traités;
+      :Actions de modération effectuées;
+      :Utilisateurs problématiques;
+      
+    case (Performance technique ⚡)
+      :Temps de réponse moyens;
+      :Erreurs techniques récurrentes;
+      :Utilisation ressources serveur;
+      
+    endswitch
+    
+  case (Configuration système ⚙️)
+    :Accès paramètres globaux;
+    
+    switch (Paramètre à modifier ?)
+    case (Paramètres site 🌐)
+      :Nom du site, description;
+      :URL de base, emails contact;
+      :Paramètres de sécurité;
+      
+    case (Gestion des rôles 👑)
+      :Création/modification rôles;
+      :Attribution permissions;
+      :Hiérarchie des droits;
+      
+    case (Maintenance 🔧)
+      :Sauvegarde base de données;
+      :Nettoyage logs anciens;
+      :Recalcul statistiques globales;
+      
+    endswitch
+    
+  endswitch
+  
+endwhile (aucune)
+
+:Déconnexion du panel admin;
+
+note left
+  **Sections principales du panel admin :**
+  
+  **👥 Gestion Utilisateurs :**
+  - Vue d'ensemble avec statuts temps réel
+  - Actions CRUD sur profils utilisateur
+  - Gestion des rôles et permissions
+  - Historique des actions utilisateur
+  
+  **📚 Gestion Contenu :**
+  - CRUD Livres avec métadonnées complètes
+  - CRUD Auteurs avec bibliographies
+  - CRUD Genres avec hiérarchie
+  - Import/Export en lot possible
+  
+  **⚠️ Modération :**
+  - Signalements triés par priorité
+  - Workflow de traitement structuré
+  - Actions contextuelles selon type
+  - Historique des décisions
+  
+  **📊 Monitoring :**
+  - Tableaux de bord temps réel
+  - Rapports d'activité personnalisés
+  - Alertes automatiques
+  - Export données pour analyse
+  
+  **⚙️ Administration :**
+  - Configuration générale du site
+  - Gestion des permissions système
+  - Outils de maintenance
+  - Logs d'audit complets
+end note
+
+stop
+
+@enduml

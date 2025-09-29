@@ -1,0 +1,212 @@
+@startuml
+
+title Connexion à un compte utilisateur existant
+
+actor Visiteur as visitor
+participant "Interface\nConnexion" as loginForm
+participant "Contrôleur\nAuthentification" as authController
+participant "Service\nAuthentification" as authService
+participant "Service\nUtilisateur" as userService
+database "Base de\nDonnées" as db
+participant "Service\nSécurité" as securityService
+participant "Service\nSession" as sessionService
+participant "Page d'accueil" as homePage
+
+== Phase de saisie des identifiants ==
+
+visitor -> loginForm : Accède au formulaire de connexion
+activate loginForm
+
+note right of visitor : Souhaite se connecter\nà son compte existant
+
+visitor -> loginForm : Saisit son email/pseudo
+loginForm -> authController : Valide le format de l'identifiant
+activate authController
+authController -> authController : Vérification format email ou pseudo
+alt Format valide
+    authController --> loginForm : ✓ Format identifiant valide
+else Format invalide
+    authController --> loginForm : ❌ "Format d'identifiant invalide"
+end
+deactivate authController
+
+visitor -> loginForm : Saisit son mot de passe
+loginForm -> authController : Valide le format mot de passe
+activate authController
+alt Format mot de passe valide
+    authController --> loginForm : ✓ Format mot de passe valide
+else Format invalide
+    authController --> loginForm : ❌ "Mot de passe requis"
+end
+deactivate authController
+
+== Phase d'authentification ==
+
+visitor -> loginForm : Soumet le formulaire de connexion
+loginForm -> authController : Authentifier l'utilisateur
+activate authController
+
+authController -> securityService : Vérifier tentatives de connexion
+activate securityService
+securityService -> db : SELECT failed_attempts FROM login_attempts\nWHERE ip_address = ? AND last_attempt > NOW() - INTERVAL '15 minutes'
+activate db
+alt Trop de tentatives échouées
+    db --> securityService : Nombre de tentatives dépassé
+    deactivate db
+    securityService --> authController : ❌ Compte temporairement bloqué
+    deactivate securityService
+    authController --> loginForm : "Trop de tentatives. Réessayez dans 15 minutes"
+else Tentatives dans la limite
+    db --> securityService : ✓ Tentatives autorisées
+    deactivate db
+    securityService --> authController : ✅ Connexion autorisée
+    deactivate securityService
+    
+    authController -> authService : Vérifier identifiants
+    activate authService
+    
+    authService -> userService : Rechercher utilisateur par email/pseudo
+    activate userService
+    userService -> db : SELECT id_user, email, password, is_active, id_role\nFROM users WHERE (email = ? OR pseudo = ?)
+    activate db
+    
+    alt Utilisateur trouvé
+        db --> userService : Données utilisateur
+        deactivate db
+        userService --> authService : ✓ Utilisateur trouvé
+        deactivate userService
+        
+        authService -> authService : Vérifier mot de passe haché
+        alt Mot de passe correct
+            authService -> userService : Vérifier statut compte
+            activate userService
+            userService -> userService : Vérifier is_active = true
+            alt Compte actif
+                userService --> authService : ✅ Compte actif et valide
+                deactivate userService
+                
+                == Création de la session ==
+                
+                authService -> sessionService : Créer session utilisateur
+                activate sessionService
+                sessionService -> db : INSERT INTO user_sessions\n(session_id, id_user, ip_address, user_agent, created_at)
+                activate db
+                db --> sessionService : ✓ Session créée
+                deactivate db
+                
+                sessionService -> sessionService : Générer token JWT/session
+                sessionService --> authService : ✅ Session active créée
+                deactivate sessionService
+                
+                authService -> securityService : Réinitialiser compteur tentatives
+                activate securityService
+                securityService -> db : DELETE FROM login_attempts WHERE ip_address = ?
+                activate db
+                db --> securityService : ✓ Compteur réinitialisé
+                deactivate db
+                deactivate securityService
+                
+                authService --> authController : ✅ Authentification réussie + token
+                deactivate authService
+                
+                authController -> userService : Récupérer profil complet
+                activate userService
+                userService -> db : SELECT u.*, r.role_name FROM users u\nJOIN roles r ON u.id_role = r.id_role WHERE u.id_user = ?
+                activate db
+                db --> userService : Profil utilisateur complet
+                deactivate db
+                userService --> authController : ✓ Données profil
+                deactivate userService
+                
+                authController --> loginForm : ✅ Connexion réussie + données utilisateur
+                
+                loginForm -> homePage : Redirection avec session active
+                activate homePage
+                homePage --> visitor : "Bienvenue [nom utilisateur] !"
+                deactivate homePage
+                
+            else Compte désactivé
+                userService --> authService : ❌ Compte désactivé
+                deactivate userService
+                authService --> authController : ❌ Compte suspendu
+                deactivate authService
+                authController --> loginForm : "Votre compte a été suspendu"
+            end
+            
+        else Mot de passe incorrect
+            authService -> securityService : Enregistrer tentative échouée
+            activate securityService
+            securityService -> db : INSERT INTO login_attempts\n(ip_address, email_attempted, failed_at)
+            activate db
+            db --> securityService : ✓ Tentative enregistrée
+            deactivate db
+            deactivate securityService
+            
+            authService --> authController : ❌ Identifiants incorrects
+            deactivate authService
+            authController --> loginForm : "Email/pseudo ou mot de passe incorrect"
+        end
+        
+    else Utilisateur non trouvé
+        db --> userService : Aucun utilisateur trouvé
+        deactivate db
+        userService --> authService : ❌ Utilisateur inexistant
+        deactivate userService
+        
+        authService -> securityService : Enregistrer tentative échouée
+        activate securityService
+        securityService -> db : INSERT INTO login_attempts\n(ip_address, email_attempted, failed_at)
+        activate db
+        db --> securityService : ✓ Tentative enregistrée
+        deactivate db
+        deactivate securityService
+        
+        authService --> authController : ❌ Identifiants incorrects
+        deactivate authService
+        authController --> loginForm : "Email/pseudo ou mot de passe incorrect"
+    end
+end
+
+deactivate authController
+
+== Fonctionnalités additionnelles ==
+
+alt Mot de passe oublié
+    visitor -> loginForm : Clic "Mot de passe oublié"
+    loginForm -> authController : Demande de réinitialisation
+    activate authController
+    authController -> userService : Générer lien de réinitialisation
+    activate userService
+    userService -> db : UPDATE users SET reset_token = ?, reset_expires = ?\nWHERE email = ?
+    activate db
+    db --> userService : ✓ Token généré
+    deactivate db
+    userService --> authController : ✓ Lien de réinitialisation créé
+    deactivate userService
+    authController --> loginForm : "Email de réinitialisation envoyé"
+    deactivate authController
+end
+
+alt Option "Se souvenir de moi"
+    note over visitor, loginForm
+        Si cochée : génération d'un token persistant
+        stocké dans un cookie sécurisé pour 30 jours
+    end note
+end
+
+== Gestion des erreurs et sécurité ==
+
+note over visitor, db
+    Mesures de sécurité implémentées :
+    - Limitation des tentatives de connexion (5 max / 15 min)
+    - Hachage sécurisé des mots de passe (bcrypt/argon2)
+    - Sessions sécurisées avec expiration
+    - Logging des tentatives de connexion
+    - Protection contre les attaques par force brute
+    - Validation et échappement des entrées utilisateur
+    - Messages d'erreur génériques pour éviter l'énumération
+end note
+
+deactivate loginForm
+
+@enduml

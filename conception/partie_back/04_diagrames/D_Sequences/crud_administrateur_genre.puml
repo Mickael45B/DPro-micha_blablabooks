@@ -1,0 +1,525 @@
+@startuml
+!theme plain
+title CRUD Administrateur - Gestion des Genres
+
+actor Administrateur as admin
+participant "Interface\nGenres" as genreUI
+participant "Contrôleur\nGenre" as genreController
+participant "Service\nAutorisation" as authService
+participant "Service\nGenre" as genreService
+database "Base de\nDonnées" as db
+participant "Service\nValidation" as validationService
+
+note over admin, db
+    **Prérequis : Table Genres**
+    CREATE TABLE genres (
+        id_genre VARCHAR(42) PRIMARY KEY,
+        name VARCHAR(100) NOT NULL UNIQUE,
+        description TEXT,
+        slug VARCHAR(120) UNIQUE GENERATED ALWAYS AS (LOWER(REPLACE(name, ' ', '-'))) STORED,
+        color_hex VARCHAR(7) DEFAULT '#6B7280',
+        parent_id_genre VARCHAR(42) REFERENCES genres(id_genre) ON DELETE SET NULL,
+        is_active BOOLEAN DEFAULT TRUE,
+        display_order INTEGER DEFAULT 0,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ
+    );
+    
+    -- Modification table books pour référencer genres
+    ALTER TABLE books ADD COLUMN id_genre VARCHAR(42) REFERENCES genres(id_genre) ON DELETE SET NULL;
+end note
+
+== Vérification des droits administrateur ==
+
+admin -> genreUI : Accède à "Gestion des genres"
+activate genreUI
+
+genreUI -> genreController : Vérifier droits administrateur
+activate genreController
+
+genreController -> authService : Vérifier permissions admin
+activate authService
+authService -> db : SELECT permissions FROM user_permissions WHERE user_id = ?
+activate db
+
+alt Utilisateur a droits admin
+    db --> authService : ✅ Permissions admin trouvées
+    deactivate db
+    authService --> genreController : ✓ Droits validés
+    deactivate authService
+    genreController --> genreUI : ✓ Accès autorisé
+    genreUI --> admin : Interface de gestion des genres
+else Droits insuffisants
+    db --> authService : ❌ Permissions insuffisantes
+    deactivate db
+    authService --> genreController : ❌ Accès refusé
+    deactivate authService
+    genreController --> genreUI : "Accès non autorisé"
+    deactivate genreController
+    genreUI --> admin : Redirection vers accueil
+    deactivate genreUI
+end
+
+== CREATE - Création d'un nouveau genre ==
+
+admin -> genreUI : Clic "Ajouter un genre"
+genreUI -> genreController : Afficher formulaire création
+activate genreController
+
+genreController -> genreService : Récupérer genres parents possibles
+activate genreService
+genreService -> db : SELECT id_genre, name FROM genres\nWHERE is_active = TRUE AND parent_id_genre IS NULL\nORDER BY display_order, name
+activate db
+db --> genreService : Liste des genres parents
+deactivate db
+genreService --> genreController : ✅ Options de genres parents
+deactivate genreService
+
+genreController --> genreUI : ✓ Formulaire avec options
+genreUI --> admin : Formulaire de création\n(nom*, description, couleur, genre parent, ordre)
+deactivate genreController
+
+admin -> genreUI : Remplit et soumet le formulaire
+genreUI -> genreController : Créer nouveau genre
+activate genreController
+
+genreController -> validationService : Valider données genre
+activate validationService
+
+validationService -> validationService : Vérifier nom obligatoire et longueur
+validationService -> validationService : Valider format couleur hex (#RRGGBB)
+validationService -> validationService : Vérifier cohérence parent (pas de boucle)
+
+alt Toutes les validations passent
+    validationService --> genreController : ✅ Données valides
+    deactivate validationService
+    
+    genreController -> genreService : Vérifier unicité du nom
+    activate genreService
+    
+    genreService -> db : SELECT COUNT(*) FROM genres\nWHERE LOWER(TRIM(name)) = LOWER(TRIM(?))\nAND is_active = TRUE
+    activate db
+    
+    alt Genre n'existe pas encore
+        db --> genreService : 0 genre trouvé
+        deactivate db
+        
+        genreService -> genreService : Calculer ordre d'affichage automatique
+        genreService -> db : SELECT COALESCE(MAX(display_order), 0) + 10 as next_order\nFROM genres WHERE parent_id_genre = ? OR (parent_id_genre IS NULL AND ? IS NULL)
+        activate db
+        db --> genreService : Prochain ordre disponible
+        deactivate db
+        
+        genreService -> db : INSERT INTO genres\n(id_genre, name, description, color_hex, parent_id_genre, display_order)\nVALUES (uuid(), ?, ?, ?, ?, ?)
+        activate db
+        
+        alt Insertion réussie
+            db --> genreService : ✓ Genre créé (genre_id)
+            deactivate db
+            genreService --> genreController : ✅ "Genre créé avec succès"
+            deactivate genreService
+            genreController --> genreUI : ✅ "Genre ajouté avec succès"
+            genreUI -> genreUI : Actualiser liste des genres
+            genreUI --> admin : Liste mise à jour avec nouveau genre
+            
+        else Erreur insertion
+            db --> genreService : ❌ Erreur base de données
+            deactivate db
+            genreService --> genreController : ❌ "Erreur lors de la création"
+            deactivate genreService
+            genreController --> genreUI : "Erreur technique, veuillez réessayer"
+            genreUI --> admin : Formulaire avec message d'erreur
+        end
+        
+    else Genre existe déjà
+        db --> genreService : Genre trouvé
+        deactivate db
+        genreService --> genreController : ❌ "Ce genre existe déjà"
+        deactivate genreService
+        genreController --> genreUI : "Un genre avec ce nom existe déjà"
+        genreUI --> admin : Formulaire avec erreur de duplication
+    end
+    
+else Erreurs de validation
+    validationService --> genreController : ❌ Liste des erreurs
+    deactivate validationService
+    genreController --> genreUI : Erreurs de validation détaillées
+    genreUI --> admin : Formulaire avec erreurs à corriger
+end
+deactivate genreController
+
+== READ - Consultation des genres ==
+
+admin -> genreUI : Affichage liste des genres
+genreUI -> genreController : Récupérer arbre des genres
+activate genreController
+
+genreController -> genreService : Lister genres avec hiérarchie
+activate genreService
+
+genreService -> db : WITH RECURSIVE genre_tree AS (\n  SELECT id_genre, name, description, color_hex, parent_id_genre,\n         display_order, 0 as level, CAST(display_order AS VARCHAR) as sort_path\n  FROM genres \n  WHERE parent_id_genre IS NULL AND is_active = TRUE\n  \n  UNION ALL\n  \n  SELECT g.id_genre, g.name, g.description, g.color_hex, g.parent_id_genre,\n         g.display_order, gt.level + 1, gt.sort_path || '-' || g.display_order\n  FROM genres g\n  JOIN genre_tree gt ON g.parent_id_genre = gt.id_genre\n  WHERE g.is_active = TRUE\n)\nSELECT gt.*, COUNT(b.id_book) as nb_books,\n       ROUND(AVG(b.avg_rating), 2) as avg_rating_books\nFROM genre_tree gt\nLEFT JOIN books b ON gt.id_genre = b.id_genre\nGROUP BY gt.id_genre, gt.name, gt.description, gt.color_hex, \n         gt.parent_id_genre, gt.display_order, gt.level, gt.sort_path\nORDER BY gt.sort_path
+activate db
+
+db --> genreService : Arbre des genres + statistiques
+deactivate db
+genreService --> genreController : ✅ Données genres hiérarchiques
+deactivate genreService
+
+genreController --> genreUI : ✓ Arbre des genres
+deactivate genreController
+genreUI --> admin : Affichage hiérarchique\n(indentation par niveau, couleurs, nb livres, actions)
+
+alt Recherche de genres
+    admin -> genreUI : Utilise la barre de recherche
+    genreUI -> genreController : Rechercher genres
+    activate genreController
+    
+    genreController -> genreService : Recherche par nom/description
+    activate genreService
+    
+    genreService -> db : SELECT g.*, COUNT(b.id_book) as nb_books\nFROM genres g\nLEFT JOIN books b ON g.id_genre = b.id_genre\nWHERE (LOWER(g.name) LIKE LOWER(?)\nOR LOWER(g.description) LIKE LOWER(?))\nAND g.is_active = TRUE\nGROUP BY g.id_genre\nORDER BY g.name
+    activate db
+    
+    db --> genreService : Résultats de recherche
+    deactivate db
+    genreService --> genreController : ✅ Genres trouvés
+    deactivate genreService
+    genreController --> genreUI : ✓ Résultats filtrés
+    deactivate genreController
+    genreUI --> admin : Affichage des genres correspondants
+end
+
+alt Consultation détaillée d'un genre
+    admin -> genreUI : Clic "Voir détails" sur un genre
+    genreUI -> genreController : Afficher détails genre (genre_id)
+    activate genreController
+    
+    genreController -> genreService : Récupérer genre + livres + sous-genres
+    activate genreService
+    
+    genreService -> db : SELECT g.*,\n  (SELECT COUNT(*) FROM genres WHERE parent_id_genre = g.id_genre) as nb_subgenres,\n  b.title, b.author, b.avg_rating, b.publication_date\nFROM genres g\nLEFT JOIN books b ON g.id_genre = b.id_genre\nWHERE g.id_genre = ?\nORDER BY b.avg_rating DESC NULLS LAST, b.publication_date DESC
+    activate db
+    
+    db --> genreService : Détails genre + livres
+    deactivate db
+    genreService --> genreController : ✅ Données complètes genre
+    deactivate genreService
+    
+    genreController --> genreUI : ✓ Fiche complète genre
+    deactivate genreController
+    genreUI --> admin : Page détaillée\n(infos, sous-genres, liste des livres, stats)
+end
+
+== UPDATE - Modification d'un genre ==
+
+admin -> genreUI : Clic "Modifier" sur un genre
+genreUI -> genreController : Charger formulaire modification (genre_id)
+activate genreController
+
+genreController -> genreService : Récupérer données genre + parents possibles
+activate genreService
+
+genreService -> db : SELECT * FROM genres WHERE id_genre = ?
+activate db
+db --> genreService : Données complètes du genre
+deactivate db
+
+genreService -> db : SELECT id_genre, name FROM genres\nWHERE is_active = TRUE \nAND id_genre != ?\nAND id_genre NOT IN (\n  WITH RECURSIVE descendants AS (\n    SELECT id_genre FROM genres WHERE parent_id_genre = ?\n    UNION ALL\n    SELECT g.id_genre FROM genres g\n    JOIN descendants d ON g.parent_id_genre = d.id_genre\n  )\n  SELECT id_genre FROM descendants\n)\nORDER BY name
+activate db
+db --> genreService : Parents possibles (sans boucles)
+deactivate db
+
+genreService --> genreController : ✅ Données genre + options parents
+deactivate genreService
+
+genreController --> genreUI : ✓ Formulaire pré-rempli
+deactivate genreController
+genreUI --> admin : Formulaire de modification avec données actuelles
+
+admin -> genreUI : Modifie les champs et soumet
+genreUI -> genreController : Mettre à jour genre
+activate genreController
+
+genreController -> validationService : Valider modifications
+activate validationService
+
+alt Modifications valides
+    validationService --> genreController : ✅ Données valides
+    deactivate validationService
+    
+    genreController -> genreService : Vérifier unicité (si nom modifié)
+    activate genreService
+    
+    alt Nom modifié
+        genreService -> db : SELECT COUNT(*) FROM genres\nWHERE LOWER(TRIM(name)) = LOWER(TRIM(?))\nAND id_genre != ? AND is_active = TRUE
+        activate db
+        
+        alt Pas de conflit
+            db --> genreService : 0 conflit trouvé
+            deactivate db
+            
+            genreService -> db : UPDATE genres SET\nname = ?, description = ?, color_hex = ?,\nparent_id_genre = ?, display_order = ?, updated_at = NOW()\nWHERE id_genre = ?
+            activate db
+            
+            alt Mise à jour réussie
+                db --> genreService : ✓ Genre mis à jour
+                deactivate db
+                genreService --> genreController : ✅ "Modification réussie"
+                deactivate genreService
+                genreController --> genreUI : ✅ "Genre modifié avec succès"
+                genreUI --> admin : Retour à la liste avec modifications
+                
+            else Erreur mise à jour
+                db --> genreService : ❌ Erreur base de données
+                deactivate db
+                genreService --> genreController : ❌ "Erreur lors de la modification"
+                deactivate genreService
+                genreController --> genreUI : "Erreur technique"
+                genreUI --> admin : Formulaire avec message d'erreur
+            end
+            
+        else Conflit de nom
+            db --> genreService : Conflit détecté
+            deactivate db
+            genreService --> genreController : ❌ "Un autre genre a déjà ce nom"
+            deactivate genreService
+            genreController --> genreUI : "Ce nom de genre est déjà utilisé"
+            genreUI --> admin : Formulaire avec erreur de duplication
+        end
+        
+    else Nom inchangé
+        genreService -> db : UPDATE genres SET\ndescription = ?, color_hex = ?, parent_id_genre = ?,\ndisplay_order = ?, updated_at = NOW()\nWHERE id_genre = ?
+        activate db
+        db --> genreService : ✓ Genre mis à jour
+        deactivate db
+        genreService --> genreController : ✅ "Modification réussie"
+        deactivate genreService
+        genreController --> genreUI : ✅ "Genre modifié avec succès"
+        genreUI --> admin : Liste mise à jour
+    end
+    
+else Erreurs de validation
+    validationService --> genreController : ❌ Erreurs détaillées
+    deactivate validationService
+    genreController --> genreUI : Erreurs à corriger
+    genreUI --> admin : Formulaire avec erreurs
+end
+deactivate genreController
+
+== UPDATE - Réorganisation des genres ==
+
+alt Modification de l'ordre d'affichage
+    admin -> genreUI : Glisser-déposer pour réorganiser
+    genreUI -> genreController : Mettre à jour ordres multiples
+    activate genreController
+    
+    genreController -> genreService : Réorganiser genres
+    activate genreService
+    
+    genreService -> db : BEGIN TRANSACTION
+    activate db
+    
+    loop Pour chaque genre déplacé
+        genreService -> db : UPDATE genres SET display_order = ?, updated_at = NOW()\nWHERE id_genre = ?
+        db --> genreService : ✓ Ordre mis à jour
+    end
+    
+    genreService -> db : COMMIT TRANSACTION
+    deactivate db
+    genreService --> genreController : ✅ "Réorganisation terminée"
+    deactivate genreService
+    
+    genreController --> genreUI : ✅ "Ordre mis à jour"
+    deactivate genreController
+    genreUI --> admin : Liste réorganisée en temps réel
+end
+
+== DELETE - Suppression d'un genre ==
+
+admin -> genreUI : Clic "Supprimer" sur un genre
+genreUI -> genreController : Demander suppression (genre_id)
+activate genreController
+
+genreController -> genreService : Vérifier impact de la suppression
+activate genreService
+
+genreService -> db : SELECT g.name,\nCOUNT(DISTINCT b.id_book) as nb_books,\nCOUNT(DISTINCT sg.id_genre) as nb_subgenres,\nCOUNT(DISTINCT r.id_review) as nb_reviews\nFROM genres g\nLEFT JOIN books b ON g.id_genre = b.id_genre\nLEFT JOIN genres sg ON g.id_genre = sg.parent_id_genre\nLEFT JOIN reviews r ON b.id_book = r.id_book\nWHERE g.id_genre = ?\nGROUP BY g.id_genre, g.name
+activate db
+
+db --> genreService : Impact de la suppression
+deactivate db
+
+alt Genre a des livres OU des sous-genres
+    genreService --> genreController : ⚠️ "Genre a X livres, Y sous-genres"
+    deactivate genreService
+    
+    genreController --> genreUI : Alerte avec options\n"Ce genre a X livres et Y sous-genres.\nChoisissez une action :\n□ Désactiver le genre (recommandé)\n□ Supprimer avec réassignation\n□ Supprimer définitivement (dangereux)"
+    authorUI --> admin : Modal avec choix d'action
+    
+    alt Admin choisit la désactivation
+        admin -> genreUI : Choisit "Désactiver"
+        genreUI -> genreController : Désactiver genre
+        
+        genreController -> genreService : Marquer comme inactif
+        activate genreService
+        genreService -> db : UPDATE genres SET is_active = FALSE, updated_at = NOW()\nWHERE id_genre = ?
+        activate db
+        db --> genreService : ✓ Genre désactivé
+        deactivate db
+        genreService --> genreController : ✅ "Genre désactivé"
+        deactivate genreService
+        genreController --> genreUI : ✅ "Genre masqué (peut être réactivé)"
+        genreUI --> admin : Liste mise à jour (genre masqué)
+        
+    else Admin choisit réassignation
+        admin -> genreUI : Choisit "Réassigner" + genre de remplacement
+        genreUI -> genreController : Réassigner et supprimer
+        
+        genreController -> genreService : Réassignation puis suppression
+        activate genreService
+        genreService -> db : BEGIN TRANSACTION
+        activate db
+        
+        genreService -> db : UPDATE books SET id_genre = ? WHERE id_genre = ?
+        db --> genreService : ✓ Livres réassignés
+        
+        genreService -> db : UPDATE genres SET parent_id_genre = ? WHERE parent_id_genre = ?
+        db --> genreService : ✓ Sous-genres réassignés
+        
+        genreService -> db : DELETE FROM genres WHERE id_genre = ?
+        
+        alt Suppression avec réassignation réussie
+            db --> genreService : ✓ Genre supprimé
+            genreService -> db : COMMIT TRANSACTION
+            deactivate db
+            genreService --> genreController : ✅ "Suppression avec réassignation réussie"
+            deactivate genreService
+            genreController --> genreUI : ✅ "Genre supprimé, données réassignées"
+            genreUI --> admin : Liste mise à jour
+            
+        else Erreur réassignation
+            db --> genreService : ❌ Erreur
+            genreService -> db : ROLLBACK TRANSACTION
+            deactivate db
+            genreService --> genreController : ❌ "Erreur lors de la réassignation"
+            deactivate genreService
+            genreController --> genreUI : "Erreur, aucune modification effectuée"
+            genreUI --> admin : Message d'erreur
+        end
+        
+    else Admin choisit suppression définitive
+        admin -> genreUI : Confirme suppression définitive
+        genreUI -> genreController : Suppression en cascade
+        
+        genreController -> genreService : Suppression complète
+        activate genreService
+        genreService -> db : BEGIN TRANSACTION
+        activate db
+        
+        genreService -> db : UPDATE genres SET parent_id_genre = NULL WHERE parent_id_genre = ?
+        db --> genreService : ✓ Sous-genres orphelins
+        
+        genreService -> db : UPDATE books SET id_genre = NULL WHERE id_genre = ?
+        db --> genreService : ✓ Livres sans genre
+        
+        genreService -> db : DELETE FROM genres WHERE id_genre = ?
+        
+        alt Suppression définitive réussie
+            db --> genreService : ✓ Genre supprimé
+            genreService -> db : COMMIT TRANSACTION
+            deactivate db
+            genreService --> genreController : ✅ "Suppression définitive réussie"
+            deactivate genreService
+            genreController --> genreUI : ✅ "Genre supprimé définitivement"
+            genreUI --> admin : Liste mise à jour
+        else Erreur suppression
+            db --> genreService : ❌ Erreur
+            genreService -> db : ROLLBACK TRANSACTION
+            deactivate db
+            genreService --> genreController : ❌ "Erreur suppression"
+            deactivate genreService
+            genreController --> genreUI : "Erreur technique"
+            genreUI --> admin : Message d'erreur
+        end
+    end
+    
+else Genre sans livres ni sous-genres
+    genreService --> genreController : ✅ "Suppression sans impact"
+    deactivate genreService
+    
+    genreController --> genreUI : Confirmation simple\n"Supprimer ce genre ?\n(Aucun livre ou sous-genre associé)"
+    genreUI --> admin : Confirmation standard
+    
+    admin -> genreUI : Confirme la suppression
+    genreUI -> genreController : Supprimer genre
+    
+    genreController -> genreService : Suppression simple
+    activate genreService
+    genreService -> db : DELETE FROM genres WHERE id_genre = ?
+    activate db
+    
+    alt Suppression réussie
+        db --> genreService : ✓ Genre supprimé
+        deactivate db
+        genreService --> genreController : ✅ "Suppression réussie"
+        deactivate genreService
+        genreController --> genreUI : ✅ "Genre supprimé avec succès"
+        genreUI --> admin : Liste mise à jour
+    else Erreur suppression
+        db --> genreService : ❌ Erreur
+        deactivate db
+        genreService --> genreController : ❌ "Erreur suppression"
+        deactivate genreService
+        genreController --> genreUI : "Erreur technique"
+        genreUI --> admin : Message d'erreur
+    end
+end
+deactivate genreController
+
+== Fonctionnalités avancées ==
+
+note over admin, db
+    **Règles de gestion CRUD Genres :**
+    
+    **Structure hiérarchique :**
+    - Genres parents et sous-genres (parent_id_genre)
+    - Prévention des boucles dans la hiérarchie
+    - Affichage avec indentation selon le niveau
+    - Slug automatique pour URLs SEO-friendly
+    
+    **Création :**
+    - Nom obligatoire et unique
+    - Couleur hex optionnelle pour l'affichage
+    - Calcul automatique de l'ordre d'affichage
+    - Validation des couleurs et cohérence parent
+    
+    **Consultation :**
+    - Affichage en arbre avec requête récursive
+    - Statistiques par genre (nb livres, note moyenne)
+    - Recherche dans nom/description
+    - Vue détaillée avec livres du genre
+    
+    **Modification :**
+    - Réorganisation par glisser-déposer
+    - Changement de parent avec validation anti-boucle
+    - Modification de couleur et description
+    - Unicité préservée lors des renommages
+    
+    **Suppression intelligente :**
+    - 3 options : désactivation, réassignation, suppression
+    - Impact analysis automatique
+    - Gestion des sous-genres orphelins
+    - Transaction sécurisée pour toutes les options
+    
+    **Performance :**
+    - Index sur slug, name, parent_id_genre
+    - Requêtes CTE pour l'arbre hiérarchique
+    - Pagination et filtrage optimisés
+    
+    **UX :**
+    - Codes couleur visuels pour chaque genre
+    - Réorganisation intuitive (drag & drop)
+    - Confirmations contextuelles selon l'impact
+end note
+
+@enduml

@@ -1,0 +1,47 @@
+{
+  "width": 514,
+  "height": 643,
+  "cx": [
+    [ "AUTORISATIONS", 72 ],
+    [ "AFFECTER", 242 ],
+    [ "ROLES", 427 ],
+    [ "ATTRIBUER", 427 ],
+    [ "AJOUTER", 72 ],
+    [ "UTILISATEUR", 242 ],
+    [ "ECRIRE", 427 ],
+    [ "BIBLIOTHEQUE", 72 ],
+    [ "AVIS", 427 ],
+    [ "LIVRE_BIBLIOTHEQUE", 72 ],
+    [ "LIVRE", 242 ],
+    [ "VIRTUELEMENT_POSSEDER", 427 ]
+  ],
+  "cy": [
+    [ "AUTORISATIONS", 43 ],
+    [ "AFFECTER", 43 ],
+    [ "ROLES", 43 ],
+    [ "ATTRIBUER", 127 ],
+    [ "AJOUTER", 211 ],
+    [ "UTILISATEUR", 211 ],
+    [ "ECRIRE", 211 ],
+    [ "BIBLIOTHEQUE", 303 ],
+    [ "AVIS", 303 ],
+    [ "LIVRE_BIBLIOTHEQUE", 481 ],
+    [ "LIVRE", 481 ],
+    [ "VIRTUELEMENT_POSSEDER", 481 ]
+  ],
+  "shift": [
+    [ "AFFECTER,AUTORISATIONS,0", 0 ],
+    [ "AFFECTER,ROLES,0", 0 ],
+    [ "ATTRIBUER,ROLES,0", 0 ],
+    [ "ATTRIBUER,UTILISATEUR,0", 0 ],
+    [ "AJOUTER,UTILISATEUR,0", 0 ],
+    [ "AJOUTER,BIBLIOTHEQUE,0", 0 ],
+    [ "ECRIRE,UTILISATEUR,0", 0 ],
+    [ "ECRIRE,AVIS,0", 0 ],
+    [ "LIVRE_BIBLIOTHEQUE,LIVRE,0", 0 ],
+    [ "LIVRE_BIBLIOTHEQUE,BIBLIOTHEQUE,0", 0 ],
+    [ "VIRTUELEMENT_POSSEDER,LIVRE,0", 0 ],
+    [ "VIRTUELEMENT_POSSEDER,AVIS,0", 0 ]
+  ],
+  "ratio": []
+}
