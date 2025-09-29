@@ -1,0 +1,372 @@
+@startuml
+
+title Diagramme d'Activité - Recherches Simple et Complexe
+
+start
+
+:Utilisateur accède à la page de recherche;
+:Affichage interface de recherche;
+
+note right
+  **Interface contient :**
+  - Barre de recherche principale
+  - Toggle "Recherche avancée"
+  - Filtres rapides (genres populaires)
+  - Historique recherches (si connecté)
+  - Suggestions tendances
+end note
+
+if (Mode de recherche ?) then (Simple 🔍)
+
+  partition "Recherche Simple" {
+    :Saisie dans barre de recherche principale;
+    
+    if (Autocomplétion activée ?) then (oui)
+      while (Saisie en cours ?) is (oui)
+        if (Longueur >= 2 caractères ?) then (oui)
+          :Requête suggestions temps réel;
+          :Affichage dropdown suggestions;
+          note right
+            **Types suggestions :**
+            - Titres de livres
+            - Noms d'auteurs  
+            - Genres
+            - Séries
+            - Recherches populaires
+          end note
+          
+          if (Suggestion sélectionnée ?) then (oui)
+            :Remplissage automatique;
+          endif
+        endif
+        :Debounce 300ms;
+      endwhile (non)
+    endif
+    
+    if (Terme de recherche saisi ?) then (non)
+      :Message "Veuillez saisir un terme";
+    else (oui)
+      
+      if (Recherche par ISBN détectée ?) then (oui)
+        :Recherche exacte par ISBN;
+        
+        if (Livre trouvé ?) then (oui)
+          :Redirection vers détail livre;
+          stop
+        else (non)
+          :Message "ISBN non trouvé";
+          :Suggestion recherche titre/auteur;
+        endif
+        
+      else (non)
+        :Recherche full-text dans catalogue;
+        :Requête avec terme unique;
+        
+        note right
+          **Recherche dans :**
+          - Titres de livres
+          - Noms d'auteurs
+          - Descriptions
+          - Séries
+          - Mots-clés
+        end note
+        
+        if (Résultats trouvés ?) then (oui)
+          :Affichage résultats paginés;
+          :Tri par pertinence par défaut;
+          
+          partition "Affinage résultats simples" {
+            while (Affinage souhaité ?) is (oui)
+              switch (Type affinage ?)
+              case (Tri différent 📊)
+                :Changement tri (note, date, popularité);
+                :Réorganisation résultats;
+                
+              case (Filtre rapide 🏷️)
+                :Sélection genre dans sidebar;
+                :Application filtre genre;
+                :Mise à jour résultats;
+                
+              case (Nombre par page 📄)
+                :Changement pagination (10/20/50);
+                :Rechargement avec nouveau nombre;
+                
+              endswitch
+            endwhile (non)
+          }
+          
+        else (non)
+          :Message "Aucun résultat trouvé";
+          
+          partition "Suggestions alternatives" {
+            :Analyse du terme recherché;
+            
+            if (Faute de frappe détectée ?) then (oui)
+              :Proposition correction orthographique;
+              if (Correction acceptée ?) then (oui)
+                :Nouvelle recherche avec correction;
+              endif
+            endif
+            
+            :Proposition recherches similaires;
+            :Affichage livres populaires du même genre;
+          }
+        endif
+      endif
+    endif
+  }
+
+else (Avancée 🔎)
+
+  partition "Recherche Complexe" {
+    :Affichage formulaire recherche avancée;
+    
+    note right
+      **Champs disponibles :**
+      - Titre (exact/contient)
+      - Auteur (nom/prénom)
+      - Genre (sélection multiple)
+      - Année publication (plage)
+      - Note minimale
+      - ISBN
+      - Série
+      - Éditeur
+      - Description contient
+    end note
+    
+    repeat
+      while (Critère à ajouter ?) is (disponible)
+        
+        switch (Type de critère ?)
+        case (Titre 📖)
+          :Saisie titre recherché;
+          :Choix mode (exact/contient/commence par);
+          
+        case (Auteur ✍️)
+          :Saisie nom auteur;
+          if (Autocomplétion auteurs ?) then (oui)
+            :Suggestions auteurs existants;
+            :Sélection dans liste;
+          endif
+          
+        case (Genre 🏷️)
+          :Ouverture sélecteur genres;
+          :Affichage hiérarchie genres;
+          :Sélection multiple genres;
+          if (Genres sélectionnés ?) then (oui)
+            :Choix opérateur (ET/OU);
+          endif
+          
+        case (Année publication 📅)
+          :Saisie année début (optionnel);
+          :Saisie année fin (optionnel);
+          :Validation plage cohérente;
+          
+        case (Note minimale ⭐)
+          :Sélection note seuil (1-5);
+          :Choix inclusion "sans note";
+          
+        case (Série 📚)
+          :Saisie nom série;
+          if (Autocomplétion séries ?) then (oui)
+            :Suggestions séries existantes;
+          endif
+          
+        case (Éditeur 🏢)
+          :Saisie nom éditeur;
+          if (Autocomplétion éditeurs ?) then (oui)
+            :Suggestions éditeurs existants;
+          endif
+          
+        case (Mots-clés description 🔤)
+          :Saisie mots-clés;
+          :Choix opérateur (tous/au moins un);
+          
+        case (ISBN 🔢)
+          :Saisie ISBN;
+          :Validation format ISBN;
+          
+        endswitch
+        
+        :Ajout critère à la recherche;
+        :Prévisualisation requête construite;
+        
+      endwhile (aucun)
+      
+      if (Au moins un critère défini ?) then (non)
+        :Message "Définissez au moins un critère";
+      else (oui)
+        :Validation formulaire complet;
+      endif
+      
+    repeat while (Critères insuffisants ?) is (oui)
+    
+    :Lancement recherche multicritères;
+    
+    note right
+      **Construction requête SQL complexe :**
+      - Jointures multiples selon critères
+      - Clauses WHERE dynamiques
+      - Tri par pertinence composite
+      - Optimisation avec index appropriés
+    end note
+    
+    if (Résultats trouvés ?) then (oui)
+      :Affichage résultats avec critères appliqués;
+      
+      partition "Facettes dynamiques" {
+        :Calcul facettes sur résultats;
+        
+        note right
+          **Facettes générées :**
+          - Genres (avec compteurs)
+          - Auteurs principaux
+          - Tranches d'années
+          - Tranches de notes
+          - Éditeurs fréquents
+        end note
+        
+        :Affichage sidebar facettes;
+        
+        while (Raffinement souhaité ?) is (oui)
+          :Sélection facette;
+          :Application filtre supplémentaire;
+          :Mise à jour résultats et autres facettes;
+          :Affichage breadcrumb filtres actifs;
+        endwhile (non)
+      }
+      
+      partition "Actions sur résultats" {
+        while (Action sur résultats ?) is (choisie)
+          
+          switch (Type action ?)
+          case (Trier différemment 📊)
+            :Changement critère tri;
+            note right
+              **Options tri :**
+              - Pertinence (défaut)
+              - Note décroissante
+              - Date publication récente
+              - Popularité (nb favoris)
+              - Alphabétique titre
+              - Alphabétique auteur
+            end note
+            :Réorganisation résultats;
+            
+          case (Sauvegarder recherche 💾)
+            if (Utilisateur connecté ?) then (oui)
+              :Ouverture modal sauvegarde;
+              :Saisie nom recherche;
+              :Enregistrement critères + nom;
+              :Message "Recherche sauvegardée";
+            else (non)
+              :Message "Connexion requise";
+            endif
+            
+          case (Exporter résultats 📤)
+            :Choix format export (CSV/PDF);
+            :Sélection champs à exporter;
+            :Génération fichier export;
+            :Téléchargement automatique;
+            
+          case (Partager recherche 🔗)
+            :Génération URL avec paramètres;
+            :Copie lien dans presse-papier;
+            :Message "Lien copié";
+            
+          endswitch
+          
+        endwhile (aucune)
+      }
+      
+    else (non)
+      :Message "Aucun livre ne correspond à ces critères";
+      
+      partition "Aide à l'ajustement" {
+        :Analyse critères restrictifs;
+        
+        if (Critères trop stricts ?) then (oui)
+          :Suggestions d'assouplissement;
+          note right
+            **Suggestions :**
+            - Élargir plage années
+            - Réduire note minimale
+            - Supprimer critères optionnels
+            - Recherche dans genres parents
+          end note
+          
+          :Boutons ajustement rapide;
+          if (Ajustement accepté ?) then (oui)
+            :Modification automatique critères;
+            :Relance recherche ajustée;
+          endif
+        endif
+        
+        :Proposition recherches similaires réussies;
+        :Affichage suggestions basées sur historique;
+      }
+    endif
+    
+    if (Nouvelle recherche souhaitée ?) then (oui)
+      :Choix conserver/réinitialiser critères;
+      if (Réinitialiser ?) then (oui)
+        :Effacement tous critères;
+        :Retour formulaire vierge;
+      endif
+    endif
+  }
+
+endif
+
+partition "Gestion historique et préférences" {
+  if (Utilisateur connecté ?) then (oui)
+    :Enregistrement recherche dans historique;
+    
+    if (Recherche fréquente détectée ?) then (oui)
+      :Proposition sauvegarde automatique;
+    endif
+    
+    :Mise à jour préférences recherche;
+    note right
+      **Apprentissage automatique :**
+      - Genres préférés
+      - Auteurs recherchés souvent
+      - Plages d'années favorites
+      - Préférences de tri
+    end note
+  endif
+}
+
+:Fin du processus de recherche;
+
+note left
+  **Optimisations techniques :**
+  
+  **Performance :**
+  - Debouncing pour autocomplétion
+  - Cache des suggestions populaires
+  - Index full-text optimisés
+  - Pagination efficace des résultats
+  
+  **UX avancée :**
+  - Sauvegarde état recherche dans URL
+  - Breadcrumb des filtres actifs
+  - Suggestions orthographiques
+  - Historique recherches personnalisé
+  
+  **Recherche intelligente :**
+  - Détection automatique ISBN
+  - Correction fautes de frappe
+  - Recherche phonétique pour noms
+  - Synonymes et termes associés
+  
+  **Analytics :**
+  - Tracking termes populaires
+  - Recherches sans résultats
+  - Temps moyen par recherche
+  - Taux de clics par position
+end note
+
+stop
+
+@enduml

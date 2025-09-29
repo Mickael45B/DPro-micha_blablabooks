@@ -55,11 +55,11 @@ CREATE TABLE rolehaspermissions (
 -- ---------------------------------------------------------
 CREATE TABLE users (
   id_user       VARCHAR(42) PRIMARY KEY,
-  name          VARCHAR(255) NOT NULL CHECK (length(btrim(name)) > 0),
-  email         VARCHAR(255) NOT NULL UNIQUE
-                CHECK (email ~* '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$'),
+  name          VARCHAR(255) CHECK (length(btrim(name)) > 0), -- nom optionnel, servira pour la personnalisation des messages entre utilisateurs et admins (si non renseigné, on utilisera le pseudo)
+  email         VARCHAR(255) NOT NULL UNIQUE 
+                CHECK (email ~* '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$'), -- format d'email basique
   password      VARCHAR(255) NOT NULL,
-  pseudo        VARCHAR(100) UNIQUE NOT NULL CHECK ( pseudo ~ '^[A-Za-z0-9_]{3,30}$'),
+  pseudo        VARCHAR(100) UNIQUE NOT NULL CHECK ( pseudo ~ '^[A-Za-z0-9_]{3,30}$'), -- lettres, chiffres, underscore, 3-30 caractères. Le pseudo est obligatoire et unique (2 utilisateurs ne peuvent pas avoir le même pseudo)
   id_role       VARCHAR(42) REFERENCES roles(id_role) ON DELETE SET NULL,
   is_active     BOOLEAN DEFAULT TRUE,
   created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -73,10 +73,10 @@ CREATE TABLE books (
   id_book            VARCHAR(42) PRIMARY KEY,
   title              VARCHAR(255) NOT NULL CHECK (length(btrim(title)) > 0),
   isbn               VARCHAR(42),
-  publication_date   DATE,
+  publication_date   DATE CHECK (publication_date IS NULL OR publication_date <= CURRENT_DATE), -- date format européen (jj/mm/aaaa)
   author             VARCHAR(255),
   editor             VARCHAR(255),
-  gender              VARCHAR(100), 
+  genre              VARCHAR(100), 
   vignetteimage      VARCHAR(255),
   bookimage          VARCHAR(255),
   age_limit          INTEGER CHECK (age_limit IS NULL OR age_limit >= 0),
@@ -110,8 +110,9 @@ CREATE TABLE libraries (
 -- ---------------------------------------------------------
 CREATE TABLE reviews (
   id_review    VARCHAR(42) PRIMARY KEY,
-  id_user      VARCHAR(42) NOT NULL REFERENCES users(id_user) ON DELETE SET NULL, 
+  id_user   VARCHAR(42) UNIQUE REFERENCES users(id_user) ON DELETE SET NULL, 
   id_book      VARCHAR(42) NOT NULL REFERENCES books(id_book) ON DELETE SET NULL, 
+  title_rating  VARCHAR(255) NOT NULL CHECK (length(btrim(title_rating)) > 0), 
   comment      VARCHAR(1024) NOT NULL CHECK (length(btrim(comment)) > 0),
   rating       INTEGER NOT NULL CHECK (rating BETWEEN 1 AND 5),
   created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -126,8 +127,8 @@ CREATE TABLE reviews (
 -- ---------------------------------------------------------
 CREATE TABLE bookhaslibrary (
   id_bookhaslibrary VARCHAR(42) PRIMARY KEY,
-  id_library        VARCHAR(42) NOT NULL REFERENCES libraries(id_library) ON DELETE SET NULL, 
-  id_book           VARCHAR(42) NOT NULL REFERENCES books(id_book) ON DELETE SET NULL, 
+  id_library        VARCHAR(42) REFERENCES libraries(id_library) ON DELETE SET NULL, 
+  id_book           VARCHAR(42) REFERENCES books(id_book) ON DELETE SET NULL, 
   is_read           BOOLEAN DEFAULT FALSE,
   is_favorite       BOOLEAN DEFAULT FALSE,
   created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -137,9 +138,48 @@ CREATE TABLE bookhaslibrary (
   CONSTRAINT uq_library_book UNIQUE(id_library, id_book)
 );
 
+-- ---------------------------------------------------------
+-- 10) MESSAGES 
+-- ---------------------------------------------------------
+
+CREATE TABLE messages (
+  id_message    VARCHAR(42) PRIMARY KEY,
+  id_sender     VARCHAR(42) NOT NULL REFERENCES users(id_user) ON DELETE SET NULL,
+  id_receiver   VARCHAR(42) NOT NULL REFERENCES users(id_user) ON DELETE SET NULL,
+  subject       VARCHAR(255) NOT NULL CHECK (length(btrim(subject)) > 0),
+  content       TEXT NOT NULL CHECK (length(btrim(content)) > 0),
+  is_read       BOOLEAN DEFAULT FALSE,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at    TIMESTAMPTZ
+);
+
+-- ---------------------------------------------------------
+-- 10) REPORTING 
+-- ---------------------------------------------------------
+-- cette table sera utilisée dans une version ultérieure pour la modération
+-- Table pour les signalements (reports)
+
+-- Un utilisateur peut signaler un autre utilisateur, une review, un message, etc.
+
+CREATE TABLE reports (
+  id_report     VARCHAR(42) PRIMARY KEY,
+  id_user       VARCHAR(42) NOT NULL REFERENCES users(id_user) ON DELETE SET NULL,-- Le champ id_user référence l'utilisateur qui a fait le signalement
+  report_type   VARCHAR(50) NOT NULL CHECK (report_type IN ('user', 'review', 'message', 'other')),-- Le champ report_type indique le type d'entité signalée
+  reported_id   VARCHAR(42), -- Le champ reported_id contient l'ID de l'entité signalée. ID de l'entité signalée (user, review, message, etc.)
+  reason        VARCHAR(255) NOT NULL CHECK (length(btrim(reason)) > 0),-- Le champ reason contient la raison du signalement
+  details       TEXT,-- Le champ details peut contenir des informations supplémentaires
+  status        VARCHAR(50) NOT NULL CHECK (status IN ('pending', 'in_review', 'resolved', 'dismissed')) DEFAULT 'pending',-- Le champ status indique l'état du signalement (en attente, en cours de traitement, résolu, rejeté)
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at    TIMESTAMPTZ
+);
+
+
 -- ============================
 -- INDEXES (-> PERFORMANCE)
 -- ============================
+
+-- Index pour recherche insensible à la casse sur le pseudo
+CREATE INDEX idx_users_pseudo_lower ON users(LOWER(pseudo));
 
 -- Index pour recherche full-text (français) avec unaccent
 CREATE INDEX idx_books_fulltext
@@ -151,6 +191,11 @@ USING GIN (to_tsvector('french',
            coalesce(series,'') || ' ' ||
            coalesce(description,'')))
 );
+
+-- Pour "livres non lus d'un utilisateur"
+CREATE INDEX idx_bookhaslibrary_user_unread 
+ON bookhaslibrary(id_library, is_read) 
+WHERE is_read = FALSE;
 
 -- Index trigramme pour recherche floue
 CREATE INDEX idx_books_author_title_trgm ON books USING GIN ((coalesce(author,'') || ' ' || title) gin_trgm_ops);
@@ -191,6 +236,10 @@ CREATE INDEX idx_books_genre ON books(genre) WHERE genre IS NOT NULL; -- Nouvel 
 -- Index pour recherche par ISBN
 CREATE INDEX idx_books_isbn ON books(isbn) WHERE isbn IS NOT NULL;
 
+-- Index pour les messages
+CREATE INDEX idx_messages_sender ON messages(id_sender);
+CREATE INDEX idx_messages_receiver ON messages(id_receiver);
+CREATE INDEX idx_messages_unread ON messages(id_receiver, is_read) WHERE is_read = FALSE;
 -- ============================
 -- TRIGGERS
 -- ============================
@@ -413,6 +462,12 @@ AFTER INSERT OR UPDATE OR DELETE ON bookhaslibrary
 FOR EACH ROW
 EXECUTE FUNCTION update_books_favorites();
 
+
+-- 5) Trigger pour messages : mise à jour du updated_at
+CREATE TRIGGER set_timestamp_messages
+BEFORE UPDATE ON messages
+FOR EACH ROW
+EXECUTE FUNCTION update_timestamp();
 -- ============================
 -- FONCTIONS UTILITAIRES DE MAINTENANCE
 -- ============================
@@ -529,3 +584,41 @@ END;
 $$ LANGUAGE plpgsql;
 
 COMMIT;
+
+-- ============================
+-- STATISTIQUES
+-- ============================
+
+-- 📚 TABLE books
+-- On veut améliorer les recherches par titre + auteur (corrélés)
+CREATE STATISTICS books_search_stats (dependencies) ON title, author FROM books;
+
+-- Le genre est souvent filtré, mais une seule colonne => ndistinct suffit
+CREATE STATISTICS books_genre_stats (ndistinct) ON genre FROM books;
+
+-- 👤 TABLE users
+-- Pseudo (souvent recherché) => ndistinct
+CREATE STATISTICS users_search_stats (ndistinct) ON pseudo FROM users;
+
+-- Rôle + statut actif sont souvent utilisés ensemble => dependencies
+CREATE STATISTICS users_role_stats (dependencies) ON id_role, is_active FROM users;
+
+-- 📝 TABLE reviews
+-- Corrélation entre id_user et id_book => dependencies
+CREATE STATISTICS reviews_search_stats (dependencies) ON id_user, id_book FROM reviews;
+
+-- 📚 TABLE bookhaslibrary
+-- Relation complexe (bibliothèque + livre + statut de lecture + favori)
+CREATE STATISTICS bookhaslibrary_search_stats (mcv) ON id_library, id_book, is_read, is_favorite FROM bookhaslibrary;
+
+-- 💬 TABLE messages
+-- Corrélation expéditeur/destinataire/statut lecture
+CREATE STATISTICS messages_search_stats (dependencies) ON id_sender, id_receiver, is_read FROM messages;
+
+-- 📚 TABLE libraries
+-- Un utilisateur peut avoir plusieurs bibliothèques → cardinalité
+CREATE STATISTICS libraries_search_stats (ndistinct) ON id_user FROM libraries;
+
+-- Mise à jour des statistiques pour prise en compte immédiate
+ANALYZE;
+
