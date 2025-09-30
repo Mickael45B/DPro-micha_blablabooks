@@ -1,0 +1,21 @@
+Input CreateUserInput {
+  name: String!
+  email: String!
+  password: String!
+  pseudo: string!
+  id_role: string
+}
+
+input UpdateUserInput {
+  id_user: ID!
+  name: String!
+  email: String!
+  password: String!
+  pseudo: string!
+  id_role: string
+}
+
+input DeleteUserInput {
+  id_user: ID!
+}
+

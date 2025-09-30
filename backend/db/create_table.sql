@@ -593,32 +593,19 @@ COMMIT;
 -- On veut améliorer les recherches par titre + auteur (corrélés)
 CREATE STATISTICS books_search_stats (dependencies) ON title, author FROM books;
 
--- Le genre est souvent filtré, mais une seule colonne => ndistinct suffit
-CREATE STATISTICS books_genre_stats (ndistinct) ON genre FROM books;
-
--- 👤 TABLE users
--- Pseudo (souvent recherché) => ndistinct
-CREATE STATISTICS users_search_stats (ndistinct) ON pseudo FROM users;
-
 -- Rôle + statut actif sont souvent utilisés ensemble => dependencies
 CREATE STATISTICS users_role_stats (dependencies) ON id_role, is_active FROM users;
 
--- 📝 TABLE reviews
--- Corrélation entre id_user et id_book => dependencies
-CREATE STATISTICS reviews_search_stats (dependencies) ON id_user, id_book FROM reviews;
+-- Corrélation user/book pour éviter doublons reviews
+CREATE STATISTICS reviews_user_book_stats (dependencies) 
+ON id_user, id_book FROM reviews;
 
--- 📚 TABLE bookhaslibrary
--- Relation complexe (bibliothèque + livre + statut de lecture + favori)
-CREATE STATISTICS bookhaslibrary_search_stats (mcv) ON id_library, id_book, is_read, is_favorite FROM bookhaslibrary;
+-- Corrélation library/book/statuts pour requêtes complexes bibliothèques
+CREATE STATISTICS bookhaslibrary_stats (dependencies) 
+ON id_library, id_book, is_read, is_favorite FROM bookhaslibrary;
 
--- 💬 TABLE messages
--- Corrélation expéditeur/destinataire/statut lecture
-CREATE STATISTICS messages_search_stats (dependencies) ON id_sender, id_receiver, is_read FROM messages;
-
--- 📚 TABLE libraries
--- Un utilisateur peut avoir plusieurs bibliothèques → cardinalité
-CREATE STATISTICS libraries_search_stats (ndistinct) ON id_user FROM libraries;
 
 -- Mise à jour des statistiques pour prise en compte immédiate
 ANALYZE;
+
 

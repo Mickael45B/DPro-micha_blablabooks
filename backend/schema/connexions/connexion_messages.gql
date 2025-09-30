@@ -1,0 +1,10 @@
+type MessageConnection {
+  edges: [MessageEdge!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+
+type MessageEdge {
+  node: Message!
+  cursor: String!
+}

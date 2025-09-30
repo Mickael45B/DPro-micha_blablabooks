@@ -1,0 +1,14 @@
+input CreatebookhaslibraryInput {
+  bookId: ID!
+  libraryId: ID!
+}
+input UpdatebookhaslibraryInput {
+  id_bookhaslibrary: ID!
+  bookId: ID
+  libraryId: ID
+  is_read: Boolean
+  is_favorite: Boolean
+}
+input DeletebookhaslibraryInput {
+  id_bookhaslibrary: ID!
+}

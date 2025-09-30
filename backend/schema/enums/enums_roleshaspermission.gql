@@ -1,0 +1,8 @@
+enum RoleHasPermission {
+  ROLE
+  PERMISSION
+}
+enum RoleHasPermissionOrderDirection {
+  ASC
+  DESC
+}

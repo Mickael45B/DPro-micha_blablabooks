@@ -1,0 +1,11 @@
+# Type pour représenter la relation entre un rôle et ses permissions
+type RoleHasPermissions {
+  id_rolehaspermission: ID!
+  id_role: ID!
+  id_permission: ID!
+  created_at: Date!
+  updated_at: Date
+  # Relations
+  role: Role
+  permission: [Permission!]!
+}

@@ -1,0 +1,12 @@
+Input CreateRoleInput {
+  name: String!
+}
+
+input UpdateRoleInput {
+  id_role: ID!
+  name: String
+}
+
+input DeleteRoleInput {
+  id_role: ID!
+}

@@ -1,0 +1,34 @@
+type Mutation {        # Ajouter un nouveau livre
+        addBook(
+            title: String!
+            isbn: String
+            publication_date: String
+            author: String
+            editor: String
+            genre: String
+            vignetteimage: String
+            bookimage: String
+            age_limit: Int
+            description: String
+            series: String
+        ): Book!
+
+        # Mettre à jour un livre existant
+        updateBook(
+            id_book: ID!
+            title: String
+            isbn: String
+            publication_date: String
+            author: String
+            editor: String
+            genre: String
+            vignetteimage: String
+            bookimage: String
+            age_limit: Int
+            description: String
+            series: String
+        ): Book!
+
+        # Supprimer un livre
+        deleteBook(id_book: ID!): Boolean!
+}

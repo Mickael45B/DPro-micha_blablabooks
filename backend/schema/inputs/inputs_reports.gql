@@ -1,0 +1,22 @@
+Input CreateReportInput {
+  id_user: string
+  report_type: string
+  reported_id: string
+  reason: string
+  details: string
+  status: string
+}
+
+input UpdateReportInput {
+  id_report: ID!
+  id_user: string
+  report_type: string
+  reported_id: string
+  reason: string
+  details: string
+  status: string
+}
+
+input DeleteReportInput {
+  id_report: ID!
+}

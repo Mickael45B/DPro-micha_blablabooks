@@ -1,0 +1,9 @@
+type Mutation {        # Ajouter une nouvelle permission_role
+        addPermissionRole(
+            id_role: ID!
+            id_permission: ID!
+        ): RoleHasPermissions!
+
+        # Supprimer une permission_role
+        deletePermissionRole(id_role: ID!, id_permission: ID!): Boolean!
+}

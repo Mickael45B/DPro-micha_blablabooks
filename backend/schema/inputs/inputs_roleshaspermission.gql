@@ -1,0 +1,15 @@
+Input CreateRoleHasPermissionInput {
+  roleId: ID!
+  permissionId: ID!
+}
+
+input UpdateRoleHasPermissionInput {
+  id: ID!
+  roleId: ID
+  permissionId: ID
+}
+
+input DeleteRoleHasPermissionInput {
+  id: ID!
+}
+

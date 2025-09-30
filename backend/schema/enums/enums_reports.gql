@@ -1,0 +1,20 @@
+enum ReportType {
+  ID_USER
+  REPORT_TYPE
+  REPORTED_ID
+  REASON
+  DETAILS
+  STATUS
+}
+
+# Enum pour les statuts des signalements
+enum ReportStatus {
+  PENDING
+  IN_REVIEW
+  RESOLVED
+  DISMISSED
+}
+enum BookOrderDirection {
+  ASC
+  DESC
+}

@@ -1,0 +1,25 @@
+type Mutation {
+
+    #TABLE Reviews
+    # Ajouter un nouvel avis
+    addReview(
+        id_user: String!
+        id_book: String!
+        title_rating: String!
+        rating: Int!
+        comment: String!
+    ): Review!
+    
+    # Mettre à jour un avis existant
+    updateReview(
+        id_review: ID!
+        id_user: String
+        id_book: String
+        title_rating: String
+        rating: Int
+        comment: String
+    ): Review!
+    
+    # Supprimer un avis par son ID
+    deleteReview(id_review: ID!): Boolean!
+}

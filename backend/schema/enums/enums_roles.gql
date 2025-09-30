@@ -1,0 +1,7 @@
+enum Role {
+  NAME
+}
+enum roleOrderDirection {
+  ASC
+  DESC
+}

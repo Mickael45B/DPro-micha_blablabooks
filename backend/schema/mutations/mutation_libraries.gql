@@ -1,0 +1,18 @@
+type Mutation {    # Ajouter une nouvelle bibliothèque
+    addLibrary(
+        name: String!
+        is_editable: Boolean!
+        id_user: String!
+    ): Library!
+    
+    # Mettre à jour une bibliothèque existante
+    updateLibrary(
+        id_library: ID!
+        name: String
+        is_editable: Boolean
+        id_user: String
+    ): Library!
+    
+    # Supprimer une bibliothèque par son ID
+    deleteLibrary(id_library: ID!): Boolean!
+}

@@ -1,0 +1,23 @@
+
+type Mutation {
+    #TABLE bookhaslibrary
+    # Ajouter une nouvelle relation
+    addBookHasLibrary(
+        id_book: String!
+        id_library: String!
+        is_read: Boolean!
+        is_favorite: Boolean!
+    ): BookHasLibrary!
+    
+    # Mettre à jour une relation existante
+    updateBookHasLibrary(
+        id_bookhaslibrary: ID!
+        id_book: String
+        id_library: String
+        is_read: Boolean
+        is_favorite: Boolean
+    ): BookHasLibrary!
+    
+    # Supprimer une relation par son ID
+    deleteBookHasLibrary(id_bookhaslibrary: ID!): Boolean!
+}

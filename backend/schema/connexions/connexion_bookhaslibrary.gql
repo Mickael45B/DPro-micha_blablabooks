@@ -1,0 +1,11 @@
+type BookHasLibraryConnection {
+  edges: [BookHasLibraryEdge!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+
+type BookHasLibraryEdge {
+  node: BookHasLibrary!
+  cursor: String!
+}
+

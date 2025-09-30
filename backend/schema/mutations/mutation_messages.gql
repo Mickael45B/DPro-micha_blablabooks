@@ -1,0 +1,23 @@
+type Mutation {
+    #TABLE messages
+    # Ajouter un nouveau message
+    addMessage(
+        id_sender: String!
+        id_receiver: String!
+        subject: String!
+        content: String!
+    ): Message!
+    
+    # Mettre à jour un message existant
+    updateMessage(
+        id_message: ID!
+        id_sender: String
+        id_receiver: String
+        subject: String
+        content: String
+        is_read: Boolean
+    ): Message!
+    
+    # Supprimer un message par son ID
+    deleteMessage(id_message: ID!): Boolean!
+}

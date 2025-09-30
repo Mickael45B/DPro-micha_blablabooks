@@ -1,0 +1,21 @@
+type Query {        # Type pour les résultats de recherche paginés
+        type PaginatedUsers {
+          users: [User!]!
+          totalCount: Int!
+          hasNextPage: Boolean!
+        }
+
+        # Récupérer une liste d'utilisateurs avec pagination et tri
+        getUsers(
+            limit: Int, 
+            offset: Int, 
+            order: String = "created_at", # Colonne par défaut pour le tri
+            direction: String = "ASC" # Direction par défaut pour le tri (ASC ou DESC)
+        ): PaginatedUsers
+
+        # Récupérer un utilisateur par son ID
+        getUser(id_user: ID!): User 
+
+        # Rechercher des utilisateurs par nom ou pseudo avec pagination
+        searchUsers(nameOrPseudo: String!, limit: Int, offset: Int): PaginatedUsers
+}

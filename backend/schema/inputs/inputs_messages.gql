@@ -1,0 +1,16 @@
+Input CreateMessageInput {
+  content: String!
+  id_sender: String!
+  id_receiver: String!
+  subject: String!
+}
+
+input UpdateMessageInput {
+  id_message: ID!
+  content: String
+  subject: String
+}
+
+input DeleteMessageInput {
+  id_message: ID!
+}

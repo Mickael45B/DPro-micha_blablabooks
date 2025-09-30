@@ -1,0 +1,12 @@
+enum UserOrderBy {
+  ID
+  NAME
+  EMAIL
+  PSEUDO
+  CREATED_AT
+  ROLE
+}
+enum UserOrderDirection {
+  ASC
+  DESC
+}

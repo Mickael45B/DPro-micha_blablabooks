@@ -1,0 +1,21 @@
+Input CreateReviewInput {
+  id_user: string
+  id_book: string
+  title_rating: string
+  comment: string
+  rating: number
+}
+
+input UpdateReviewInput {
+  id_review: ID!
+  id_user: string
+  id_book: string
+  title_rating: string
+  comment: string
+  rating: number
+}
+
+input DeleteReviewInput {
+  id_review: ID!
+}
+

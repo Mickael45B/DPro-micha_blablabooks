@@ -1,0 +1,8 @@
+enum BookHasLibraryOrderBy {
+  ID_LIBRARY
+  ID_BOOK
+}
+enum BookHasLibraryOrderDirection {
+  ASC
+  DESC
+}

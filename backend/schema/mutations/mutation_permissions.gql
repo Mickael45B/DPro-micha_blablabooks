@@ -1,0 +1,14 @@
+type Mutation {        # Ajouter une nouvelle permission
+        addPermission(
+            name: String!
+        ): Permission!
+
+        # Mettre à jour une permission existante
+        updatePermission(
+            id_permission: ID!
+            name: String
+        ): Permission!
+
+        # Supprimer une permission par son ID
+        deletePermission(id_permission: ID!): Boolean!
+}

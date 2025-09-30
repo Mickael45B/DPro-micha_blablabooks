@@ -1,0 +1,11 @@
+enum ReviewOrderBy {
+  ID
+  BOOK_ID
+  USER_ID
+  RATING
+  CREATED_AT
+}
+enum ReviewOrderDirection {
+  ASC
+  DESC
+}

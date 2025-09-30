@@ -1,0 +1,11 @@
+enum MessageOrderBy {
+  ID_SENDER
+  ID_RECEIVER
+  SUBJECT
+  CONTENT
+  IS_READ
+}
+Enum MessageOrderDirection {
+  ASC
+  DESC
+}

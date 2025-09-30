@@ -1,0 +1,11 @@
+enum BookOrderBy {
+  TITLE
+  AUTHOR
+  PUBLICATION_DATE
+  AVG_RATING
+  NB_REVIEWS
+}
+enum BookOrderDirection {
+  ASC
+  DESC
+}

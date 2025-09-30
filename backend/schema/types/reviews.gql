@@ -1,0 +1,15 @@
+# Type pour représenter un avis
+type Review {
+  id_review: ID!
+  id_user: String!
+  id_book: String!
+  title_rating: String!
+  rating: Int!
+  comment: String!
+  created_at: Date!
+  updated_at: Date
+  # Relations
+  user: User
+  book: Book
+}
+

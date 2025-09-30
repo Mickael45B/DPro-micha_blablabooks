@@ -1,0 +1,11 @@
+type RoleHasPermissionConnection {
+  edges: [RoleHasPermissionEdge!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+
+type RoleHasPermissionEdge {
+  node: RoleHasPermission!
+  cursor: String!
+}
+

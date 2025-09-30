@@ -1,0 +1,21 @@
+type Query {        # Type pour les résultats de recherche paginés
+        type PaginatedRoleHasPermissions {
+        roleHasPermissions: [RoleHasPermissions!]!
+        totalCount: Int!
+        hasNextPage: Boolean!
+        }
+
+        # Récupérer tous les permissions_roles
+        getPermissionsRoles(
+            limit: Int, 
+            offset: Int, 
+            order: String = "created_at", # Colonne par défaut pour le tri
+            direction: String = "ASC" # Direction par défaut pour le tri (ASC ou DESC)
+        ): PaginatedRoleHasPermissions
+
+        # Récupérer un permission_role par son ID
+        getPermissionRole(id_permission_role: ID!): RoleHasPermissions 
+
+        # Rechercher des permissions_roles par nom avec pagination
+        searchPermissionsRoles(name: String!, limit: Int, offset: Int): PaginatedRoleHasPermissions!
+}
