@@ -1,0 +1,12 @@
+input CreatePermissionInput {
+  name: String!
+}
+
+input UpdatePermissionInput {
+  id_permission: ID!
+  name: String
+}
+
+input DeletePermissionInput {
+  id_permission: ID!
+}

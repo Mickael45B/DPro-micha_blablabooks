@@ -1,0 +1,21 @@
+    type PaginatedPermissions {
+    permissions: [Permission!]!
+    totalCount: Int!
+    hasNextPage: Boolean!
+    }    
+
+extend type Query {        # Type pour les résultats de recherche paginés
+        # Récupérer tous les permissions
+        getPermissions(
+            limit: Int, 
+            offset: Int, 
+            order: String = "created_at", # Colonne par défaut pour le tri
+            direction: String = "ASC" # Direction par défaut pour le tri (ASC ou DESC)
+        ): PaginatedPermissions
+
+        # Récupérer un permission par son ID
+        getPermission(id_permission: ID!): Permission 
+
+        # Rechercher des permissions par nom avec pagination
+        searchPermissions(name: String!, limit: Int, offset: Int): PaginatedPermissions!
+}

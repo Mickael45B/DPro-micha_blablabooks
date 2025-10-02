@@ -1,0 +1,14 @@
+enum UserOrderBy {
+  NAME
+  EMAIL
+  PSEUDO
+  ROLE
+  CREATED_AT
+  IS_ACTIVE
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}

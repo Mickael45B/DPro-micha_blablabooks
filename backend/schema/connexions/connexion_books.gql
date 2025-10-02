@@ -1,0 +1,10 @@
+type BookConnection {
+  edges: [BookEdge!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+
+type BookEdge {
+  node: Book!
+  cursor: String!
+}

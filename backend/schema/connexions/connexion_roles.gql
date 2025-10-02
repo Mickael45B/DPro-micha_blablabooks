@@ -1,0 +1,11 @@
+type RoleConnection {
+  edges: [RoleEdge!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+
+type RoleEdge {
+  node: Role!
+  cursor: String!
+}
+

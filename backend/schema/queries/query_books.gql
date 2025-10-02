@@ -1,0 +1,21 @@
+        type PaginatedBooks {
+        books: [Book!]!
+        totalCount: Int!
+        hasNextPage: Boolean!
+        }
+
+extend type Query {        # Type pour les résultats de recherche paginés
+
+        # Récupérer tous les livres
+        getBooks(
+            pagination: PaginationInput
+            filter: BookFilter
+            sort: BookSort
+        ): BookConnection!
+        
+        # Récupérer un livre par son ID
+        getBook(id_book: ID!): Book 
+
+        # Rechercher des livres par titre ou auteur avec pagination
+        searchBooks(titleOrAuthor: String!, limit: Int, offset: Int): PaginatedBooks
+}

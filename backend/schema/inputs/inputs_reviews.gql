@@ -1,0 +1,27 @@
+input CreateReviewInput {
+  id_user: String!
+  id_book: String!
+  title_rating: String!
+  comment: String!
+  rating: Int!
+}
+
+input UpdateReviewInput {
+  id_review: ID!
+  id_user: String
+  id_book: String
+  title_rating: String
+  comment: String
+  rating: Int
+}
+
+input DeleteReviewInput {
+  id_review: ID!
+}
+
+input ReviewFilterInput {
+  idBook: ID
+  idUser: ID
+  minRating: Int
+  maxRating: Int
+}

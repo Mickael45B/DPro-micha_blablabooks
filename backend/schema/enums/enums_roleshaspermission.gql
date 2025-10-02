@@ -1,0 +1,6 @@
+enum RoleHasPermissionOrderBy {
+  ID_ROLE
+  ID_PERMISSION
+  CREATED_AT
+}
+

@@ -1,0 +1,13 @@
+# schema/scalars.gql
+scalar Date
+scalar DateTime
+
+type PageInfo {
+  hasNextPage: Boolean!
+  hasPreviousPage: Boolean!
+  startCursor: String
+  endCursor: String
+  totalCount: Int!
+  pageNumber: Int
+  totalPages: Int
+}

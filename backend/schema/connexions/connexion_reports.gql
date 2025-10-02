@@ -1,0 +1,10 @@
+type ReportConnection {
+  edges: [ReportEdge!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+
+type ReportEdge {
+  node: Report!
+  cursor: String!
+}

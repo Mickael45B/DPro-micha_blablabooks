@@ -1,0 +1,15 @@
+# Type pour représenter un utilisateur
+type User {
+  id_user: ID!
+  name: String
+  email: String!
+  password: String!
+  pseudo: String!
+  id_role: String
+  is_active: Boolean!
+  created_at: Date!
+  updated_at: Date
+  # Relations
+  role: Role
+  }
+

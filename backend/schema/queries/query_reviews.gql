@@ -1,0 +1,23 @@
+        type PaginatedReviews {
+        reviews: [Review!]!
+        totalCount: Int!
+        hasNextPage: Boolean!
+        }
+
+extend type Query {
+
+        # Type pour les résultats de recherche paginés
+        # Récupérer tous les avis
+        getReviews(
+            limit: Int, 
+            offset: Int, 
+            order: String = "created_at", # Colonne par défaut pour le tri
+            direction: String = "ASC" # Direction par défaut pour le tri (ASC ou DESC)
+        ): PaginatedReviews
+
+        # Récupérer un avis par son ID
+        getReview(id_review: ID!): Review 
+
+        # Rechercher des avis par contenu avec pagination
+        searchReviews(content: String!, limit: Int, offset: Int): PaginatedReviews
+}

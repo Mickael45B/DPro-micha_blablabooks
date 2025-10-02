@@ -1,0 +1,10 @@
+type LibraryConnection {
+  edges: [LibraryEdge!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+
+type LibraryEdge {
+  node: Library!
+  cursor: String!
+}

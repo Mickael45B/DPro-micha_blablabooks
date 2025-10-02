@@ -1,0 +1,22 @@
+    type PaginatedMessages {
+        messages: [Message!]!
+        totalCount: Int!
+        hasNextPage: Boolean!
+    }
+
+extend type Query {        # Type pour les résultats de recherche paginés
+
+        # Récupérer tous les messages
+        getMessages(
+            limit: Int, 
+            offset: Int, 
+            order: String = "created_at", # Colonne par défaut pour le tri
+            direction: String = "ASC" # Direction par défaut pour le tri (ASC ou DESC)
+        ): PaginatedMessages
+
+        # Récupérer un message par son ID
+        getMessage(id_message: ID!): Message 
+
+        # Rechercher des messages par contenu avec pagination
+        searchMessages(content: String!, limit: Int, offset: Int): PaginatedMessages
+}

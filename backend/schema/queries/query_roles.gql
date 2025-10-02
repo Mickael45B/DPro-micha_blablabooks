@@ -1,0 +1,21 @@
+    type PaginatedRoles {
+    roles: [Role!]!
+    totalCount: Int!
+    hasNextPage: Boolean!
+    }
+
+extend type Query {        # Type pour les résultats de recherche paginés
+        # Récupérer tous les rôles
+        getRoles(
+            limit: Int, 
+            offset: Int, 
+            order: String = "created_at", # Colonne par défaut pour le tri
+            direction: String = "ASC" # Direction par défaut pour le tri (ASC ou DESC)
+        ): PaginatedRoles
+
+        # Récupérer un rôle par son ID
+        getRole(id_role: ID!): Role
+
+        # Rechercher des rôles par nom avec pagination
+        searchRoles(name: String!, limit: Int, offset: Int): PaginatedRoles!
+}

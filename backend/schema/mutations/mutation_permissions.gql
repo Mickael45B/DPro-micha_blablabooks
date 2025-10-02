@@ -1,0 +1,10 @@
+extend type Mutation {        
+        # Ajouter une nouvelle permission
+        addPermission(input: CreatePermissionInput!): Permission!
+
+        # Mettre à jour une permission existante
+        updatePermission(input: UpdatePermissionInput!): Permission!
+
+        # Supprimer une permission par son ID
+        deletePermission(input: DeletePermissionInput!): Boolean!
+}

@@ -1,0 +1,9 @@
+extend type Mutation {    # Ajouter une nouvelle bibliothèque
+    addLibrary(input: CreateLibraryInput!): Library!
+
+    # Mettre à jour une bibliothèque existante
+    updateLibrary(input: UpdateLibraryInput!): Library!
+    
+    # Supprimer une bibliothèque par son ID
+    deleteLibrary(input: DeleteLibraryInput!): Boolean!
+}

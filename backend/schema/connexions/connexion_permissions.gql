@@ -1,0 +1,10 @@
+type PermissionConnection {
+  edges: [PermissionEdge!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+
+type PermissionEdge {
+  node: Permission!
+  cursor: String!
+}

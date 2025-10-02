@@ -1,0 +1,6 @@
+enum ReviewOrderBy {
+  CREATED_AT
+  RATING
+  ID_USER
+  ID_BOOK
+}

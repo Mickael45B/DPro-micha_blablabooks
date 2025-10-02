@@ -1,0 +1,12 @@
+extend type Mutation {
+
+    #TABLE Reviews
+    # Ajouter un nouvel avis
+    addReview(input: CreateReviewInput!): Review!
+
+    # Mettre à jour un avis existant
+    updateReview(input: UpdateReviewInput!): Review!
+    
+    # Supprimer un avis par son ID
+    deleteReview(input: DeleteReviewInput!): Boolean!
+}

@@ -1,0 +1,4 @@
+enum BookHasLibraryOrderBy {
+  ID_LIBRARY
+  ID_BOOK
+}

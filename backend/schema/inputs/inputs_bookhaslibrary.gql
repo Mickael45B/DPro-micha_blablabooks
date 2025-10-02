@@ -1,0 +1,43 @@
+# Créer une association livre-bibliothèque
+input CreateBookHasLibraryInput {
+  bookId: ID!
+  libraryId: ID!
+}
+
+# Mettre à jour une association livre-bibliothèque
+input UpdateBookHasLibraryInput {
+  id_bookhaslibrary: ID!
+  bookId: ID
+  libraryId: ID
+  is_read: Boolean
+  is_favorite: Boolean
+}
+
+# Supprimer une association livre-bibliothèque
+input DeleteBookHasLibraryInput {
+  id_bookhaslibrary: ID!
+}
+
+# Ajouter des livres à une bibliothèque
+input AddBooksToLibraryInput {
+  libraryId: ID!
+  bookIds: [ID!]!
+}
+
+# Retirer des livres d'une bibliothèque
+input RemoveBooksFromLibraryInput {
+  libraryId: ID!
+  bookIds: [ID!]!
+}
+
+# Marquer un livre comme lu/non lu
+input MarkBookAsReadInput {
+  idBookHasLibrary: ID!
+  isRead: Boolean!
+}
+
+# Marquer un livre comme favori/non favori
+input ToggleFavoriteInput {
+  idBookHasLibrary: ID!
+  isFavorite: Boolean!
+}

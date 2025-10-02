@@ -1,0 +1,10 @@
+extend type Mutation {
+  # Ajouter une nouvelle permission_role
+  addPermissionRole(input: CreateRoleHasPermissionInput!): RoleHasPermissions!
+
+  # Mettre à jour une permission_role existante
+  updatePermissionRole(input: UpdateRoleHasPermissionInput!): RoleHasPermissions!
+
+  # Supprimer une permission_role
+  deletePermissionRole(input: DeleteRoleHasPermissionInput!): Boolean!
+}

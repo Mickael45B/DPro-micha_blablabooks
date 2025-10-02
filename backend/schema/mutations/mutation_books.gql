@@ -1,0 +1,10 @@
+extend type Mutation {
+    # Ajouter un nouveau livre
+    addBook(input: CreateBookInput!): Book!
+
+    # Mettre à jour un livre existant
+    updateBook(input: UpdateBookInput!): Book!
+
+    # Supprimer un livre
+    deleteBook(input: DeleteBookInput!): Boolean!
+}

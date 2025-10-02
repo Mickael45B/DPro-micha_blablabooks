@@ -1,0 +1,12 @@
+extend type Mutation {
+
+    #TABLE Reports
+    # Ajouter un nouveau rapport
+    addReport(input: CreateReportInput!): Report!
+
+    # Mettre à jour un rapport existant
+    updateReport(input: UpdateReportInput!): Report!
+    
+    # Supprimer un rapport par son ID
+    deleteReport(input: DeleteReportInput!): Boolean!
+}

@@ -1,0 +1,14 @@
+input CreateLibraryInput {
+  name: String!
+  id_user: String!
+}
+
+input UpdateLibraryInput {
+  id_library: ID!
+  name: String
+  id_user: String
+}
+
+input DeleteLibraryInput {
+  id_library: ID!
+}

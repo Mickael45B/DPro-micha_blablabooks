@@ -1,0 +1,22 @@
+# Type pour les résultats de recherche paginés
+type PaginatedBooksInLibrary {
+    books: [BookHasLibrary!]!
+    totalCount: Int!
+    hasNextPage: Boolean!
+}
+
+extend type Query {
+    # Récupérer tous les livres en bibliothèque
+    getBooksInLibrary(
+        limit: Int, 
+        offset: Int, 
+        order: String = "created_at", # Colonne par défaut pour le tri
+        direction: String = "ASC" # Direction par défaut pour le tri (ASC ou DESC)
+    ): PaginatedBooksInLibrary!
+
+    # Récupérer un livre en bibliothèque par son ID
+    getBookInLibrary(id_book_library: ID!): BookHasLibrary 
+
+    # Rechercher des livres en bibliothèque par titre ou auteur avec pagination
+    searchBooksInLibrary(titleOrAuthor: String!, limit: Int, offset: Int): PaginatedBooksInLibrary!
+}

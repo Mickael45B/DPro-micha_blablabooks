@@ -1,0 +1,12 @@
+# Type pour représenter une bibliothèque
+type Library {
+  id_library: ID!
+  name: String!
+  is_editable: Boolean!
+  id_user: String!
+  created_at: Date!
+  updated_at: Date
+  # Relations
+  user: User
+}
+

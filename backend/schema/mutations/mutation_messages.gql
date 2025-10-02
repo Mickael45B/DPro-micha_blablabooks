@@ -1,0 +1,11 @@
+extend type Mutation {
+    #TABLE messages
+    # Ajouter un nouveau message
+    addMessage(input: CreateMessageInput!): Message!
+
+    # Mettre à jour un message existant
+    updateMessage(input: UpdateMessageInput!): Message!
+    
+    # Supprimer un message par son ID
+    deleteMessage(input: DeleteMessageInput!): Boolean!
+}

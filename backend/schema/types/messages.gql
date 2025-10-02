@@ -1,0 +1,15 @@
+# Type pour représenter un message
+type Message {
+  id_message: ID!
+  id_sender: String!
+  id_receiver: String!
+  subject: String!
+  content: String!
+  is_read: Boolean!
+  created_at: Date!
+  updated_at: Date
+  # Relations
+  sender: User
+  receiver: User
+}
+

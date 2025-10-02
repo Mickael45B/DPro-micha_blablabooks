@@ -1,0 +1,8 @@
+enum OrderDirection {
+  ASC
+  DESC
+}
+
+scalar Date
+scalar DateTime
+scalar JSON
