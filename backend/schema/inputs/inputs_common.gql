@@ -1,0 +1,16 @@
+input PaginationInput {
+  first: Int
+  after: String
+  last: Int
+  before: String
+}
+
+input DateRangeInput {
+  startDate: Date
+  endDate: Date
+}
+
+input PaginationInput {
+  limit: Int
+  offset: Int
+}

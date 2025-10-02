@@ -1,9 +1,10 @@
-type Query {        # Type pour les résultats de recherche paginés
         type PaginatedLibraries {
         libraries: [Library!]!
         totalCount: Int!
         hasNextPage: Boolean!
         }
+
+extend type Query {        # Type pour les résultats de recherche paginés
         # Récupérer tous les livres de la bibliothèque
         getLibraryBooks(
             limit: Int, 
@@ -13,7 +14,7 @@ type Query {        # Type pour les résultats de recherche paginés
         ): PaginatedLibraries
 
         # Récupérer un livre de la bibliothèque par son ID
-        getLibraryBook(id_library_book: ID!): LibraryBook 
+        getLibraryBook(id_library_book: ID!): Library 
 
         # Rechercher des livres de la bibliothèque par titre ou auteur avec pagination
         searchLibraryBooks(titleOrAuthor: String!, limit: Int, offset: Int): PaginatedLibraries

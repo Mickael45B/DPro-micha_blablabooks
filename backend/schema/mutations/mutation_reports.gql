@@ -1,27 +1,12 @@
-type Mutation {
+extend type Mutation {
 
     #TABLE Reports
     # Ajouter un nouveau rapport
-    addReport(
-        id_user: String!
-        report_type: String!
-        reported_id: String!
-        reason: String!
-        status: String!
-        details: String!
-    ): Report!
-    
+    addReport(input: CreateReportInput!): Report!
+
     # Mettre à jour un rapport existant
-    updateReport(
-        id_report: ID!
-        id_user: String
-        report_type: String
-        reported_id: String
-        reason: String
-        status: String
-        details: String
-    ): Report!
+    updateReport(input: UpdateReportInput!): Report!
     
     # Supprimer un rapport par son ID
-    deleteReport(id_report: ID!): Boolean!
+    deleteReport(input: DeleteReportInput!): Boolean!
 }

@@ -1,11 +1,6 @@
 enum ReviewOrderBy {
-  ID
-  BOOK_ID
-  USER_ID
-  RATING
   CREATED_AT
-}
-enum ReviewOrderDirection {
-  ASC
-  DESC
+  RATING
+  ID_USER
+  ID_BOOK
 }

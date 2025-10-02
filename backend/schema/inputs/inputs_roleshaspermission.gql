@@ -1,4 +1,4 @@
-Input CreateRoleHasPermissionInput {
+input CreateRoleHasPermissionInput {
   roleId: ID!
   permissionId: ID!
 }

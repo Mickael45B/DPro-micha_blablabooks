@@ -1,12 +1,14 @@
 enum UserOrderBy {
-  ID
   NAME
   EMAIL
   PSEUDO
-  CREATED_AT
   ROLE
+  CREATED_AT
+  IS_ACTIVE
 }
-enum UserOrderDirection {
-  ASC
-  DESC
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
 }

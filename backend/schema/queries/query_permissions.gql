@@ -1,9 +1,10 @@
-type Query {        # Type pour les résultats de recherche paginés
-        type PaginatedPermissions {
-        permissions: [Permission!]!
-        totalCount: Int!
-        hasNextPage: Boolean!
-        }    
+    type PaginatedPermissions {
+    permissions: [Permission!]!
+    totalCount: Int!
+    hasNextPage: Boolean!
+    }    
+
+extend type Query {        # Type pour les résultats de recherche paginés
         # Récupérer tous les permissions
         getPermissions(
             limit: Int, 

@@ -1,23 +1,13 @@
-type Mutation {        # Ajouter un nouvel utilisateur
-        addUser(
-            name: String!
-            pseudo: String!
-            email: String!
-            password: String!
-            id_role: ID!
-        ): User!
+extend type Mutation {        
+        # Ajouter un nouvel utilisateur
+        addUser(input: CreateUserInput!): User!
 
         # Mettre à jour un utilisateur existant
-        updateUser(
-            id_user: ID!
-            name: String
-            email: String
-            password: String
-            pseudo: String
-            id_role: ID
-            is_active: Boolean
-        ): User!
+        updateUser(input: UpdateUserInput!): User!
+
+        # Changer le mot de passe d'un utilisateur
+        changePassword(input: ChangePasswordInput!): Boolean!
 
         # Supprimer un utilisateur par son ID
-        deleteUser(id_user: ID!): Boolean!
+        deleteUser(input: DeleteUserInput!): Boolean!
 }

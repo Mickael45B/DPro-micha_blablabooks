@@ -1,9 +1,10 @@
-type Query {        # Type pour les résultats de recherche paginés
-        type PaginatedMessages {
-            messages: [Message!]!
-            totalCount: Int!
-            hasNextPage: Boolean!
-        }
+    type PaginatedMessages {
+        messages: [Message!]!
+        totalCount: Int!
+        hasNextPage: Boolean!
+    }
+
+extend type Query {        # Type pour les résultats de recherche paginés
 
         # Récupérer tous les messages
         getMessages(

@@ -1,25 +1,12 @@
-type Mutation {
+extend type Mutation {
 
     #TABLE Reviews
     # Ajouter un nouvel avis
-    addReview(
-        id_user: String!
-        id_book: String!
-        title_rating: String!
-        rating: Int!
-        comment: String!
-    ): Review!
-    
+    addReview(input: CreateReviewInput!): Review!
+
     # Mettre à jour un avis existant
-    updateReview(
-        id_review: ID!
-        id_user: String
-        id_book: String
-        title_rating: String
-        rating: Int
-        comment: String
-    ): Review!
+    updateReview(input: UpdateReviewInput!): Review!
     
     # Supprimer un avis par son ID
-    deleteReview(id_review: ID!): Boolean!
+    deleteReview(input: DeleteReviewInput!): Boolean!
 }

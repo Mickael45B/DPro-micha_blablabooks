@@ -1,7 +1,4 @@
 enum PermissionOrderBy {
   NAME
 }
-enum PermissionOrderDirection {
-  ASC
-  DESC
-}
+

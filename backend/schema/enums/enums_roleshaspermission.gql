@@ -1,8 +1,6 @@
-enum RoleHasPermission {
-  ROLE
-  PERMISSION
+enum RoleHasPermissionOrderBy {
+  ID_ROLE
+  ID_PERMISSION
+  CREATED_AT
 }
-enum RoleHasPermissionOrderDirection {
-  ASC
-  DESC
-}
+

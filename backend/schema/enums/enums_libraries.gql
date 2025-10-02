@@ -3,8 +3,3 @@ enum LibraryOrderBy {
   CREATED_AT
 }
 
-# Enum pour les directions de tri
-enum OrderDirection {
-  ASC
-  DESC
-}

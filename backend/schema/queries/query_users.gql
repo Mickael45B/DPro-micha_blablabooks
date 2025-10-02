@@ -1,9 +1,10 @@
-type Query {        # Type pour les résultats de recherche paginés
-        type PaginatedUsers {
-          users: [User!]!
-          totalCount: Int!
-          hasNextPage: Boolean!
-        }
+      type PaginatedUsers {
+        users: [User!]!
+        totalCount: Int!
+        hasNextPage: Boolean!
+      }
+
+extend type Query {        # Type pour les résultats de recherche paginés
 
         # Récupérer une liste d'utilisateurs avec pagination et tri
         getUsers(

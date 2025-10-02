@@ -1,7 +1,4 @@
-enum Role {
+enum RoleOrderBy {
   NAME
-}
-enum roleOrderDirection {
-  ASC
-  DESC
+  CREATED_AT
 }

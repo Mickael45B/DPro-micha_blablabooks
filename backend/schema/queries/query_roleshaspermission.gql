@@ -1,9 +1,10 @@
-type Query {        # Type pour les résultats de recherche paginés
-        type PaginatedRoleHasPermissions {
-        roleHasPermissions: [RoleHasPermissions!]!
-        totalCount: Int!
-        hasNextPage: Boolean!
-        }
+    type PaginatedRoleHasPermissions {
+    roleHasPermissions: [RoleHasPermissions!]!
+    totalCount: Int!
+    hasNextPage: Boolean!
+    }
+
+extend type Query {        # Type pour les résultats de recherche paginés
 
         # Récupérer tous les permissions_roles
         getPermissionsRoles(

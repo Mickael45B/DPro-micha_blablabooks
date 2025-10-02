@@ -5,8 +5,8 @@ input CreateLibraryInput {
 
 input UpdateLibraryInput {
   id_library: ID!
-  name: String!
-  id_user: String!
+  name: String
+  id_user: String
 }
 
 input DeleteLibraryInput {

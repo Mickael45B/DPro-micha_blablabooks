@@ -1,9 +1,10 @@
-type Query {        # Type pour les résultats de recherche paginés
-        type PaginatedReports {
-            reports: [Report!]!
-            totalCount: Int!
-            hasNextPage: Boolean!
-        }
+    type PaginatedReports {
+        reports: [Report!]!
+        totalCount: Int!
+        hasNextPage: Boolean!
+    }
+
+extend type Query {        # Type pour les résultats de recherche paginés
         # Récupérer tous les rapports
         getReports(
             limit: Int, 

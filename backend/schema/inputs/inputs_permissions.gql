@@ -1,4 +1,4 @@
-Input CreatePermissionInput {
+input CreatePermissionInput {
   name: String!
 }
 

@@ -1,23 +1,18 @@
 
-type Mutation {
+extend type Mutation {
     #TABLE bookhaslibrary
     # Ajouter une nouvelle relation
-    addBookHasLibrary(
-        id_book: String!
-        id_library: String!
-        is_read: Boolean!
-        is_favorite: Boolean!
-    ): BookHasLibrary!
-    
+    addBookHasLibrary(input: CreateBookHasLibraryInput!): BookHasLibrary!
+
     # Mettre à jour une relation existante
-    updateBookHasLibrary(
-        id_bookhaslibrary: ID!
-        id_book: String
-        id_library: String
-        is_read: Boolean
-        is_favorite: Boolean
-    ): BookHasLibrary!
-    
+    updateBookHasLibrary(input: UpdateBookHasLibraryInput!): BookHasLibrary!
+
     # Supprimer une relation par son ID
-    deleteBookHasLibrary(id_bookhaslibrary: ID!): Boolean!
+    deleteBookHasLibrary(input: DeleteBookHasLibraryInput!): Boolean!
+
+    # Ajouter ou retirer des livres d'une bibliothèque
+    addBooksToLibrary(input: AddBooksToLibraryInput!): [BookHasLibrary!]!
+
+    # Retirer des livres d'une bibliothèque
+    removeBooksFromLibrary(input: RemoveBooksFromLibraryInput!): Boolean!
 }

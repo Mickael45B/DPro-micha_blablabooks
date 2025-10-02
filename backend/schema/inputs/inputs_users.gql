@@ -1,21 +1,66 @@
-Input CreateUserInput {
+input CreateUserInput {
   name: String!
   email: String!
   password: String!
-  pseudo: string!
-  id_role: string
+  pseudo: String!
+  id_role: String
 }
 
 input UpdateUserInput {
   id_user: ID!
-  name: String!
-  email: String!
-  password: String!
-  pseudo: string!
-  id_role: string
+  name: String
+  email: String
+  pseudo: String
+  id_role: String
+}
+
+# Mutation séparée pour le mot de passe
+input ChangePasswordInput {
+  idUser: ID!
+  currentPassword: String!
+  newPassword: String! 
 }
 
 input DeleteUserInput {
   id_user: ID!
 }
 
+input UserSortInput {
+  orderBy: UserOrderBy!
+  direction: OrderDirection!
+}
+
+# Pour l'inscription publique
+input RegisterUserInput {
+  name: String
+  email: String!
+  password: String!
+  pseudo: String!
+}
+
+# Pour l'admin seulement
+input AdminCreateUserInput {
+  name: String
+  email: String!
+  password: String!
+  pseudo: String!
+  idRole: ID
+  isActive: Boolean
+}
+
+# Pour la mise à jour par l'utilisateur
+input UpdateUserInput {
+  name: String
+  email: String
+  pseudo: String
+}
+
+# Pour la mise à jour par l'admin
+input AdminUpdateUserInput {
+  idUser: ID!
+  name: String
+  email: String
+  pseudo: String
+  idRole: ID
+  isActive: Boolean
+}

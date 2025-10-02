@@ -1,4 +1,4 @@
-Input CreateMessageInput {
+input CreateMessageInput {
   content: String!
   id_sender: String!
   id_receiver: String!
@@ -13,4 +13,16 @@ input UpdateMessageInput {
 
 input DeleteMessageInput {
   id_message: ID!
+}
+
+# Marquer un message comme lu
+input MarkMessageAsReadInput {
+  idMessage: ID!
+}
+
+# Envoyer un message
+input SendMessageInput {
+  receiverId: ID!
+  subject: String!
+  content: String!
 }

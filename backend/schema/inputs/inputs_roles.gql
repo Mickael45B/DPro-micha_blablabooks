@@ -1,4 +1,4 @@
-Input CreateRoleInput {
+input CreateRoleInput {
   name: String!
 }
 

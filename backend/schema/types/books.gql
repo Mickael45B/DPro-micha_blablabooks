@@ -1,7 +1,7 @@
 # Type pour représenter un livre
 type Book {
   id_book: ID! # Utilisation de ID pour les identifiants uniques
-  title: String!
+  title: String
   isbn: String
   publication_date: String # Utilisation de String pour les dates (format ISO 8601 recommandé)
   author: String
@@ -12,12 +12,12 @@ type Book {
   age_limit: Int
   description: String
   series: String
-  is_in_favorite: Int! # combien d'utilisateurs ont ce livre en favori
-  nb_reviews: Int!
-  is_in_library: Int! # combien d'utilisateurs ont ce livre dans leur bibliothèque
+  is_in_favorite: Int # combien d'utilisateurs ont ce livre en favori
+  nb_reviews: Int
+  is_in_library: Int # combien d'utilisateurs ont ce livre dans leur bibliothèque
   avg_rating: Float
-  created_at: String! # Format ISO 8601 recommandé
-  updated_at: String!
+  created_at: Date 
+  updated_at: Date
   # Relations
 }
 

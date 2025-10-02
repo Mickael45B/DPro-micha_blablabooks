@@ -1,12 +1,11 @@
-type ReviewConnection {
-  edges: [ReviewEdge!]!
+type RoleConnection {
+  edges: [RoleEdge!]!
   pageInfo: PageInfo!
   totalCount: Int!
 }
 
-type ReviewEdge {
-  node: Review!
+type RoleEdge {
+  node: Role!
   cursor: String!
 }
-
 

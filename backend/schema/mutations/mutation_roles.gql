@@ -1,14 +1,10 @@
-type Mutation {        # Ajouter un nouveau rôle
-        addRole(
-            name: String!
-        ): Role!
+extend type Mutation {        
+        # Ajouter un nouveau rôle
+        addRole(input: CreateRoleInput!): Role!
 
         # Mettre à jour un rôle existant
-        updateRole(
-            id_role: ID!
-            name: String
-        ): Role!
+        updateRole(input: UpdateRoleInput!): Role!
 
         # Supprimer un rôle par son ID
-        deleteRole(id_role: ID!): Boolean!
+        deleteRole(input: DeleteRoleInput!): Boolean!
 }

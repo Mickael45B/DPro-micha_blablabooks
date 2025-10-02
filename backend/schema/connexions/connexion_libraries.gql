@@ -7,3 +7,4 @@ type LibraryConnection {
 type LibraryEdge {
   node: Library!
   cursor: String!
+}

@@ -1,22 +1,28 @@
-Input CreateReportInput {
-  id_user: string
-  report_type: string
-  reported_id: string
-  reason: string
-  details: string
-  status: string
+input CreateReportInput {
+  id_user: String
+  report_type: ReportType
+  reported_id: String
+  reason: String
+  details: String
+  status: ReportStatus    
 }
 
 input UpdateReportInput {
   id_report: ID!
-  id_user: string
-  report_type: string
-  reported_id: string
-  reason: string
-  details: string
-  status: string
+  id_user: String
+  report_type: ReportType
+  reported_id: String
+  reason: String
+  details: String
+  status: ReportStatus
 }
 
 input DeleteReportInput {
   id_report: ID!
+}
+
+input ReportFilterInput {
+  reportType: ReportType
+  status: ReportStatus
+  reportedId: ID
 }

@@ -1,7 +1,7 @@
 # Type pour représenter une permission
 type Permission {
   id_permission: ID!
-  name: String!
+  permission_name: String!
   created_at: Date!
   updated_at: Date
   # Relations

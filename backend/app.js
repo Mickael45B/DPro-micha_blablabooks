@@ -19,8 +19,9 @@ app.use(
 	  credentials: true, // Autorisez les cookies ou les sessions
 	})
   );
-  const __dirname = path.dirname(new URL(import.meta.url).pathname);
+  const __dirname = path.dirname(new URL(import.meta.url).pathname);// Pour obtenir le répertoire courant
 
+  // Servir les images statiques depuis le dossier "images"
 app.use("public/images", express.static(path.join(__dirname, "images")));
 app.use(express.json());
 

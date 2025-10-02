@@ -1,11 +1,12 @@
-type Query {
-
-        # Type pour les résultats de recherche paginés
         type PaginatedReviews {
         reviews: [Review!]!
         totalCount: Int!
         hasNextPage: Boolean!
         }
+
+extend type Query {
+
+        # Type pour les résultats de recherche paginés
         # Récupérer tous les avis
         getReviews(
             limit: Int, 
