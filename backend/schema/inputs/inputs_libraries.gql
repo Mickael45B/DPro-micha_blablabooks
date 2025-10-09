@@ -1,12 +1,13 @@
 input CreateLibraryInput {
   name: String!
+  isEditable: Boolean
   id_user: String!
 }
 
 input UpdateLibraryInput {
   id_library: ID!
   name: String
-  id_user: String
+  isEditable: Boolean
 }
 
 input DeleteLibraryInput {

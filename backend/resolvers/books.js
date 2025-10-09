@@ -4,27 +4,41 @@ import { validateOrderParams, handleDbError } from '../utils/validators.js';
 
 export default {
   Query: {
+    // Récupérer les livres avec pagination et tri
     getBooks: async (_, { limit = 50, offset = 0, order = 'created_at', direction = 'ASC' }) => {
       try {
-        const validOrders = ['created_at', 'title', 'author', 'avg_rating', 'nb_reviews', 'is_in_favorite', 'publication_date'];
-        const { order: safeOrder, direction: safeDirection } = validateOrderParams(order, direction, validOrders);
-        
+        const validOrders = ['created_at', 'title', 'author', 'avg_rating', 'nb_reviews', 'is_in_favorite', 'publication_date'];// Definir les colonnes valides pour le tri
+        const { order: safeOrder, direction: safeDirection } = validateOrderParams(order, direction, validOrders);// Valider les paramètres de tri
+
+        // Requête SQL avec tri et pagination 
         const result = await db.query(`
           SELECT * FROM books
           ORDER BY ${safeOrder} ${safeDirection}
           LIMIT $1 OFFSET $2
         `, [limit, offset]);
         
-        const countResult = await db.query('SELECT COUNT(*)::int as count FROM books');
-        const totalCount = countResult.rows[0].count;
-        
+        const countResult = await db.query('SELECT COUNT(*)::int as count FROM books');// Obtenir le nombre total de livres
+        const totalCount = countResult.rows[0].count;// Nombre total de livres
+
+        // Transformer les résultats en une structure conforme à BookConnection
+        const books = result.rows.map((book) => ({
+          node: book, // Chaque livre devient un "node"
+          cursor: Buffer.from(book.id_book).toString('base64'), // Générer un curseur basé sur l'ID
+        }));
+
+        // Retourner les résultats avec les informations de pagination
         return {
-          books: result.rows,
+          books,
+          pageInfo: {
+            hasNextPage: offset + limit < totalCount,
+            hasPreviousPage: offset > 0,
+            startCursor: books.length > 0 ? books[0].cursor : null,
+            endCursor: books.length > 0 ? books[books.length - 1].cursor : null,
+          },
           totalCount,
-          hasNextPage: offset + limit < totalCount,
         };
       } catch (error) {
-        throw handleDbError(error, 'fetching books');
+        throw handleDbError(error, 'fetching books');// Gérer les erreurs de la base de données
       }
     },
 
@@ -178,7 +192,7 @@ export default {
       try {
         const result = await db.query(
           'DELETE FROM books WHERE id_book = $1 RETURNING id_book',
-          [input.idBook]
+          [input.id_book]
         );
 
         return result.rows.length > 0;

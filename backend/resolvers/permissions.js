@@ -10,7 +10,8 @@ export default {
         const { order: safeOrder, direction: safeDirection } = validateOrderParams(order, direction, validOrders);
         
         const result = await db.query(`
-          SELECT * FROM permissions
+          SELECT id_permission, permission_name, created_at, updated_at
+          FROM permissions
           ORDER BY ${safeOrder} ${safeDirection}
           LIMIT $1 OFFSET $2
         `, [limit, offset]);
@@ -30,30 +31,35 @@ export default {
 
     getPermission: async (_, { id_permission }) => {
       try {
+        console.log('Fetching permission with id_permission:', id_permission);
         const result = await db.query(
-          'SELECT * FROM permissions WHERE id_permission = $1',
+          'SELECT id_permission, permission_name, created_at, updated_at FROM permissions WHERE id_permission = $1',
           [id_permission]
         );
+        console.log('Result from database:', result.rows);
         return result.rows[0] || null;
       } catch (error) {
+        console.error('Error fetching permission:', error);
         throw handleDbError(error, 'fetching permission');
       }
     },
 
-    searchPermissions: async (_, { name, limit = 50, offset = 0 }) => {
+    searchPermissions: async (_, { id_permission, limit = 50, offset = 0 }) => {
       try {
-        const searchPattern = `%${name}%`;
+        console.log('Fetching permission with id_permission:', id_permission);
+            
+        const searchPattern = `%${id_permission}%`;
         
         const result = await db.query(`
-          SELECT * FROM permissions
-          WHERE LOWER(name) LIKE LOWER($1)
-          ORDER BY name ASC
+          SELECT id_permission, permission_name, created_at, updated_at FROM permissions
+          WHERE id_permission LIKE LOWER($1)
+          ORDER BY permission_name ASC
           LIMIT $2 OFFSET $3
         `, [searchPattern, limit, offset]);
         
         const countResult = await db.query(`
           SELECT COUNT(*)::int as count FROM permissions
-          WHERE LOWER(name) LIKE LOWER($1)
+          WHERE id_permission LIKE LOWER($1)
         `, [searchPattern]);
         
         return {
@@ -72,9 +78,9 @@ export default {
       try {
         const id = uuidv4();
         const result = await db.query(`
-          INSERT INTO permissions (id_permission, name)
+          INSERT INTO permissions (id_permission, permission_name)
           VALUES ($1, $2)
-          RETURNING *
+          RETURNING id_permission, permission_name, created_at, updated_at
         `, [id, input.name]);
         return result.rows[0];
       } catch (error) {
@@ -86,10 +92,10 @@ export default {
       try {
         const result = await db.query(`
           UPDATE permissions
-          SET name = $1
+          SET permission_name = $1
           WHERE id_permission = $2
-          RETURNING *
-        `, [input.name, input.idPermission]);
+          RETURNING id_permission, permission_name, created_at, updated_at
+        `, [input.name, input.id_permission]);
 
         if (result.rows.length === 0) {
           throw new Error('Permission not found');
@@ -105,7 +111,7 @@ export default {
       try {
         const result = await db.query(
           'DELETE FROM permissions WHERE id_permission = $1 RETURNING id_permission',
-          [input.idPermission]
+          [input.id_permission]
         );
         return result.rows.length > 0;
       } catch (error) {

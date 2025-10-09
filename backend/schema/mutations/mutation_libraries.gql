@@ -6,4 +6,7 @@ extend type Mutation {    # Ajouter une nouvelle bibliothèque
     
     # Supprimer une bibliothèque par son ID
     deleteLibrary(input: DeleteLibraryInput!): Boolean!
+
+    # Supprimer toutes les bibliothèques d'un utilisateur (administrateur uniquement)
+    deleteAllLibrariesFromUser(id_user: ID!): Boolean!
 }

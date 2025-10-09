@@ -17,5 +17,5 @@ extend type Query {        # Type pour les résultats de recherche paginés
         getRole(id_role: ID!): Role
 
         # Rechercher des rôles par nom avec pagination
-        searchRoles(name: String!, limit: Int, offset: Int): PaginatedRoles!
+        searchRoles(role_name: String!, limit: Int, offset: Int): PaginatedRoles!
 }

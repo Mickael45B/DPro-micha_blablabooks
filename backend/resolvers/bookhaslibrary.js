@@ -2,6 +2,9 @@ import db from "../db/connect_DB.js";
 import { v4 as uuidv4 } from "uuid";
 import { handleDbError } from '../utils/validators.js';
 
+import fetchBookById from './utils/utils_books.js';
+import fetchLibraryById from './utils/utils_librairies.js';
+
 export default {
   Query: {
     getBooksInLibrary: async (_, { limit = 50, offset = 0, order = 'created_at', direction = 'ASC' }) => {
@@ -142,40 +145,65 @@ export default {
       try {
         const result = await db.query(
           'DELETE FROM bookhaslibrary WHERE id_bookhaslibrary = $1 RETURNING id_bookhaslibrary',
-          [input.id]
+          [input.id_bookhaslibrary]
         );
         return result.rows.length > 0;
       } catch (error) {
         throw handleDbError(error, 'deleting book from library');
       }
     },
+
+    addBooksToLibrary: async (_, { input }) => {
+      const client = await db.connect();
+      try {
+        await client.query('BEGIN');
+        const promises = input.bookIds.map(bookId => {
+          const id = uuidv4();
+          return client.query(`
+            INSERT INTO bookhaslibrary (id_bookhaslibrary, id_book, id_library, is_read, is_favorite)
+            VALUES ($1, $2, $3, $4, $5)
+          `, [id, bookId, input.libraryId, false, false]);
+        });
+        await Promise.all(promises);
+        await client.query('COMMIT');
+        return true;
+      } catch (error) {
+        await client.query('ROLLBACK');
+        throw handleDbError(error, 'adding books to library');
+      } finally {
+        client.release();
+      }
+    },  
+
+    removeBooksFromLibrary: async (_, { input }) => {
+      const client = await db.connect();
+      try {
+        await client.query('BEGIN');
+        const promises = input.bookIds.map(bookId => {
+          return client.query(`
+            DELETE FROM bookhaslibrary
+            WHERE id_book = $1 AND id_library = $2
+          `, [bookId, input.libraryId]);
+        });
+        await Promise.all(promises);
+        await client.query('COMMIT');
+        return true;
+      } catch (error) {
+        await client.query('ROLLBACK');
+        throw handleDbError(error, 'removing books from library');
+      } finally {
+        client.release();
+      }
+    },
   },
 
   BookHasLibrary: {
     book: async (parent) => {
-      try {
-        const result = await db.query(
-          'SELECT * FROM books WHERE id_book = $1',
-          [parent.id_book]
-        );
-        return result.rows[0] || null;
-      } catch (error) {
-        console.error('Error fetching book:', error);
-        return null;
-      }
+      return fetchBookById(parent.id_book);
     },
     
     library: async (parent) => {
-      try {
-        const result = await db.query(
-          'SELECT * FROM libraries WHERE id_library = $1',
-          [parent.id_library]
-        );
-        return result.rows[0] || null;
-      } catch (error) {
-        console.error('Error fetching library:', error);
-        return null;
-      }
+      return fetchLibraryById(parent.id_library);
     },
   },
 };

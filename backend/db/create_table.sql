@@ -1,8 +1,28 @@
 BEGIN;
 
+-- S'assurer qu'on est dans la bonne base
+\c blablabook;
+
 -- Extensions utiles (optionnelles mais recommandées)
-CREATE EXTENSION IF NOT EXISTS unaccent; --nécessaire pour la recherche full-text sans accents
-CREATE EXTENSION IF NOT EXISTS pg_trgm; --nécessaire pour les index trigrammes
+-- CREATE EXTENSION IF NOT EXISTS unaccent SCHEMA public; --nécessaire pour la recherche full-text sans accents
+CREATE EXTENSION IF NOT EXISTS pg_trgm SCHEMA public;--nécessaire pour les index trigrammes
+
+-- Crée une fonction IMMUTABLE pour encapsuler unaccent
+-- CREATE OR REPLACE FUNCTION immutable_unaccent(text)
+-- RETURNS text AS $$
+-- SELECT unaccent($1);
+-- $$ LANGUAGE sql IMMUTABLE;
+
+-- Vérifie si l'extension unaccent est disponible
+-- DO $$ 
+-- BEGIN
+--     IF NOT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'unaccent') THEN
+--         RAISE EXCEPTION 'Extension unaccent not available';
+--     END IF;
+-- END $$;
+-- CREATE EXTENSION IF NOT EXISTS "uuid-ossp" SCHEMA public; -- pour la génération d'UUID si besoin
+-- CREATE EXTENSION IF NOT EXISTS citext SCHEMA public; -- pour le type de données insensible à la casse (utile pour les emails et pseudos)
+-- CREATE EXTENSION IF NOT EXISTS pgcrypto SCHEMA public; -- pour les fonctions cryptographiques (hashage, etc.)
 
 -- ---------------------------------------------------------
 -- 1) DROP TABLES 
@@ -50,6 +70,11 @@ CREATE TABLE rolehaspermissions (
   CONSTRAINT uq_role_permission UNIQUE(id_role, id_permission)
 );
 
+-- Indexes pour optimiser les recherches par rôle ou permission
+CREATE INDEX idx_rolehaspermissions_role ON rolehaspermissions(id_role);
+CREATE INDEX idx_rolehaspermissions_permission ON rolehaspermissions(id_permission);
+
+
 -- ---------------------------------------------------------
 -- 5) USERS
 -- ---------------------------------------------------------
@@ -59,12 +84,19 @@ CREATE TABLE users (
   email         VARCHAR(255) NOT NULL UNIQUE 
                 CHECK (email ~* '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$'), -- format d'email basique
   password      VARCHAR(255) NOT NULL,
-  pseudo        VARCHAR(100) UNIQUE NOT NULL CHECK ( pseudo ~ '^[A-Za-z0-9_]{3,30}$'), -- lettres, chiffres, underscore, 3-30 caractères. Le pseudo est obligatoire et unique (2 utilisateurs ne peuvent pas avoir le même pseudo)
+  pseudo        VARCHAR(100) UNIQUE NOT NULL CHECK (pseudo ~ '^[A-Za-z0-9](?:[A-Za-z0-9_'' ]*[A-Za-z0-9])?$'), -- lettres, chiffres, underscore, 3-30 caractères. Le pseudo est obligatoire et unique (2 utilisateurs ne peuvent pas avoir le même pseudo)
   id_role       VARCHAR(42) REFERENCES roles(id_role) ON DELETE SET NULL,
   status        INTEGER NOT NULL DEFAULT 0 CHECK (status IN (0, 1, 2, 3)), -- 0 = non bloqué, 1 = bloqué par modérateur, 2 = bloqué par administrateur, 3 = bloqué par admin + utilisateur
   created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at    TIMESTAMPTZ
 );
+
+-- Index classiques pour accélérer les FK et recherches courantes
+CREATE INDEX idx_users_email ON users(email);
+CREATE INDEX idx_users_pseudo ON users(pseudo) WHERE pseudo IS NOT NULL;
+CREATE INDEX idx_users_role ON users(id_role) WHERE id_role IS NOT NULL;
+CREATE INDEX idx_users_pseudo_lower ON users(LOWER(pseudo));
+
 
 -- ---------------------------------------------------------
 -- 6) BOOKS
@@ -87,11 +119,38 @@ CREATE TABLE books (
   is_in_library      INTEGER DEFAULT 0 CHECK (is_in_library >= 0),
   avg_rating         NUMERIC(3,2) CHECK (avg_rating IS NULL OR (avg_rating >= 1.0 AND avg_rating <= 5.0)), 
   created_at         TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at         TIMESTAMPTZ,
+  updated_at         TIMESTAMPTZ
   
   -- Contrainte ISBN améliorée
-  CONSTRAINT chk_book_isbn CHECK (isbn IS NULL OR isbn ~ '^(?:ISBN(?:-1[03])?:?\s?)?(?:\d{9}[\dXx]|\d{13})$')
+  -- CONSTRAINT chk_book_isbn CHECK (isbn IS NULL OR isbn ~ '^(?:ISBN(?:-1[03])?:?\s?)?(?:\d{9}[\dXx]|\d{13})$')
 );
+
+-- Index pour recherche full-text (français) avec unaccent
+-- CREATE INDEX idx_books_fulltext
+-- ON books
+-- USING GIN (to_tsvector('french',
+--   immutable_unaccent(coalesce(title,'') || ' ' ||
+--                      coalesce(author,'') || ' ' ||
+--                      coalesce(editor,'') || ' ' ||
+--                      coalesce(series,'') || ' ' ||
+--                      coalesce(description,'')))
+-- );
+
+-- Index trigramme pour recherche floue
+CREATE INDEX idx_books_author_title_trgm ON books USING GIN ((coalesce(author,'') || ' ' || title) gin_trgm_ops);
+CREATE INDEX idx_books_author_trgm ON books USING GIN (author gin_trgm_ops);
+CREATE INDEX idx_books_title_trgm ON books USING GIN (title gin_trgm_ops);
+-- Index composite optimisé pour tri par popularité/qualité
+CREATE INDEX idx_books_popularity 
+ON books(avg_rating DESC NULLS LAST, is_in_favorite DESC, nb_reviews DESC);
+CREATE INDEX idx_books_publication_date ON books(publication_date DESC) WHERE publication_date IS NOT NULL;
+CREATE INDEX idx_books_genre ON books(genre) WHERE genre IS NOT NULL; -- Nouvel index pour le genre
+CREATE INDEX idx_books_isbn ON books(isbn) WHERE isbn IS NOT NULL;
+
+
+
+
+
 
 -- ---------------------------------------------------------
 -- 7) LIBRARIES 
@@ -104,6 +163,9 @@ CREATE TABLE libraries (
   created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at   TIMESTAMPTZ
 );
+
+CREATE INDEX idx_libraries_user ON libraries(id_user) WHERE id_user IS NOT NULL;
+
 
 -- ---------------------------------------------------------
 -- 8) REVIEWS
@@ -120,7 +182,16 @@ CREATE TABLE reviews (
   
   -- Contrainte d'unicité : un utilisateur ne peut reviewer qu'une fois le même livre
   CONSTRAINT uq_user_book_review UNIQUE(id_user, id_book)
-)
+);
+
+CREATE INDEX idx_reviews_user ON reviews(id_user);
+CREATE INDEX idx_reviews_book ON reviews(id_book);
+CREATE INDEX idx_reviews_rating ON reviews(rating);
+CREATE INDEX idx_reviews_user_book ON reviews(id_user, id_book); -- Index composite
+CREATE INDEX idx_reviews_created_brin ON reviews USING BRIN(created_at); -- Index BRIN pour les dates de création des reviews (partitionnées)
+CREATE INDEX idx_reviews_created_at ON reviews(created_at DESC);
+
+
 -- Partitionnement par année de création pour performance (optionnel)
 -- PARTITION BY RANGE (created_at);
 
@@ -145,6 +216,16 @@ CREATE TABLE bookhaslibrary (
   -- Contrainte d'unicité : un livre ne peut être qu'une fois dans la même bibliothèque
   CONSTRAINT uq_library_book UNIQUE(id_library, id_book)
 );
+
+-- Pour "livres non lus d'un utilisateur"
+CREATE INDEX idx_bookhaslibrary_user_unread 
+ON bookhaslibrary(id_library, is_read) 
+WHERE is_read = FALSE;
+CREATE INDEX idx_bookhaslibrary_library ON bookhaslibrary(id_library);
+CREATE INDEX idx_bookhaslibrary_book ON bookhaslibrary(id_book);
+CREATE INDEX idx_bookhaslibrary_is_favorite ON bookhaslibrary(is_favorite) WHERE is_favorite = TRUE;
+CREATE INDEX idx_bookhaslibrary_library_book ON bookhaslibrary(id_library, id_book); -- Index composite
+
 
 -- ---------------------------------------------------------
 -- 10) MESSAGES 
@@ -171,6 +252,13 @@ CREATE TABLE messages (
   created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at    TIMESTAMPTZ
 );
+
+-- Index pour les messages
+CREATE INDEX idx_messages_sender ON messages(id_sender);
+CREATE INDEX idx_messages_receiver ON messages(id_receiver);
+CREATE INDEX idx_messages_unread ON messages(id_receiver, is_read) WHERE is_read = FALSE;
+CREATE INDEX idx_messages_created_brin ON messages USING BRIN(created_at); -- Index BRIN pour les dates de création des messages (partitionnées)
+
 
 -- ---------------------------------------------------------
 -- 10) REPORTING 
@@ -212,79 +300,11 @@ CREATE TABLE reports (
   updated_at    TIMESTAMPTZ
 );
 
-
--- ============================
--- INDEXES (-> PERFORMANCE)
--- ============================
-
--- Index pour recherche insensible à la casse sur le pseudo
-CREATE INDEX idx_users_pseudo_lower ON users(LOWER(pseudo));
-
--- Index pour recherche full-text (français) avec unaccent
-CREATE INDEX idx_books_fulltext
-ON books
-USING GIN (to_tsvector('french',
-  unaccent(coalesce(title,'') || ' ' ||
-           coalesce(author,'') || ' ' ||
-           coalesce(editor,'') || ' ' ||
-           coalesce(series,'') || ' ' ||
-           coalesce(description,'')))
-);
-
--- Pour "livres non lus d'un utilisateur"
-CREATE INDEX idx_bookhaslibrary_user_unread 
-ON bookhaslibrary(id_library, is_read) 
-WHERE is_read = FALSE;
-
--- Index trigramme pour recherche floue
-CREATE INDEX idx_books_author_title_trgm ON books USING GIN ((coalesce(author,'') || ' ' || title) gin_trgm_ops);
-CREATE INDEX idx_books_author_trgm ON books USING GIN (author gin_trgm_ops);
-CREATE INDEX idx_books_title_trgm ON books USING GIN (title gin_trgm_ops);
-
--- Index classiques pour accélérer les FK et recherches courantes
-CREATE INDEX idx_users_email ON users(email);
-CREATE INDEX idx_users_pseudo ON users(pseudo) WHERE pseudo IS NOT NULL;
-CREATE INDEX idx_users_role ON users(id_role) WHERE id_role IS NOT NULL;
-CREATE INDEX idx_users_active ON users(is_active) WHERE is_active = TRUE;
-
-CREATE INDEX idx_reviews_user ON reviews(id_user);
-CREATE INDEX idx_reviews_book ON reviews(id_book);
-CREATE INDEX idx_reviews_rating ON reviews(rating);
-CREATE INDEX idx_reviews_user_book ON reviews(id_user, id_book); -- Index composite
-CREATE INDEX idx_reviews_created_brin ON reviews USING BRIN(created_at); -- Index BRIN pour les dates de création des reviews (partitionnées)
-
-CREATE INDEX idx_libraries_user ON libraries(id_user) WHERE id_user IS NOT NULL;
-
-CREATE INDEX idx_bookhaslibrary_library ON bookhaslibrary(id_library);
-CREATE INDEX idx_bookhaslibrary_book ON bookhaslibrary(id_book);
-CREATE INDEX idx_bookhaslibrary_is_favorite ON bookhaslibrary(is_favorite) WHERE is_favorite = TRUE;
-CREATE INDEX idx_bookhaslibrary_library_book ON bookhaslibrary(id_library, id_book); -- Index composite
-
-CREATE INDEX idx_rolehaspermissions_role ON rolehaspermissions(id_role);
-CREATE INDEX idx_rolehaspermissions_permission ON rolehaspermissions(id_permission);
-
--- Index composite optimisé pour tri par popularité/qualité
-CREATE INDEX idx_books_popularity 
-ON books(avg_rating DESC NULLS LAST, is_in_favorite DESC, nb_reviews DESC);
-
--- Index pour recherches par date
-CREATE INDEX idx_books_publication_date ON books(publication_date DESC) WHERE publication_date IS NOT NULL;
-CREATE INDEX idx_reviews_created_at ON reviews(created_at DESC);
-CREATE INDEX idx_books_genre ON books(genre) WHERE genre IS NOT NULL; -- Nouvel index pour le genre
-
--- Index pour recherche par ISBN
-CREATE INDEX idx_books_isbn ON books(isbn) WHERE isbn IS NOT NULL;
-
--- Index pour les messages
-CREATE INDEX idx_messages_sender ON messages(id_sender);
-CREATE INDEX idx_messages_receiver ON messages(id_receiver);
-CREATE INDEX idx_messages_unread ON messages(id_receiver, is_read) WHERE is_read = FALSE;
-CREATE INDEX idx_messages_created_brin ON messages USING BRIN(created_at); -- Index BRIN pour les dates de création des messages (partitionnées)
-
 -- Index pour les reports
 CREATE INDEX idx_reports_user ON reports(id_user);
 CREATE INDEX idx_reports_type_status ON reports(report_type, status);
 CREATE INDEX idx_reports_status ON reports(status) WHERE status = 'pending';
+
 
 -- ============================
 -- TRIGGERS
@@ -341,13 +361,21 @@ FOR EACH ROW
 EXECUTE FUNCTION update_timestamp();
 
 -- 2) Fonction trigger pour mise à jour de la note moyenne et du compteur d'avis
+
+-- Fonction trigger corrigée pour la mise à jour des statistiques de reviews
 CREATE OR REPLACE FUNCTION update_books_reviews_stats()
 RETURNS TRIGGER AS $$
 DECLARE
   new_avg NUMERIC(3,2);
   new_count INTEGER;
 BEGIN
+  -- ✅ Vérifier que id_book existe pour INSERT et UPDATE
+  IF TG_OP IN ('INSERT', 'UPDATE') AND NEW.id_book IS NULL THEN
+    RAISE EXCEPTION 'id_book cannot be NULL';
+  END IF;
+
   IF TG_OP = 'INSERT' THEN
+    -- Nouveau review ajouté
     SELECT COUNT(*), ROUND(AVG(rating)::NUMERIC, 2) 
     INTO new_count, new_avg
     FROM reviews
@@ -357,8 +385,11 @@ BEGIN
     SET avg_rating = new_avg,
         nb_reviews = new_count
     WHERE id_book = NEW.id_book;
+    
+    RETURN NEW;
 
   ELSIF TG_OP = 'DELETE' THEN
+    -- Review supprimé
     SELECT COUNT(*), ROUND(AVG(rating)::NUMERIC, 2) 
     INTO new_count, new_avg
     FROM reviews
@@ -368,6 +399,8 @@ BEGIN
     SET avg_rating = CASE WHEN new_count = 0 THEN NULL ELSE new_avg END,
         nb_reviews = new_count
     WHERE id_book = OLD.id_book;
+    
+    RETURN OLD;
 
   ELSIF TG_OP = 'UPDATE' THEN
     IF OLD.id_book = NEW.id_book THEN
@@ -406,17 +439,14 @@ BEGIN
           nb_reviews = new_count
       WHERE id_book = NEW.id_book;
     END IF;
+    
+    RETURN NEW;
   END IF;
-  
+
+  -- Clause de sécurité (ne devrait jamais être atteinte)
   RETURN COALESCE(NEW, OLD);
 END;
 $$ LANGUAGE plpgsql;
-
-CREATE TRIGGER trg_reviews_stats
-AFTER INSERT OR UPDATE OR DELETE ON reviews 
-FOR EACH ROW
-EXECUTE FUNCTION update_books_reviews_stats(); 
-
 -- 3) is_in_library : incrémenté/décrémenté quand un livre est ajouté/supprimé d'une bibliothèque
 CREATE OR REPLACE FUNCTION update_books_in_library()
 RETURNS TRIGGER AS $$
@@ -583,45 +613,44 @@ BEGIN
   JOIN roles r ON u.id_role = r.id_role
   JOIN rolehaspermissions rhp ON r.id_role = rhp.id_role
   JOIN permissions p ON rhp.id_permission = p.id_permission
-  WHERE u.id_user = user_id 
-    AND u.is_active = TRUE;
+  WHERE u.id_user = user_id; 
 END;
 $$ LANGUAGE plpgsql;
 
 -- Fonction pour la recherche full-text de livres
-CREATE OR REPLACE FUNCTION search_books(search_term TEXT, search_limit INTEGER DEFAULT 50)
-RETURNS TABLE(
-  id_book VARCHAR(42),
-  title VARCHAR(255),
-  author VARCHAR(255),
-  avg_rating NUMERIC(3,2),
-  nb_reviews INTEGER,
-  rank REAL
-) AS $$
-BEGIN
-  RETURN QUERY
-  -- Recherche FTS combinée avec trigrammes
-  SELECT 
-    b.id_book,
-    b.title,
-    b.author,
-    b.avg_rating,
-    b.nb_reviews,
-    GREATEST(
-      ts_rank_cd(to_tsvector('french', unaccent(
-        coalesce(b.title,'') || ' ' || coalesce(b.author,'')
-      )), plainto_tsquery('french', unaccent(search_term))),
-      similarity(coalesce(b.title,'') || ' ' || coalesce(b.author,''), search_term) * 0.5
-    ) as rank
-  FROM books b
-  WHERE to_tsvector('french', unaccent(
-    coalesce(b.title,'') || ' ' || coalesce(b.author,'')
-  )) @@ plainto_tsquery('french', unaccent(search_term))
-     OR (coalesce(b.title,'') || ' ' || coalesce(b.author,'')) % search_term  -- trigramme
-  ORDER BY rank DESC, b.avg_rating DESC NULLS LAST
-  LIMIT search_limit;
-END;
-$$ LANGUAGE plpgsql;
+-- CREATE OR REPLACE FUNCTION search_books(search_term TEXT, search_limit INTEGER DEFAULT 50)
+-- RETURNS TABLE(
+--   id_book VARCHAR(42),
+--   title VARCHAR(255),
+--   author VARCHAR(255),
+--   avg_rating NUMERIC(3,2),
+--   nb_reviews INTEGER,
+--   rank REAL
+-- ) AS $$
+-- BEGIN
+--   RETURN QUERY
+--   -- Recherche FTS combinée avec trigrammes
+--   SELECT 
+--     b.id_book,
+--     b.title,
+--     b.author,
+--     b.avg_rating,
+--     b.nb_reviews,
+--     GREATEST(
+--       ts_rank_cd(to_tsvector('french', immutable_unaccent(
+--         coalesce(b.title,'') || ' ' || coalesce(b.author,'')
+--       )), plainto_tsquery('french', immutable_unaccent(search_term))),
+--       similarity(coalesce(b.title,'') || ' ' || coalesce(b.author,''), search_term) * 0.5
+--     ) as rank
+--   FROM books b
+--   WHERE to_tsvector('french', immutable_unaccent(
+--     coalesce(b.title,'') || ' ' || coalesce(b.author,'')
+--   )) @@ plainto_tsquery('french', immutable_unaccent(search_term))
+--      OR (coalesce(b.title,'') || ' ' || coalesce(b.author,'')) % search_term  -- trigramme
+--   ORDER BY rank DESC, b.avg_rating DESC NULLS LAST
+--   LIMIT search_limit;
+-- END;
+-- $$ LANGUAGE plpgsql;
 
 -- Fonction pour nettoyer les données orphelines (maintenance)
 CREATE OR REPLACE FUNCTION cleanup_orphaned_data()
@@ -679,7 +708,7 @@ COMMIT;
 CREATE STATISTICS books_search_stats (dependencies, ndistinct) ON title, author FROM books;
 
 -- Rôle + statut actif sont souvent utilisés ensemble => dependencies
-CREATE STATISTICS users_role_stats (dependencies, ndistinct) ON id_role, is_active FROM users;
+CREATE STATISTICS users_role_stats (dependencies, ndistinct) ON id_role, status FROM users;
 
 -- Corrélation user/book pour éviter doublons reviews
 CREATE STATISTICS reviews_user_book_stats (dependencies, ndistinct) 

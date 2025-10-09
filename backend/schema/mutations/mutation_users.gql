@@ -1,6 +1,6 @@
 extend type Mutation {        
         # Ajouter un nouvel utilisateur
-        addUser(input: CreateUserInput!): User!
+        createUser(input: CreateUserInput!): User!
 
         # Mettre à jour un utilisateur existant
         updateUser(input: UpdateUserInput!): User!

@@ -1,6 +1,8 @@
 import db from "../db/connect_DB.js";
 import { v4 as uuidv4 } from "uuid";
 import { validateOrderParams, handleDbError } from '../utils/validators.js';
+import fetchRoleById from './utils/utils_roles.js';
+import  fetchPermissionById  from './utils/utils_permissions.js';
 
 export default {
   Query: {
@@ -10,7 +12,8 @@ export default {
         const { order: safeOrder, direction: safeDirection } = validateOrderParams(order, direction, validOrders);
         
         const result = await db.query(`
-          SELECT * FROM rolehaspermissions
+          SELECT id_rolehaspermission, id_role, id_permission, created_at, updated_at
+          FROM rolehaspermissions
           ORDER BY ${safeOrder} ${safeDirection}
           LIMIT $1 OFFSET $2
         `, [limit, offset]);
@@ -31,7 +34,7 @@ export default {
     getPermissionRole: async (_, { id_permission_role }) => {
       try {
         const result = await db.query(
-          'SELECT * FROM rolehaspermissions WHERE id_rolehaspermission = $1',
+          'SELECT id_rolehaspermission, id_role, id_permission, created_at, updated_at FROM rolehaspermissions WHERE id_rolehaspermission = $1',
           [id_permission_role]
         );
         return result.rows[0] || null;
@@ -42,24 +45,31 @@ export default {
 
     searchPermissionsRoles: async (_, { name, limit = 50, offset = 0 }) => {
       try {
+
         const searchPattern = `%${name}%`;
-        
-        const result = await db.query(`
-          SELECT rhp.* FROM rolehaspermissions rhp
-          JOIN roles r ON rhp.id_role = r.id_role
-          JOIN permissions p ON rhp.id_permission = p.id_permission
-          WHERE LOWER(r.name) LIKE LOWER($1) OR LOWER(p.name) LIKE LOWER($1)
-          ORDER BY rhp.created_at DESC
-          LIMIT $2 OFFSET $3
-        `, [searchPattern, limit, offset]);
-        
-        const countResult = await db.query(`
-          SELECT COUNT(*)::int as count FROM rolehaspermissions rhp
-          JOIN roles r ON rhp.id_role = r.id_role
-          JOIN permissions p ON rhp.id_permission = p.id_permission
-          WHERE LOWER(r.name) LIKE LOWER($1) OR LOWER(p.name) LIKE LOWER($1)
-        `, [searchPattern]);
-        
+
+    // Requête principale avec jointure
+    const result = await db.query(`
+      SELECT rhp.*, r.role_name, p.permission_name
+      FROM rolehaspermissions rhp
+      JOIN roles r ON rhp.id_role = r.id_role
+      JOIN permissions p ON rhp.id_permission = p.id_permission
+      WHERE LOWER(r.role_name) LIKE LOWER($1)
+         OR LOWER(p.permission_name) LIKE LOWER($1)
+      ORDER BY r.role_name ASC
+      LIMIT $2 OFFSET $3
+    `, [searchPattern, limit, offset]);
+
+    // Requête pour compter le total des résultats
+    const countResult = await db.query(`
+      SELECT COUNT(*)::int as count
+      FROM rolehaspermissions rhp
+      JOIN roles r ON rhp.id_role = r.id_role
+      JOIN permissions p ON rhp.id_permission = p.id_permission
+      WHERE LOWER(r.role_name) LIKE LOWER($1)
+         OR LOWER(p.permission_name) LIKE LOWER($1)
+    `, [searchPattern]);
+
         return {
           roleHasPermissions: result.rows,
           totalCount: countResult.rows[0].count,
@@ -78,7 +88,7 @@ export default {
         const result = await db.query(`
           INSERT INTO rolehaspermissions (id_rolehaspermission, id_role, id_permission)
           VALUES ($1, $2, $3)
-          RETURNING *
+          RETURNING id_rolehaspermission, id_role, id_permission, created_at, updated_at
         `, [id, input.roleId, input.permissionId]);
         return result.rows[0];
       } catch (error) {
@@ -92,13 +102,13 @@ export default {
         const values = [];
         let paramIndex = 1;
 
-        if (input.roleId !== undefined) {
+        if (input.id_role !== undefined) {
           updates.push(`id_role = ${paramIndex++}`);
-          values.push(input.roleId);
+          values.push(input.id_role);
         }
-        if (input.permissionId !== undefined) {
+        if (input.id_permission !== undefined) {
           updates.push(`id_permission = ${paramIndex++}`);
-          values.push(input.permissionId);
+          values.push(input.id_permission);
         }
 
         if (updates.length === 0) {
@@ -111,7 +121,7 @@ export default {
           UPDATE rolehaspermissions
           SET ${updates.join(', ')}
           WHERE id_rolehaspermission = ${paramIndex}
-          RETURNING *
+          RETURNING id_rolehaspermission, id_role, id_permission, created_at, updated_at
         `, values);
 
         if (result.rows.length === 0) {
@@ -128,7 +138,7 @@ export default {
       try {
         const result = await db.query(
           'DELETE FROM rolehaspermissions WHERE id_rolehaspermission = $1 RETURNING id_rolehaspermission',
-          [input.id]
+          [input.id_rolehaspermission]
         );
         return result.rows.length > 0;
       } catch (error) {
@@ -139,31 +149,11 @@ export default {
 
   RoleHasPermissions: {
     role: async (parent) => {
-      if (!parent.id_role) return null;
-      try {
-        const result = await db.query(
-          'SELECT * FROM roles WHERE id_role = $1',
-          [parent.id_role]
-        );
-        return result.rows[0] || null;
-      } catch (error) {
-        console.error('Error fetching role:', error);
-        return null;
-      }
+      return fetchRoleById(parent.id_role);
     },
 
     permission: async (parent) => {
-      if (!parent.id_permission) return null;
-      try {
-        const result = await db.query(
-          'SELECT * FROM permissions WHERE id_permission = $1',
-          [parent.id_permission]
-        );
-        return [result.rows[0]].filter(Boolean);
-      } catch (error) {
-        console.error('Error fetching permission:', error);
-        return [];
-      }
+      return fetchPermissionById(parent.id_permission);
     },
   },
 };

@@ -16,6 +16,6 @@ extend type Query {        # Type pour les résultats de recherche paginés
         # Récupérer un permission par son ID
         getPermission(id_permission: ID!): Permission 
 
-        # Rechercher des permissions par nom avec pagination
-        searchPermissions(name: String!, limit: Int, offset: Int): PaginatedPermissions!
+        # Rechercher des permissions par ID avec pagination
+        searchPermissions(id_permission: Int!, limit: Int, offset: Int): PaginatedPermissions!
 }

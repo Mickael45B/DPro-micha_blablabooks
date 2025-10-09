@@ -1,6 +1,7 @@
 import db from "../db/connect_DB.js";
 import { v4 as uuidv4 } from "uuid";
 import { validateOrderParams, handleDbError } from '../utils/validators.js';
+import { fetchUserById } from './utils/utils_users.js';
 
 export default {
   Query: {
@@ -10,7 +11,8 @@ export default {
         const { order: safeOrder, direction: safeDirection } = validateOrderParams(order, direction, validOrders);
         
         const result = await db.query(`
-          SELECT * FROM reports
+          SELECT id_report, id_user, report_type, reported_id, reason, status, details, created_at, updated_at
+          FROM reports
           ORDER BY ${safeOrder} ${safeDirection}
           LIMIT $1 OFFSET $2
         `, [limit, offset]);
@@ -31,7 +33,7 @@ export default {
     getReport: async (_, { id_report }) => {
       try {
         const result = await db.query(
-          'SELECT * FROM reports WHERE id_report = $1',
+          'SELECT id_report, id_user, report_type, reported_id, reason, status, details, created_at, updated_at FROM reports WHERE id_report = $1',
           [id_report]
         );
         return result.rows[0] || null;
@@ -45,7 +47,7 @@ export default {
         const searchPattern = `%${content}%`;
         
         const result = await db.query(`
-          SELECT * FROM reports
+          SELECT id_report, id_user, report_type, reported_id, reason, status, details, created_at, updated_at FROM reports
           WHERE LOWER(reason) LIKE LOWER($1) OR LOWER(details) LIKE LOWER($1)
           ORDER BY created_at DESC
           LIMIT $2 OFFSET $3
@@ -74,7 +76,7 @@ export default {
         const result = await db.query(`
           INSERT INTO reports (id_report, id_user, report_type, reported_id, reason, details, status)
           VALUES ($1, $2, $3, $4, $5, $6, $7)
-          RETURNING *
+          RETURNING id_report, id_user, report_type, reported_id, reason, status, details, created_at, updated_at
         `, [
           id,
           input.idUser,
@@ -115,7 +117,7 @@ export default {
           UPDATE reports
           SET ${updates.join(', ')}
           WHERE id_report = ${paramIndex}
-          RETURNING *
+          RETURNING id_report, id_user, report_type, reported_id, reason, status, details, created_at, updated_at
         `, values);
 
         if (result.rows.length === 0) {
@@ -143,31 +145,11 @@ export default {
 
   Report: {
     whistleblower: async (parent) => {
-      if (!parent.id_user) return null;
-      try {
-        const result = await db.query(
-          'SELECT id_user, name, email, pseudo, id_role, is_active, created_at, updated_at FROM users WHERE id_user = $1',
-          [parent.id_user]
-        );
-        return result.rows[0] || null;
-      } catch (error) {
-        console.error('Error fetching whistleblower:', error);
-        return null;
-      }
+      return fetchUserById(parent.id_user);
     },
 
     reported: async (parent) => {
-      if (!parent.reported_id) return null;
-      try {
-        const result = await db.query(
-          'SELECT id_user, name, email, pseudo, id_role, is_active, created_at, updated_at FROM users WHERE id_user = $1',
-          [parent.reported_id]
-        );
-        return result.rows[0] || null;
-      } catch (error) {
-        console.error('Error fetching reported user:', error);
-        return null;
-      }
+      return fetchUserById(parent.reported_id);
     },
   },
 };

@@ -8,4 +8,7 @@ extend type Mutation {
     
     # Supprimer un message par son ID
     deleteMessage(input: DeleteMessageInput!): Boolean!
+
+    
+    markMessageAsRead(input: MarkMessageAsReadInput!): Message!
 }

@@ -1,6 +1,7 @@
 import db from "../db/connect_DB.js";
 import { v4 as uuidv4 } from 'uuid';
 import { validateOrderParams, handleDbError } from '../utils/validators.js';
+import { fetchUserById } from './utils/utils_users.js';
 
 export default {
   Query: {
@@ -10,7 +11,8 @@ export default {
         const { order: safeOrder, direction: safeDirection } = validateOrderParams(order, direction, validOrders);
         
         const result = await db.query(`
-          SELECT * FROM messages
+          SELECT id_message, id_sender, id_receiver, subject, content, is_read, created_at, updated_at
+          FROM messages
           ORDER BY ${safeOrder} ${safeDirection}
           LIMIT $1 OFFSET $2
         `, [limit, offset]);
@@ -31,7 +33,7 @@ export default {
     getMessage: async (_, { id_message }) => {
       try {
         const result = await db.query(
-          'SELECT * FROM messages WHERE id_message = $1',
+          'SELECT id_message, id_sender, id_receiver, subject, content, is_read, created_at, updated_at FROM messages WHERE id_message = $1',
           [id_message]
         );
         return result.rows[0] || null;
@@ -45,7 +47,7 @@ export default {
         const searchPattern = `%${content}%`;
         
         const result = await db.query(`
-          SELECT * FROM messages
+          SELECT id_message, id_sender, id_receiver, subject, content, is_read, created_at, updated_at FROM messages
           WHERE LOWER(subject) LIKE LOWER($1) OR LOWER(content) LIKE LOWER($1)
           ORDER BY created_at DESC
           LIMIT $2 OFFSET $3
@@ -74,14 +76,14 @@ export default {
         const result = await db.query(`
           INSERT INTO messages (id_message, id_sender, id_receiver, subject, content, is_read)
           VALUES ($1, $2, $3, $4, $5, $6)
-          RETURNING *
+          RETURNING id_message, id_sender, id_receiver, subject, content, is_read, created_at, updated_at
         `, [
           id,
           input.idSender,
           input.idReceiver,
           input.subject,
           input.content,
-          false
+          input.isRead ?? false
         ]);
         return result.rows[0];
       } catch (error) {
@@ -103,6 +105,10 @@ export default {
           updates.push(`content = $${paramIndex++}`);
           values.push(input.content);
         }
+        if (input.isRead !== undefined) {
+          updates.push(`is_read = $${paramIndex++}`);
+          values.push(input.isRead);
+        }
 
         if (updates.length === 0) {
           throw new Error('No fields to update');
@@ -114,7 +120,7 @@ export default {
           UPDATE messages
           SET ${updates.join(', ')}
           WHERE id_message = $${paramIndex}
-          RETURNING *
+          RETURNING id_message, id_sender, id_receiver, subject, content, is_read, created_at, updated_at
         `, values);
 
         if (result.rows.length === 0) {
@@ -133,7 +139,7 @@ export default {
           UPDATE messages
           SET is_read = true
           WHERE id_message = $1
-          RETURNING *
+          RETURNING id_message, id_sender, id_receiver, subject, content, is_read, created_at, updated_at
         `, [id_message]);
 
         if (result.rows.length === 0) {
@@ -145,10 +151,11 @@ export default {
         throw handleDbError(error, 'marking message as read');
       }
     },
+    
     deleteMessage: async (_, { id_message }) => {
       try {
         const result = await db.query(
-          'DELETE FROM messages WHERE id_message = $1 RETURNING *',
+          'DELETE FROM messages WHERE id_message = $1 RETURNING id_message',
           [id_message]
         );
         return result.rows[0];
@@ -156,5 +163,19 @@ export default {
         throw handleDbError(error, 'deleting message');
       }
     },
+  },
+  
+    Message: {
+
+
+    sender: async (parent) => {
+      return fetchUserById(parent.id_sender);
+    },
+
+    receiver: async (parent) => {
+      return fetchUserById(parent.id_receiver);
+    },
+
+    
   },
 };
