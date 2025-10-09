@@ -31,7 +31,7 @@ export interface User {
   password: string;
   pseudo: string;
   id_role?: string;
-  is_active: boolean;
+  role: string;
   created_at: Date;
   updated_at?: Date;
 }

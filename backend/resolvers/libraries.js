@@ -1,16 +1,20 @@
 import db from "../db/connect_DB.js";
 import { v4 as uuidv4 } from 'uuid';
 import { validateOrderParams, handleDbError } from '../utils/validators.js';
+import {fetchUserById} from './utils/utils_users.js';
+import fetchUserRoleNameById from './utils/utils_roles.js';
 
 export default {
   Query: {
+    // Fetch libraries with pagination and ordering
     getLibraries: async (_, { limit = 50, offset = 0, order = 'created_at', direction = 'ASC' }) => {
       try {
         const validOrders = ['created_at', 'name'];
         const { order: safeOrder, direction: safeDirection } = validateOrderParams(order, direction, validOrders);
         
         const result = await db.query(`
-          SELECT * FROM libraries 
+          SELECT id_library, name, is_editable, id_user, created_at, updated_at
+          FROM libraries
           ORDER BY ${safeOrder} ${safeDirection}
           LIMIT $1 OFFSET $2
         `, [limit, offset]);
@@ -28,11 +32,11 @@ export default {
       }
     },
 
-    getUserLibraries: async (_, { userId }) => {
+    getUserLibraries: async (_, { id_user }) => {
       try {
         const result = await db.query(
-          'SELECT * FROM libraries WHERE id_user = $1',
-          [userId]
+          'SELECT id_library, name, is_editable, id_user, created_at, updated_at FROM libraries WHERE id_user = $1',
+          [id_user]
         );
         return result.rows;
       } catch (error) {
@@ -43,7 +47,7 @@ export default {
     getLibrary: async (_, { id_library }) => {
       try {
         const result = await db.query(
-          'SELECT * FROM libraries WHERE id_library = $1',
+          'SELECT id_library, name, is_editable, id_user, created_at, updated_at FROM libraries WHERE id_library = $1',
           [id_library]
         );
         return result.rows[0] || null;
@@ -52,12 +56,12 @@ export default {
       }
     },
 
-    searchLibraries: async (_, { nameOrLocation, limit = 50, offset = 0 }) => {
+    searchLibraries: async (_, { name, limit = 50, offset = 0 }) => {
       try {
-        const searchPattern = `%${nameOrLocation}%`;
+        const searchPattern = `%${name}%`;
 
         const result = await db.query(`
-          SELECT * FROM libraries
+          SELECT id_library, name, is_editable, id_user, created_at, updated_at FROM libraries
           WHERE LOWER(name) LIKE LOWER($1)
           ORDER BY created_at DESC
           LIMIT $2 OFFSET $3
@@ -87,7 +91,7 @@ export default {
         const result = await db.query(`
           INSERT INTO libraries (id_library, name, is_editable, id_user)
           VALUES ($1, $2, $3, $4)
-          RETURNING *
+          RETURNING id_library, name, is_editable, id_user, created_at, updated_at
         `, [
           id,
           input.name,
@@ -120,13 +124,13 @@ export default {
           throw new Error('No fields to update');
         }
 
-        values.push(input.idLibrary);
+        values.push(input.id_library);
 
         const result = await db.query(`
           UPDATE libraries
           SET ${updates.join(', ')}
           WHERE id_library = $${paramIndex}
-          RETURNING *
+          RETURNING id_library, name, is_editable, id_user, created_at, updated_at
         `, values);
 
         if (result.rows.length === 0) {
@@ -139,11 +143,11 @@ export default {
       }
     },
     
-    deleteAllLibrariesFromUser: async (_, { userId }) => {
+    deleteAllLibrariesFromUser: async (_, { id_user }) => {
       try {
         const result = await db.query(
           'DELETE FROM libraries WHERE id_user = $1 RETURNING id_library',
-          [userId]
+          [id_user]
         );
         return result.rows.map(row => row.id_library);
       } catch (error) {
@@ -155,7 +159,7 @@ export default {
       try {
         const result = await db.query(
           'DELETE FROM libraries WHERE id_library = $1 RETURNING id_library',
-          [input.idLibrary]
+          [input.id_library]
         );
 
         return result.rows.length > 0;
@@ -166,19 +170,14 @@ export default {
   },
   
   Library: {
-    user: async (parent) => {
-      if (!parent.id_user) return null;
 
-      try {
-        const result = await db.query(
-          'SELECT id_user, name, email, pseudo, id_role, is_active, created_at, updated_at FROM users WHERE id_user = $1',
-          [parent.id_user]
-        );
-        return result.rows[0] || null;
-      } catch (error) {
-        console.error('Error fetching library user:', error);
-        return null;
-      }
+    user: async (parent) => {
+      return fetchUserById(parent.id_user);
     },
+
+    role: async (parent) => {
+      return fetchUserRoleNameById(parent.id_role);
+    },
+
   },
 };

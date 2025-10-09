@@ -1,56 +1,97 @@
 import { ApolloServer } from "@apollo/server";
-import { startStandaloneServer } from "@apollo/server/standalone";
+import { expressMiddleware } from "@apollo/server/express4";
 import { loadFilesSync } from "@graphql-tools/load-files";
 import { mergeTypeDefs } from "@graphql-tools/merge";
-import path from "path";
-// import { Pool } from "pg";
-import dotenv from "dotenv";
+import express from "express";
 import cors from "cors";
-import express from "express"; // Ajout d'Express pour gérer `app`
-import { fileURLToPath } from 'url';
-import { dirname } from 'path';
+import dotenv from "dotenv";
+import path, { dirname } from "path";
+import { fileURLToPath } from "url";
+// Note: older/newer versions of @apollo/server don't always export a renderLandingPage helper.
+// Instead serve a small GraphiQL HTML page directly for browser GET requests.
+
+dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-dotenv.config();
-
-const app = express(); // Initialisation de l'application Express
-
-// Configuration de CORS
-app.use(
-  cors({
-    origin: ["http://localhost:5173"], // Autorisez l'origine du frontend
-    methods: ["GET", "POST", "PATCH", "DELETE"], // Méthodes HTTP autorisées
-    allowedHeaders: ["Content-Type", "Authorization"], // En-têtes autorisés
-    credentials: true, // Autorisez les cookies ou les sessions
-  })
-);
-
-
-// Charger tous les fichiers .gql récursivement
-// const __dirname = path.dirname(new URL(import.meta.url).pathname); // Pour obtenir le répertoire courant
+// Charger les fichiers GraphQL
 const typesArray = loadFilesSync(path.join(__dirname, "schema"), {
   extensions: ["gql", "graphql"],
   recursive: true,
 });
 
-// Fusionner tous les types
 const typeDefs = mergeTypeDefs(typesArray);
 
-// Importer les resolvers
-import resolvers from "./resolvers/index.js"; // Assurez-vous que `index.js` existe dans le dossier `resolvers`
+import resolvers from "./resolvers/index.js";
 
-// Créer le serveur Apollo
+const app = express();
+
+// 🚀 Créer et démarrer Apollo Server
 const server = new ApolloServer({
   typeDefs,
   resolvers,
+  introspection: true, // Permet Apollo Studio
 });
 
-// Démarrer le serveur Apollo
+await server.start();
+
+// ⚙️ Middlewares globaux
+const corsOptions = {
+  origin: ["http://localhost:5173", "http://localhost:4000"],
+  credentials: true,
+};
+
+app.use(cors(corsOptions));
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// Serve Apollo Landing Page for browser GET requests to /graphql
+app.get("/graphql", (req, res) => {
+  res.setHeader("Content-Type", "text/html; charset=utf-8");
+  res.send(`<!doctype html>
+  <html>
+    <head>
+      <meta charset="utf-8" />
+      <title>GraphiQL</title>
+      <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://cdn.jsdelivr.net/npm/graphiql@2.0.1/graphiql.min.css" rel="stylesheet" />
+    </head>
+    <body style="height:100vh;margin:0;">
+      <div id="graphiql" style="height:100vh;"></div>
+  <script crossorigin src="https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script crossorigin src="https://cdn.jsdelivr.net/npm/graphiql@2.0.1/graphiql.min.js"></script>
+      <script>
+        const fetcher = GraphiQL.createFetcher({ url: '/graphql' });
+  const defaultQuery = '# Test query\\nquery { __typename }';
+        ReactDOM.render(
+          React.createElement(GraphiQL, { fetcher, defaultQuery }),
+          document.getElementById('graphiql'),
+        );
+      </script>
+    </body>
+  </html>`);
+});
+
+// 🔗 Route GraphQL (API - use POST with application/json)
+app.use(
+  "/graphql",
+  expressMiddleware(server, {
+    context: async ({ req }) => ({
+      token: req.headers.authorization || null,
+    }),
+  })
+);
+
+// Route de santé
+app.get("/health", (req, res) => {
+  res.json({ status: "OK", timestamp: new Date().toISOString() });
+});
+
 const port = process.env.PORT || 4000;
-startStandaloneServer(server, {
-  listen: { port },
-}).then(({ url }) => {
-  console.log(`🚀 Server ready at ${url}`);
+
+app.listen(port, () => {
+  console.log(`🚀 Server ready at http://localhost:${port}/graphql`);
+  console.log(`📊 Health check at http://localhost:${port}/health`);
 });

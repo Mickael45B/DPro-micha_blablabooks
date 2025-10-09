@@ -1,15 +1,16 @@
 input CreateRoleHasPermissionInput {
+  id_rolehaspermission: ID
   roleId: ID!
   permissionId: ID!
 }
 
 input UpdateRoleHasPermissionInput {
-  id: ID!
+  id_rolehaspermission: ID!
   roleId: ID
   permissionId: ID
 }
 
 input DeleteRoleHasPermissionInput {
-  id: ID!
+  id_rolehaspermission: ID!
 }
 

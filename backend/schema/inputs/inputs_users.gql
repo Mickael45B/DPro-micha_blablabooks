@@ -11,19 +11,21 @@ input UpdateUserInput {
   name: String
   email: String
   pseudo: String
+  status: String
   id_role: String
-}
-
-# Mutation séparée pour le mot de passe
-input ChangePasswordInput {
-  idUser: ID!
-  currentPassword: String!
-  newPassword: String! 
 }
 
 input DeleteUserInput {
   id_user: ID!
 }
+
+# Mutation séparée pour le mot de passe
+input ChangePasswordInput {
+  id_user: ID!
+  oldPassword: String!
+  newPassword: String! 
+}
+
 
 input UserSortInput {
   orderBy: UserOrderBy!

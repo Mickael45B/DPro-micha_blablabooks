@@ -6,7 +6,7 @@
 
 extend type Query {        # Type pour les résultats de recherche paginés
         # Récupérer tous les livres de la bibliothèque
-        getLibraryBooks(
+        getLibraries(
             limit: Int, 
             offset: Int, 
             order: String = "created_at", # Colonne par défaut pour le tri
@@ -14,8 +14,11 @@ extend type Query {        # Type pour les résultats de recherche paginés
         ): PaginatedLibraries
 
         # Récupérer un livre de la bibliothèque par son ID
-        getLibraryBook(id_library_book: ID!): Library 
+        getUserLibraries(id_user: ID!): [Library!]! 
+
+        # Récupérer un livre de la bibliothèque par son ID (sans restriction d'utilisateur)
+        getLibrary(id_library: ID!): Library
 
         # Rechercher des livres de la bibliothèque par titre ou auteur avec pagination
-        searchLibraryBooks(titleOrAuthor: String!, limit: Int, offset: Int): PaginatedLibraries
+        searchLibraries(name: String!, limit: Int, offset: Int): PaginatedLibraries
 }

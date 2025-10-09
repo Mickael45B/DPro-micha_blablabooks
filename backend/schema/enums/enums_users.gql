@@ -3,8 +3,8 @@ enum UserOrderBy {
   EMAIL
   PSEUDO
   ROLE
+  STATUS
   CREATED_AT
-  IS_ACTIVE
 }
 
 enum UserStatus {

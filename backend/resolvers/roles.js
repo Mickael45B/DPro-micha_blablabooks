@@ -1,6 +1,7 @@
 import db from "../db/connect_DB.js";
 import { v4 as uuidv4 } from "uuid";
 import { validateOrderParams, handleDbError } from '../utils/validators.js';
+import { fetchUserById } from './utils/utils_users.js';
 
 export default {
   Query: {
@@ -10,7 +11,8 @@ export default {
         const { order: safeOrder, direction: safeDirection } = validateOrderParams(order, direction, validOrders);
         
         const result = await db.query(`
-          SELECT * FROM roles
+          SELECT id_role, role_name, created_at, updated_at
+          FROM roles
           ORDER BY ${safeOrder} ${safeDirection}
           LIMIT $1 OFFSET $2
         `, [limit, offset]);
@@ -31,7 +33,7 @@ export default {
     getRole: async (_, { id_role }) => {
       try {
         const result = await db.query(
-          'SELECT * FROM roles WHERE id_role = $1',
+          'SELECT id_role, role_name, created_at, updated_at FROM roles WHERE id_role = $1',
           [id_role]
         );
         return result.rows[0] || null;
@@ -40,20 +42,20 @@ export default {
       }
     },
 
-    searchRoles: async (_, { name, limit = 50, offset = 0 }) => {
+    searchRoles: async (_, { role_name, limit = 50, offset = 0 }) => {
       try {
-        const searchPattern = `%${name}%`;
-        
+        const searchPattern = `%${role_name}%`;
+
         const result = await db.query(`
-          SELECT * FROM roles
-          WHERE LOWER(name) LIKE LOWER($1)
-          ORDER BY name ASC
+          SELECT id_role, role_name, created_at, updated_at FROM roles
+          WHERE LOWER(role_name) LIKE LOWER($1)
+          ORDER BY role_name ASC
           LIMIT $2 OFFSET $3
         `, [searchPattern, limit, offset]);
         
         const countResult = await db.query(`
           SELECT COUNT(*)::int as count FROM roles
-          WHERE LOWER(name) LIKE LOWER($1)
+          WHERE LOWER(role_name) LIKE LOWER($1)
         `, [searchPattern]);
         
         return {
@@ -72,9 +74,9 @@ export default {
       try {
         const id = uuidv4();
         const result = await db.query(`
-          INSERT INTO roles (id_role, name)
+          INSERT INTO roles (id_role, role_name)
           VALUES ($1, $2)
-          RETURNING *
+          RETURNING id_role, role_name, created_at, updated_at
         `, [id, input.name]);
         return result.rows[0];
       } catch (error) {
@@ -86,9 +88,9 @@ export default {
       try {
         const result = await db.query(`
           UPDATE roles
-          SET name = $1
+          SET role_name = $1
           WHERE id_role = $2
-          RETURNING *
+          RETURNING id_role, role_name, created_at, updated_at
         `, [input.name, input.idRole]);
 
         if (result.rows.length === 0) {
@@ -116,3 +118,4 @@ export default {
 
   Role: {},
 };
+
