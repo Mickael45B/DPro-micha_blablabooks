@@ -9,7 +9,7 @@ import {
 	readReviewByIdSchema,
 	updateReviewShema,
 	deleteReviewSchema,
-} from "../schema/reviewSchema.js"; // Importing the review schema for validation
+} from "../schema/schemas_joi/reviewSchema.js"; // Importing the review schema for validation
 dotenv.config();
 
 function generateUUID() {

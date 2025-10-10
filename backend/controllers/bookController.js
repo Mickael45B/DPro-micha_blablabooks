@@ -15,7 +15,7 @@ import {
 	readBookByIdSchema,
 	updateBookShema,
 	deleteBookSchema,
-} from "../schema/bookSchema.js";
+} from "../schema/schemas_joi/bookSchema.js";
 
 import { randomUUID } from "crypto";
 dotenv.config();

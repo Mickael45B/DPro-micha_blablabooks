@@ -8,7 +8,7 @@ import {
 	getUsersByPKSchema,
 	updateUserSchema,
 	deleteUsersByPKSchema,
-} from "../schema/userSchema.js"; // Validation schema for user ID
+} from "../schema/schemas_joi/userSchema.js"; // Validation schema for user ID
 
 import dotenv from "dotenv"; // Used to load environment variables
 dotenv.config(); // Load environment variables from .env file

@@ -11,6 +11,8 @@ import favoriteController from "../controllers/favoriteController.js";
 import verifyAdmin from "../middlewares/isAdminMiddleware.js";
 
 import verifyJWT from "../middlewares/JWTverifyMiddleware.js";
+// Import GraphQL resolvers to reuse logic
+import resolvers from "../resolvers/index.js";
 import {
 	createLibairySchema,
 	readLibraryByIdSchema,
@@ -19,26 +21,26 @@ import {
 	readAllBookOfLibraryByIdSchema,
 	updateLibairyShema,
 	deleteLibairySchema,
-} from "../schema/librairySchema.js";
+} from "../schema/schemas_joi/librairySchema.js";
 import {
 	getUsersByPKSchema,
 	updateUserSchema,
 	deleteUsersByPKSchema,
-} from "../schema/userSchema.js";
-import { registerSchema, loginSchema } from "../schema/authSchema.js";
+} from "../schema/schemas_joi/userSchema.js";
+import { registerSchema, loginSchema } from "../schema/schemas_joi/authSchema.js";
 import {
 	createReviewSchema,
 	readReviewByIdSchema,
 	updateReviewShema,
 	deleteReviewSchema,
-} from "../schema/reviewSchema.js";
+} from "../schema/schemas_joi/reviewSchema.js";
 import {
 	createBookSchema,
 	readBookByIdSchema,
 	updateBookShema,
 	deleteBookSchema,
-} from "../schema/bookSchema.js";
-import { favoriteBookSchema } from "../schema/favoriteSchema.js";
+} from "../schema/schemas_joi/bookSchema.js";
+import { favoriteBookSchema } from "../schema/schemas_joi/favoriteSchema.js";
 import validate from "../middlewares/validationMiddleware.js";
 
 //router.get("/", homeController.homePage);
@@ -85,26 +87,79 @@ router.delete(
 
 //CREATE
 router.post(
-	"/bibliotheques",
-	verifyJWT,
+	"/ajouterBibliotheque",
+	// verifyJWT,
 	validate(createLibairySchema),
-	libraryController.createLibrary,
+	async (req, res) => {
+		try {
+			// call GraphQL resolver addLibrary (Mutation) via the resolvers module
+			const input = {
+				name: req.body.name,
+				isEditable: req.body.is_editable,
+				idUser: req.user.user.name.id_user,
+			};
+			const result = await resolvers.Mutation.addLibrary(null, { input });
+			// success -> return 201
+			return res.status(201).json({ message: 'Library created', data: [result] });
+		} catch (err) {
+			// map GraphQLError extension httpStatus if present
+			const status = err?.extensions?.httpStatus || 500;
+			return res.status(status).json({ message: err.message });
+		}
+	},
 ); // POST new library
 
 //READ
-router.get(
-	//(Admin only) 18588530-d26f-4033-b3d7-b66f2fb394f4
-	"/bibliotheques",
-	verifyJWT,
-	verifyAdmin,
-	libraryController.getAllLibraries,
+
+//(Admin seul) Route pour voir toutes les bibliotheques
+router.get("/toutesBibliotheques",
+	// verifyJWT,
+	// verifyAdmin,
+	async (req, res) => {
+		try {
+			// call GraphQL resolver getLibraries (Query) via the resolvers module
+			const limit = req.query.limit ? parseInt(req.query.limit, 10) : undefined;
+			const offset = req.query.offset ? parseInt(req.query.offset, 10) : undefined;
+			const result = await resolvers.Query.getLibraries(null, { limit, offset });
+			// result is { libraries, totalCount, hasNextPage }
+			return res.status(200).json({ message: 'Libraries fetched', data: result });
+		} catch (err) {
+			// map GraphQLError extension httpStatus if present
+			const status = err?.extensions?.httpStatus || 500;
+			return res.status(status).json({ message: err.message });
+		}
+	},
 );
 
-router.get(
-	"/bibliotheques/user", //toutes ses biblio perso
-	verifyJWT,
-	validate(readAllLibrariesOfUserSchema),
-	libraryController.getAllLibrariesOfUser,
+//(Admin seul) Route pour voir toutes les bibliotheques d'un utilisateur
+// router.get("/toutesBibliothequesUtilisateur/:id",
+// 	async (req, res) => {
+// 		try {
+// 			// call GraphQL resolver getLibrariesByUserId (Query) via the resolvers module
+// 			const result = await resolvers.Query.getLibrariesByUserId(null, { userId: req.params.id });
+// 			return res.status(200).json({ message: 'User libraries fetched', data: result });
+// 		} catch (err) {
+// 			// map GraphQLError extension httpStatus if present
+// 			const status = err?.extensions?.httpStatus || 500;
+// 			return res.status(status).json({ message: err.message });
+// 		}
+// 	}
+// );
+
+
+// Route pour voir une bibliotheque par son id
+router.get("/bibliotheque/:id",
+	async (req, res) => {
+		try {
+			// call GraphQL resolver getLibraryById (Query) via the resolvers module
+			const result = await resolvers.Query.getLibrary(null, { id_library: req.params.id });
+			return res.status(200).json({ message: 'Library fetched', data: result });
+		} catch (err) {
+			// map GraphQLError extension httpStatus if present
+			const status = err?.extensions?.httpStatus || 500;
+			return res.status(status).json({ message: err.message });
+		}
+	}
 );
 
 router.get(
