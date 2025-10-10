@@ -1,5 +1,7 @@
 type BookConnection {
   books: [BookEdge!]!
+  # convenience: flattened list of Book objects (avoids the Edge.node wrapper)
+  nodes: [Book!]!
   pageInfo: PageInfo!
   totalCount: Int!
 }

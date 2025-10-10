@@ -3,7 +3,7 @@ import sanitizeHtml from "sanitize-html"; // Used to sanitize user inputs to pre
 import { hash, verify } from "../utils/scrypt.js"; // Importing password hashing and verification functions
 import { User, Library, Sequelize } from "../models/associations.js"; // Sequelize models for database interaction
 import jwt from "jsonwebtoken"; // Used to generate JWT tokens for authentication
-import { registerSchema, loginSchema } from "../schema/authSchema.js"; // Validation schemas for registration and login
+import { registerSchema, loginSchema } from "../schema/schemas_joi/authSchema.js"; // Validation schemas for registration and login
 import { randomUUID } from "crypto"; // Used to generate unique IDs
 import dotenv from "dotenv"; // Used to load environment variables
 dotenv.config(); // Load environment variables from .env file

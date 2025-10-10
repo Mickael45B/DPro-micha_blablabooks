@@ -74,6 +74,10 @@ app.get("/graphql", (req, res) => {
   </html>`);
 });
 
+// Monter le router REST
+import {router} from "./router/router.js";   // ./router/index.js si tu utilises index
+app.use("/api", router);
+
 // 🔗 Route GraphQL (API - use POST with application/json)
 app.use(
   "/graphql",
@@ -92,6 +96,7 @@ app.get("/health", (req, res) => {
 const port = process.env.PORT || 4000;
 
 app.listen(port, () => {
+  console.log(`API Server run at http://localhost:${port}/api`);
   console.log(`🚀 Server ready at http://localhost:${port}/graphql`);
   console.log(`📊 Health check at http://localhost:${port}/health`);
 });

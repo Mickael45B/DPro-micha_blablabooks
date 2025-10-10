@@ -18,7 +18,7 @@ import {
 	readAllBookOfLibraryByIdSchema,
 	updateLibairyShema,
 	deleteLibairySchema,
-} from "../schema/librairySchema.js";
+} from "../schema/schemas_joi/librairySchema.js";
 
 dotenv.config();
 
@@ -108,11 +108,9 @@ const libraryController = {
 	async getLibraryById(req, res) {
 		try {
 			// Get the library ID from the request parameters
-			const userID = req.params.id;
+			const libraryId = req.params.id;
 
-			const { error, value } = readLibraryByIdSchema.validate({
-				id: userID,
-			});
+			const { error, value } = readLibraryByIdSchema.validate({ id: libraryId });
 			if (error) {
 				return res.status(400).json({
 					message: "Invalid library ID",
@@ -121,10 +119,10 @@ const libraryController = {
 			}
 
 			// Sanitize the library ID to prevent XSS attacks
-			const cleanuserID = sanitizeHtml(userID);
+			const cleanLibraryId = sanitizeHtml(libraryId);
 
 			// Fetch the library from the database
-			const usersOfLibrary = await Library.findAll({
+			const library = await Library.findOne({
 				attributes: ["id_library", "name", "id_user"],
 				include: [
 					{
@@ -133,20 +131,36 @@ const libraryController = {
 						attributes: ["name", "email"],
 					},
 				],
-				where: { id_user: userID },
-				order: [["id_library", "ASC"]], // Order by id_library in ascending order
+				where: { id_library: cleanLibraryId },
 			});
-			// If the library is not found, return a 404 error
-			if (!usersOfLibrary) {
-				return res.status(404).json({
-					message: "Library not found",
+
+			if (!library) {
+				return res.status(404).json({ message: "Library not found" });
+			}
+
+			// Fetch books in the library
+			const booksLinks = await bookHasLibrary.findAll({
+				where: { id_library: cleanLibraryId },
+				attributes: ["id_book"],
+			});
+
+			if (!booksLinks || booksLinks.length === 0) {
+				// Return library info with empty books array
+				return res.status(200).json({
+					message: "Library fetched",
+					data: { library, books: [] },
 				});
 			}
 
-			// Return the library data
+			const bookIds = booksLinks.map((b) => b.id_book);
+			const bookDetails = await Book.findAll({
+				where: { id_book: bookIds },
+				attributes: ["id_book", "title", "author", "description"],
+			});
+
 			return res.status(200).json({
-				message: "Affichage de la bibliotheque choisie",
-				data: usersOfLibrary,
+				message: "Library fetched",
+				data: { library, books: bookDetails },
 			});
 		} catch (error) {
 			console.error("Error fetching library:", error);

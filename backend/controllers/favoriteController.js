@@ -8,7 +8,7 @@ import {
 	bookHasLibrary,
 	Sequelize,
 } from "../models/associations.js"; // Importing Sequelize models to interact with the database
-import { favoriteBookSchema } from "../schema/favoriteSchema.js";
+import { favoriteBookSchema } from "../schema/schemas_joi/favoriteSchema.js";
 
 import dotenv from "dotenv";
 import { randomUUID } from "crypto";
