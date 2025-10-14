@@ -15,7 +15,7 @@ extend type Query {
     ): PaginatedBooksInLibrary!
 
     # Récupérer un livre en bibliothèque par son ID
-    getBookInLibrary(id_book_library: ID!): BookHasLibrary 
+    getBookInLibrary(id_bookhaslibrary: ID!): BookHasLibrary 
 
     # Rechercher des livres en bibliothèque par titre ou auteur avec pagination
     searchBooksInLibrary(titleOrAuthor: String!, limit: Int, offset: Int): PaginatedBooksInLibrary!

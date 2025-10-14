@@ -82,7 +82,9 @@ app.use("/api", router);
 app.use(
   "/graphql",
   expressMiddleware(server, {
-    context: async ({ req }) => ({
+    context: async ({ req }) => (
+      //console.log('le contenu du context', req),
+    {
       token: req.headers.authorization || null,
     }),
   })
