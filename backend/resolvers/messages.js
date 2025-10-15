@@ -12,93 +12,7 @@ import fetchLibraryById from './utils/utils_librairies.js';
 // Import des helpers généraux
 import { isAuthenticated, requireAuth, requireAdmin, requireOwnershipOrAdmin, sanitizeString, sanitizeInput } from './utils/helpers/helpers_general.js';
 // Import des helpers spécifiques aux messages
-//import { findBookOrThrow, validateBookInput} from './utils/helpers/helpers_messages.js';
-
-
-
-/**
- * Vérifie qu'un message existe
- * @param {string} messageId - ID du message
- * @returns {Promise<object>} Le message trouvé
- * @throws {GraphQLError} Si non trouvé (404)
- */
-const findMessageOrThrow = async (messageId) => {
-  const result = await db.query(
-    'SELECT * FROM messages WHERE id_message = $1',
-    [messageId]
-  );
-  
-  if (!result.rows[0]) {
-    throw new GraphQLError('Message non trouvé', {
-      extensions: { 
-        code: 'NOT_FOUND',
-        httpStatus: 404
-      },
-    });
-  }
-  
-  return result.rows[0];
-};
-
-/**
- * Vérifie que l'utilisateur peut accéder au message
- * @param {object} message - Objet message
- * @param {object} context - Contexte GraphQL
- * @throws {GraphQLError} Si accès refusé
- */
-const requireMessageAccess = (message, context) => {
-  requireAuth(context);
-  
-  const userId = context?.user?.id || context?.user?.id_user;
-  
-  // L'utilisateur doit être l'expéditeur, le destinataire, ou admin
-  if (
-    message.id_sender !== userId && 
-    message.id_receiver !== userId && 
-    !context.isAdmin
-  ) {
-    throw new GraphQLError('Vous n\'avez pas accès à ce message', {
-      extensions: { 
-        code: 'FORBIDDEN',
-        httpStatus: 403
-      },
-    });
-  }
-};
-
-/**
- * Valide les données d'un message
- * @param {object} input - Données du message
- * @throws {GraphQLError} Si validation échoue
- */
-const validateMessageInput = (input) => {
-  if (!input.subject || input.subject.trim().length < 3) {
-    throw new GraphQLError('Le sujet doit contenir au moins 3 caractères', {
-      extensions: { 
-        code: 'BAD_REQUEST',
-        httpStatus: 400
-      },
-    });
-  }
-  
-  if (!input.content || input.content.trim().length < 10) {
-    throw new GraphQLError('Le contenu doit contenir au moins 10 caractères', {
-      extensions: { 
-        code: 'BAD_REQUEST',
-        httpStatus: 400
-      },
-    });
-  }
-  
-  if (input.content.length > 5000) {
-    throw new GraphQLError('Le contenu ne peut pas dépasser 5000 caractères', {
-      extensions: { 
-        code: 'BAD_REQUEST',
-        httpStatus: 400
-      },
-    });
-  }
-};
+import { findMessageOrThrow, requireMessageAccess, validateMessageInput} from './utils/helpers/helpers_messages.js';
 
 export default {
   Query: {
@@ -171,17 +85,14 @@ export default {
     getMessage: async (_, { id_message }, context) => {
       try {
 
-        // Vérification des droits d'accès
-        requireAuth(context);
+        // Vérifier l'accès
+        requireMessageAccess(message, context);
 
         // Sanitize input
         const cleanIdMessage = sanitizeString(id_message);
         
         // Vérifier que le message existe
         const message = await findMessageOrThrow(cleanIdMessage);
-
-        // Vérifier l'accès
-        requireMessageAccess(message, context);
 
         return {
           data: message,
@@ -388,7 +299,7 @@ export default {
         const result = await db.query(`
           INSERT INTO messages (id_message, id_sender, id_receiver, subject, content, is_read)
           VALUES ($1, $2, $3, $4, $5, $6)
-          RETURNING id_message, id_sender, id_receiver, subject, content, is_read, created_at, updated_at
+          RETURNING *
         `, [
           id,
           cleanInput.idSender,
@@ -617,7 +528,6 @@ export default {
   
     Message: {
 
-
     sender: async (parent) => {
       return fetchUserById(parent.id_sender);
     },
@@ -625,7 +535,6 @@ export default {
     receiver: async (parent) => {
       return fetchUserById(parent.id_receiver);
     },
-
     
   },
 };

@@ -35,7 +35,9 @@ export const requireAuth = (context) => {
  */
 export const requireAdmin = (context) => {
   requireAuth(context);
-  if (!context.pseudo) {
+  const isAdminFlag =
+    Boolean(context && (context.isAdmin || context.user?.isAdmin || context.user?.role === 'admin'));
+  if (!isAdminFlag) {
     throw new GraphQLError('Accès refusé : droits administrateur requis', {
       extensions: { 
         code: 'FORBIDDEN',
@@ -53,12 +55,16 @@ export const requireAdmin = (context) => {
  */
 export const requireOwnershipOrAdmin = (resourceUserId, context) => {
   requireAuth(context);
-  if (resourceUserId !== context.user.id && !context.isAdmin) {
+  const currentUserId = context?.user?.id ?? context?.user?.id_user ?? null;
+  const isAdminFlag =
+    Boolean(context && (context.isAdmin || context.user?.isAdmin || context.user?.role === 'admin'));
+
+  if (resourceUserId !== currentUserId && !isAdminFlag) {
     throw new GraphQLError('Vous ne pouvez accéder qu\'à vos propres ressources', {
-      extensions: { 
+      extensions: {
         code: 'FORBIDDEN',
         httpStatus: 403
-      },
+      }
     });
   }
 };
