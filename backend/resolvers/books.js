@@ -8,7 +8,10 @@ import fetchBookById from './utils/utils_books.js';
 import fetchLibraryById from './utils/utils_librairies.js';
 import { isAuthenticated, requireAuth, requireAdmin, requireOwnershipOrAdmin, sanitizeString, sanitizeInput } from './utils/helpers/helpers_general.js';
 
-import { findBookOrThrow, validateBookInput} from './utils/helpers/helpers_books.js';
+import { findBookOrThrow, validateBookInput, validateWithJoi} from './utils/helpers/helpers_books.js';
+
+import {getBooksSchema, getBookSchema, searchBooksSchema , createBookSchema, updateBookSchema, deleteBookSchema} from '../schema/schemas_joi/bookSchema.js';
+import { validate as uuidValidate } from 'uuid';
 
 export default {
   Query: {
@@ -24,16 +27,40 @@ export default {
        * @throws {GraphQLError} Si l'utilisateur n'a pas les droits (401 ou 403)  
        * @throws {GraphQLError} Si une erreur se produit lors de la récupération des livres (500)
      */
-      getBooks: async (_, { limit = 50, offset = 0, order = 'created_at', direction = 'ASC' }, context) => {
+    getBooks: async (_, args, context) => {
         try {
 
-        // Sanitize inputs
-        const cleanLimit = Math.min(Math.max(parseInt(limit) || 50, 1), 100);
-        const cleanOffset = Math.max(parseInt(offset) || 0, 0);
+        /* exemple context JWT décodé ( à revoir):
+        {
+          userId: "uuid-of-user",
+          email: "user@example.com",
+          role: "admin"
+        }
+        */
+        /*exemple de requête :
+        query {getBooks{books{title}}}
+        */
+        /* Exemple variables :
+        {
+        }
+        */
+          
+          // Vérification des droits d'accès
+          //requireAuth(context);
 
-        // Valider les paramètres de tri
+          // Validation avec Joi
+          const validatedArgs = validateWithJoi(getBooksSchema, args);
+
+          const { limit = 50, offset = 0, order = 'created_at', direction = 'DESC' } = validatedArgs;
+
+
+          // Sanitize inputs
+          const cleanLimit = Math.min(Math.max(parseInt(limit) || 50, 1), 100);
+          const cleanOffset = Math.max(parseInt(offset) || 0, 0);
+
+          // Valider les paramètres de tri
           const validOrders = ['created_at', 'title', 'author', 'avg_rating', 'nb_reviews', 'is_in_favorite', 'publication_date'];// Definir les colonnes valides pour le tri
-        const { order: safeOrder, direction: safeDirection } = validateOrderParams(
+          const { order: safeOrder, direction: safeDirection } = validateOrderParams(
           sanitizeString(order), 
           sanitizeString(direction), 
           validOrders
@@ -52,15 +79,20 @@ export default {
         const totalCount = countResult.rows[0].count;
 
           // Transformer les résultats en une structure conforme à BookConnection
-          const edges = result.rows.map(makeEdgeFromBook);
+            const edges = result.rows.map(makeEdgeFromBook);
+              const nodes = flattenEdges(edges);
 
-
-        return {
-          books: edges,
-          totalCount,
-          hasNextPage: cleanOffset + cleanLimit < totalCount,
-          httpStatus: 200,
-        };
+            return {
+              // flattened list of Book objects for simple queries: getBooks { books { title } }
+              books: nodes,
+              // backward-compatible edge representation
+              bookEdges: edges,
+              // convenience alias
+              nodes,
+              totalCount,
+              hasNextPage: cleanOffset + cleanLimit < totalCount,
+              httpStatus: 200,
+            };
 
         } catch (error) {
           if (error instanceof GraphQLError) throw error;
@@ -89,8 +121,26 @@ export default {
     getBook: async (_, { id_book }, context) => {
       try {
       
-        // Sanitize input
-        const cleanIdBook = sanitizeString(id_book);
+        /* exemple context JWT décodé ( à revoir):
+        {
+          userId: "uuid-of-user",
+          email: "user@example.com",
+          role: "admin"
+        }
+        */
+       /*exemple de requête :
+        query  getBook($id_book: ID!) {getBook(id_book: $id_book) {id_book,title }}
+
+        */
+        /* Exemple variables :
+        {"id_book": "i9j0k1l2-m3n4-5o6p-7q8r-9s0t1u2v3w4z"}
+        */
+
+        // Validation avec Joi => 1ere couche - défense en profondeur
+        const validatedGetBook = validateWithJoi(getBookSchema, { id: id_book });
+
+        // Sanitize input => 2ème couche - défense en profondeur
+        const cleanIdBook = sanitizeString(validatedGetBook.id);
 
         // Vérifier l'accès à la bibliothèque
         requireAuth( context);
@@ -129,12 +179,34 @@ export default {
     searchBooks: async (_, args, context) => {
       try {
 
+        /* exemple context JWT décodé ( à revoir):
+        {
+          userId: "uuid-of-user",
+          email: "user@example.com",
+          role: "admin"
+        }
+        */
+       /*exemple de requête :
+        query  searchBooks($titleOrAuthor: String!) {searchBooks(titleOrAuthor: $titleOrAuthor) {id_book,title }}
+
+        */
+        /* Exemple variables :
+        {"titleOrAuthor": "ta"}
+        */
+        
         const { titleOrAuthor, limit = 50, offset = 0 } = args;
         
-        // Sanitize inputs
-        const cleanSearch = sanitizeString(titleOrAuthor);
-        const cleanLimit = Math.min(Math.max(parseInt(limit) || 50, 1), 100);
-        const cleanOffset = Math.max(parseInt(offset) || 0, 0);
+        // Validation avec Joi => 1ere couche - défense en profondeur
+        const validatedArgs = validateWithJoi(searchBooksSchema, {
+            query: args.titleOrAuthor,
+            limit: args.limit || 50,
+            offset: args.offset || 0,
+          });
+
+        // Sanitize inputs => 2ème couche - défense en profondeur
+        const cleanSearch = sanitizeString(validatedArgs.query);
+        const cleanLimit = Math.min(Math.max(parseInt(validatedArgs.limit) || 50, 1), 100);
+        const cleanOffset = Math.max(parseInt(validatedArgs.offset) || 0, 0);
 
         // Validation
         if (!cleanSearch || cleanSearch.length < 2) {
@@ -147,7 +219,9 @@ export default {
         }
 
         // Vérifier l'authentification
-        requireAuth(context);
+        //requireAuth(context);
+
+        
         const searchPattern = `%${cleanSearch}%`;
 
         const result = await db.query(`
@@ -162,6 +236,7 @@ export default {
           SELECT COUNT(*)::int as count FROM books
           WHERE LOWER(title) LIKE LOWER($1) OR LOWER(author) LIKE LOWER($1)
         `, [searchPattern]);
+        
         
         return {
           books: result.rows,
@@ -194,29 +269,75 @@ export default {
      */
     addBook: async (_, { input }, context) => {
       try {
+
+        /* exemple context JWT décodé ( à revoir):
+        {
+          userId: "uuid-of-user",
+          email: "user@example.com",
+          role: "admin"
+        }
+        */
+       /*exemple de requête :
+        mutation addBook($input: CreateBookInput!) { addBook(input: $input) {isbn }}
+
+        */
+        /* Exemple variables :
+        { "input": {
+          "isbn": "978-2070301579",
+          "title": "toto à la plage",
+          "author": "toto",
+          "publication_date": "2022-04-10",
+          "genre": "blague",
+          "editor": "plon",
+          "age_limit": 10,
+          "description": "Cest lhistoire de toto",
+          "series":"1sur999999",
+          "bookimage": "tret",
+					"vignetteimage" : "test"
+        }
+        }        
+        */
+
+        // Vérifier que l'utilisateur est un administrateur avec accès aux données
+        requireAdmin(context);
+
+        // Validation Joi de l'input => 1ere couche - défense en profondeur
+        const validatedInput = validateWithJoi(createBookSchema, {        
+          title: input.title,
+          author: input.author,
+          publication_date: input.publicationDate,
+          genre: input.genre,
+          isbn: input.isbn,
+          editor: input.editor,
+          vignetteimage: input.vignetteImage,
+          bookimage: input.bookImage,
+          age_limit: input.ageLimit,
+          description: input.description,
+          series: input.series
+        });
+
+        // Générer un nouvel ID
         const id = uuidv4();
 
+        // Sanitize inputs => 2ème couche - défense en profondeur
         const cleanInput = {
-          title: sanitizeString(input.title),
-          author: input.author ? sanitizeString(input.author) : null,
-          publicationDate: input.publicationDate ? sanitizeString(input.publicationDate) : null,
-          genre: input.genre ? sanitizeString(input.genre) : null,
-          isbn: input.isbn ? sanitizeString(input.isbn) : null,
-          editor: input.editor ? sanitizeString(input.editor) : null,
-          vignetteImage: input.vignetteImage ? sanitizeString(input.vignetteImage) : null,
-          bookImage: input.bookImage ? sanitizeString(input.bookImage) : null,
-          ageLimit: input.ageLimit !== undefined ? parseInt(input.ageLimit) : null,
-          description: input.description ? sanitizeString(input.description) : null,
-          series: input.series ? sanitizeString(input.series) : null,
+          title: sanitizeString(validatedInput.title),
+          author: validatedInput.author ? sanitizeString(validatedInput.author) : null,
+          publicationDate: validatedInput.publicationDate ? sanitizeString(validatedInput.publicationDate) : null,
+          genre: validatedInput.genre ? sanitizeString(validatedInput.genre) : null,
+          isbn: validatedInput.isbn ? sanitizeString(validatedInput.isbn) : null,
+          editor: validatedInput.editor ? sanitizeString(validatedInput.editor) : null,
+          vignetteImage: validatedInput.vignetteImage ? sanitizeString(validatedInput.vignetteImage) : null,
+          bookImage: validatedInput.bookImage ? sanitizeString(validatedInput.bookImage) : null,
+          ageLimit: validatedInput.ageLimit !== undefined ? parseInt(validatedInput.ageLimit) : null,
+          description: validatedInput.description ? sanitizeString(validatedInput.description) : null,
+          series: validatedInput.series ? sanitizeString(validatedInput.series) : null,
         };
 
         // Valider les données
         validateBookInput(cleanInput);
 
-        // Vérifier que l'utilisateur est un administrateur avec accès aux données
-        requireAuth(context);
-
-
+        // Vérifier que l'ISBN n'est pas déjà utilisé
         if (cleanInput.isbn) {
           const existingBook = await db.query(
             'SELECT id_book FROM books WHERE isbn = $1',
@@ -233,12 +354,18 @@ export default {
           }
         }
 
+        // inserer created_at et updated_at = NOW()
+        const now = new Date();
+        const createdAt = now;
+        const updatedAt = now;
+
+        // Insérer le livre en base de données
         const result = await db.query(`
           INSERT INTO books (
             id_book, title, author, publication_date, genre, isbn, 
-            editor, vignetteimage, bookimage, age_limit, description, series
+            editor, vignetteimage, bookimage, age_limit, description, series, created_at, updated_at
           )
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
           RETURNING *
         `, [
           id,
@@ -252,7 +379,9 @@ export default {
           cleanInput.bookImage || null,
           cleanInput.ageLimit || null,
           cleanInput.description || null,
-          cleanInput.series || null
+          cleanInput.series || null,
+          createdAt,
+          updatedAt
         ]);
 
 
@@ -270,9 +399,6 @@ export default {
             originalError: error.message
           },
         });
-
-
-        throw handleDbError(error, 'creating book');
       }
     },
 
@@ -287,22 +413,57 @@ export default {
     updateBook: async (_, { input }, context) => {
       try {
 
+        /* exemple context JWT décodé ( à revoir):
+        {
+          userId: "uuid-of-user",
+          email: "user@example.com",
+          role: "admin"
+        }
+        */
+       /*exemple de requête :
+        mutation updateBook($input: UpdateBookInput!) { updateBook(input: $input) {__typename }}
+
+        */
+        /* Exemple variables :
+        { "input": 
+        {"id_book": "4c6dbaa3-9300-425e-88b6-8b2ee81d035e",
+          "title" :"toto au travail",
+        }
+        }       
+        */
+
         // Vérifier que l'utilisateur est un administrateur avec accès aux données
         requireAdmin(context);
 
-        // Sanitize ID
-        const cleanIdBook = sanitizeString(input.idBook);
+        // Validation Joi de l'input => 1ere couche - défense en profondeur
+        const validatedInput = validateWithJoi(updateBookSchema, {   
+          id: input.id_book,     
+          title: input.title,
+          author: input.author,
+          publication_date: input.publicationDate,
+          genre: input.genre,
+          isbn: input.isbn,
+          editor: input.editor,
+          vignetteimage: input.vignetteImage,
+          bookimage: input.bookImage,
+          age_limit: input.ageLimit,
+          description: input.description,
+          series: input.series
+        });
+
+        // Sanitize ID => 2ème couche - défense en profondeur
+        const cleanIdBook = sanitizeString(validatedInput);
 
         // Vérifier que le livre existe
-        await findBookOrThrow(cleanIdBook);
+        findBookOrThrow(cleanIdBook.id);
 
 
         const updates = [];
         const values = [];
         let paramIndex = 1;
 
-        if (input.title !== undefined) {
-          const cleanTitle = sanitizeString(input.title);
+        if (validatedInput.title !== undefined) {
+          const cleanTitle = sanitizeString(validatedInput.title);
           if (cleanTitle.trim().length < 1) {
             throw new GraphQLError('Le titre ne peut pas être vide', {
               extensions: { code: 'BAD_REQUEST', httpStatus: 400 },
@@ -310,25 +471,26 @@ export default {
           }
           updates.push(`title = $${paramIndex++}`);
           values.push(cleanTitle);
-        }        if (input.author !== undefined) {
+        }        
+        if (validatedInput.author !== undefined) {
           updates.push(`author = $${paramIndex++}`);
-          values.push(sanitizeInput(input.author));
+          values.push(sanitizeInput(validatedInput.author));
         }
-        if (input.publicationDate !== undefined) {
+        if (validatedInput.publication_date !== undefined) {
           updates.push(`publication_date = $${paramIndex++}`);
-          values.push(sanitizeInput(input.publicationDate));
+          values.push(sanitizeInput(validatedInput.publication_date));
         }
-        if (input.genre !== undefined) {
+        if (validatedInput.genre !== undefined) {
           updates.push(`genre = $${paramIndex++}`);
-          values.push(sanitizeInput(input.genre));
+          values.push(sanitizeInput(validatedInput.genre));
         }
-        if (input.isbn !== undefined) {
-          const cleanIsbn = sanitizeString(input.isbn);
+        if (validatedInput.isbn !== undefined) {
+          const cleanIsbn = sanitizeString(validatedInput.isbn);
           // Vérifier que l'ISBN n'est pas déjà utilisé par un autre livre
           if (cleanIsbn) {
             const existing = await db.query(
               'SELECT id_book FROM books WHERE isbn = $1 AND id_book != $2',
-              [cleanIsbn, cleanIdBook]
+              [cleanIsbn, cleanIdBook.id]
             );
             if (existing.rows.length > 0) {
               throw new GraphQLError('Cet ISBN est déjà utilisé par un autre livre', {
@@ -339,21 +501,20 @@ export default {
           updates.push(`isbn = $${paramIndex++}`);
           values.push(cleanIsbn);
         }
-        if (input.editor !== undefined) {
+        if (validatedInput.editor !== undefined) {
           updates.push(`editor = $${paramIndex++}`);
-          values.push(sanitizeInput(input.editor));
+          values.push(sanitizeInput(validatedInput.editor));
         }
-        if (input.vignetteImage !== undefined) {
+        if (validatedInput.vignetteImage !== undefined) {
           updates.push(`vignetteimage = $${paramIndex++}`);
-          values.push(sanitizeInput(input.vignetteImage));
+          values.push(sanitizeInput(validatedInput.vignetteImage));
         }
-        if (input.bookImage !== undefined) {
+        if (validatedInput.bookImage !== undefined) {
           updates.push(`bookimage = $${paramIndex++}`);
-          values.push(sanitizeInput(input.bookImage));
+          values.push(sanitizeInput(validatedInput.bookImage));
         }
-
-        if (input.ageLimit !== undefined) {
-          const cleanAge = parseInt(input.ageLimit);
+        if (validatedInput.age_limit !== undefined) {
+          const cleanAge = parseInt(validatedInput.age_limit);
           if (cleanAge < 0 || cleanAge > 18) {
             throw new GraphQLError('L\'âge limite doit être entre 0 et 18', {
               extensions: { code: 'BAD_REQUEST', httpStatus: 400 },
@@ -362,13 +523,13 @@ export default {
           updates.push(`age_limit = $${paramIndex++}`);
           values.push(cleanAge);
         }
-        if (input.description !== undefined) {
+        if (validatedInput.description !== undefined) {
           updates.push(`description = $${paramIndex++}`);
-          values.push(sanitizeInput(input.description));
+          values.push(sanitizeInput(validatedInput.description));
         }
-        if (input.series !== undefined) {
+        if (validatedInput.series !== undefined) {
           updates.push(`series = $${paramIndex++}`);
-          values.push(sanitizeInput(input.series));
+          values.push(sanitizeInput(validatedInput.series));
         }
 
         if (updates.length === 0) {
@@ -379,7 +540,7 @@ export default {
             },
           });
         }
-        values.push(input.idBook);
+        values.push(cleanIdBook.id);
 
 
         const result = await db.query(`
@@ -393,6 +554,8 @@ export default {
           throw new Error('Book not found');
         }
 
+        // Return the Book object directly to match the schema (Book!)
+        if (context?.res?.status) context.res.status(200);
         return result.rows[0];
       } catch (error) {
         throw new GraphQLError("Erreur lors de la mise à jour du livre", {
@@ -415,16 +578,37 @@ export default {
     */
     deleteBook: async (_, { input }, context) => {
       try {
+
+        /* exemple context JWT décodé ( à revoir):
+        {
+          userId: "uuid-of-user",
+          email: "user@example.com",
+          role: "admin"
+        }
+        */
+       /*exemple de requête :
+            mutation deleteBook($input: DeleteBookInput!) { deleteBook(input: $input) }
+        */
+        /* Exemple variables :
+        {"input": {"id_book":"a1b2c3d4-e5f6-7g8h-9i0j-1k2l3m4n5o6p"} }
+        */
+
+
         // Vérifier que l'utilisateur est un administrateur avec accès aux données
         requireAdmin(context);
 
-        // Sanitize input
-        const cleanIdBook = sanitizeString(input.id_book);
+        // Validation Joi de l'input => 1ere couche - défense en profondeur
+        const validatedInput = validateWithJoi(deleteBookSchema, {
+          id: input.id_book
+        });
+
+        // Sanitize input => 2ème couche - défense en profondeur
+        const cleanIdBook = sanitizeString(validatedInput.id);
 
         // Vérifier que le livre existe
         await findBookOrThrow(cleanIdBook);
 
-       // Vérifier que le livre n'est pas dans des bibliothèques
+        // Vérifier que le livre n'est pas dans des bibliothèques (table bookhaslibrary)
         const inLibraries = await db.query(
           'SELECT COUNT(*)::int as count FROM bookhaslibrary WHERE id_book = $1',
           [cleanIdBook]
@@ -447,10 +631,11 @@ export default {
           [cleanIdBook]
         );
 
-        return {
-          data: true,
-          httpStatus: 200,
-        };
+        if (context && context.res && typeof context.res.status === 'function') {
+          context.res.status(200);
+        }
+
+        return true;
 
       } catch (error) {
         throw new GraphQLError("Erreur lors de la suppression du livre", {

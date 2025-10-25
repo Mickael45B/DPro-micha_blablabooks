@@ -8,7 +8,10 @@ enum UserOrderBy {
 }
 
 enum UserStatus {
-  ACTIVE
-  INACTIVE
-  SUSPENDED
+  1              # ACTIVE
+  2              # BLOCKED_BY_ADMIN
+  3              # BLOCKED_BY_USER
+  4              # BLOCKED_BY_BOTH
+  5              # DELETED
 }
+

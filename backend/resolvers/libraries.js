@@ -11,8 +11,8 @@ import {findLibraryOrThrow, requireEditableLibrary} from './utils/helpers/helper
 
 
 // ========================================
-// RESOLVERS
-// ========================================
+// RESOLVERS POUR LES BIBLIOTHÈQUES
+// ======================================== 
 
 export default {
   Query: {
@@ -24,8 +24,24 @@ export default {
      */
     getLibraries: async (_, args, context) => {
       try {
+
+        /* exemple context JWT décodé ( à revoir):
+        {
+          userId: "uuid-of-user",
+          email: "user@example.com",
+          role: "admin"
+        }
+        */
+        /*exemple de requête :
+        query {getLibraries{libraries{name, user{name}}}}
+        */
+        /* Exemple variables :
+        {
+        }
+        */
+        
         const { limit = 50, offset = 0, order = 'created_at', direction = 'ASC' } = args;
-        console.log('le contenu du context', context);
+        
         // Vérifier les droits d'accès
         //requireAdmin(context);
         
@@ -41,7 +57,7 @@ export default {
         );
         
         const result = await db.query(`
-          SELECT id_library, name, is_editable, id_user, created_at, updated_at
+          SELECT *
           FROM libraries
           ORDER BY ${safeOrder} ${safeDirection}
           LIMIT $1 OFFSET $2
@@ -76,22 +92,37 @@ export default {
      */
     getUserLibraries: async (_, { id_user }, context) => {
       try {
+
+        /* exemple context JWT décodé ( à revoir):
+        {
+          userId: "uuid-of-user",
+          email: "user@example.com",
+          role: "admin"
+        }
+        */
+       /*exemple de requête :
+        query  getUserLibraries($id_user: ID!) {getUserLibraries(id_user: $id_user) {id_library,name }}
+
+        */
+        /* Exemple variables :
+        {"id_user": "f6g7h8i9-j0k1-2l3m-4n5o-6p7q8r9s0t1u"}
+        */
+        
         // Sanitize input
         const cleanUserId = sanitizeString(id_user);
         
         // Vérifier les droits d'accès
-        requireOwnershipOrAdmin(cleanUserId, context);
+        //requireOwnershipOrAdmin(cleanUserId, context);
         
         const result = await db.query(
           'SELECT id_library, name, is_editable, id_user, created_at, updated_at FROM libraries WHERE id_user = $1',
           [cleanUserId]
         );
         
-        // Pas d'erreur 404 si vide, on retourne un tableau vide
-        return {
-          data: result.rows,
-          httpStatus: 200,
-        };
+        // Pas d'erreur 404 si vide, on retourne un tableau (conforme au schéma GraphQL qui attend une liste)
+        // On renvoie directement les rows (array) : [Library]
+        if (context?.res?.status) context.res.status(200);
+        return result.rows;
       } catch (error) {
         if (error instanceof GraphQLError) throw error;
         throw new GraphQLError('Erreur lors de la récupération des bibliothèques utilisateur', {
@@ -112,16 +143,31 @@ export default {
      */
     getLibrary: async (_, { id_library }, context) => {
       try {
+
+        /* exemple context JWT décodé ( à revoir):
+        {
+          userId: "uuid-of-user",
+          email: "user@example.com",
+          role: "admin"
+        }
+        */
+       /*exemple de requête :
+        query  getLibrary($id_library: ID!) {getLibrary(id_library: $id_library) {id_library,name user{name, role{role_name}} }}
+
+        */
+        /* Exemple variables :
+        {"id_library": "2b3c4d5e-6f7g-8h9i-0j1k-2l3m4n5o6p7q"}
+        */
+
+
         // Sanitize input
         const cleanLibraryId = sanitizeString(id_library);
         
         // Trouver la bibliothèque (throw 404 si non trouvée)
         const library = await findLibraryOrThrow(cleanLibraryId);
         
-        return {
-          data: library,
-          httpStatus: 200,
-        };
+        if (context?.res?.status) context.res.status(200);
+        return library;
       } catch (error) {
         if (error instanceof GraphQLError) throw error;
         throw new GraphQLError('Erreur lors de la récupération de la bibliothèque', {
@@ -142,9 +188,42 @@ export default {
      */
     searchLibraries: async (_, args, context) => {
       try {
+
+        /* exemple context JWT décodé ( à revoir):
+        {
+          userId: "uuid-of-user",
+          email: "user@example.com",
+          role: "admin"
+        }
+        */
+       /*exemple de requête :
+        query  searchLibraries($name: String!) {searchLibraries(name: $name) {id_library,name }}
+
+        */
+        /* Exemple variables :
+        {"name": "bob"}
+        */
+
+
+
         const { name, limit = 50, offset = 0 } = args;
         
-        // Sanitize inputs
+        // Vérifier les droits d'accès
+        requireAuth(context);
+
+        // Validation avec Joi => 1ere couche - défense en profondeur
+        const { error } = searchLibrariesSchema.validate({ name: cleanName, limit: cleanLimit, offset: cleanOffset });
+        if (error) {
+          throw new GraphQLError('Paramètres de recherche invalides', {
+            extensions: {
+              code: 'BAD_REQUEST',
+              httpStatus: 400,
+              originalError: error.message
+            },
+          });
+        }
+
+        // Sanitize inputs => 2eme couche - défense en profondeur
         const cleanName = sanitizeString(name);
         const cleanLimit = Math.min(Math.max(parseInt(limit) || 50, 1), 100);
         const cleanOffset = Math.max(parseInt(offset) || 0, 0);
@@ -203,13 +282,31 @@ export default {
      */
     addLibrary: async (_, { input }, context) => {
       try {
-        requireAuth(context);
+
+        /* exemple context JWT décodé ( à revoir):
+        {
+          userId: "uuid-of-user",
+          email: "user@example.com",
+          role: "admin"
+        }
+        */
+       /*exemple de requête :
+        mutation addLibrary($input: CreateLibraryInput!) { addLibrary(input: $input) {__typename }}
+
+        */
+        /* Exemple variables :
+        { "input": {
+          "name": "bibliothèque de toto",
+          "id_user": "1e2d3c4b-5a6f-7e8d-9c0b-1a2f3e4d5c6b"
+        }
+        }        
+        */
         
         // Sanitize input
         const cleanInput = sanitizeInput(input);
         
         // Vérifier les droits
-        requireOwnershipOrAdmin(cleanInput.idUser, context);
+        //requireOwnershipOrAdmin(cleanInput.id_user, context);
         
         // Validation
         if (!cleanInput.name || cleanInput.name.length < 3) {
@@ -223,21 +320,27 @@ export default {
         
         const id = uuidv4();
         
+        // inserer les created-at et updated-at en base
+        const createdAt = new Date();
+        const updatedAt = new Date();
+
+
         const result = await db.query(`
-          INSERT INTO libraries (id_library, name, is_editable, id_user)
-          VALUES ($1, $2, $3, $4)
+          INSERT INTO libraries (id_library, name, is_editable, id_user, created_at, updated_at)
+          VALUES ($1, $2, $3, $4, $5, $6)
           RETURNING id_library, name, is_editable, id_user, created_at, updated_at
         `, [
           id,
           cleanInput.name,
           cleanInput.isEditable !== undefined ? cleanInput.isEditable : true,
-          cleanInput.idUser,
+          cleanInput.id_user,
+          createdAt,
+          updatedAt
         ]);
         
-        return {
-          data: result.rows[0],
-          httpStatus: 201,
-        };
+        if (context?.res?.status) context.res.status(201);
+        return result.rows[0];
+
       } catch (error) {
         if (error instanceof GraphQLError) throw error;
         throw new GraphQLError('Erreur lors de la création de la bibliothèque', {
@@ -258,7 +361,27 @@ export default {
      */
     updateLibrary: async (_, { input }, context) => {
       try {
-        requireAuth(context);
+
+        /* exemple context JWT décodé ( à revoir):
+        {
+          userId: "uuid-of-user",
+          email: "user@example.com",
+          role: "admin"
+        }
+        */
+       /*exemple de requête :
+        mutation updateLibrary($input: UpdateLibraryInput!) { updateLibrary(input: $input) {__typename }}
+
+        */
+        /* Exemple variables :
+        { "input": 
+        {"id_library": "2b3c4d5e-6f7g-8h9i-0j1k-2l3m4n5o6p7q",
+          "name" :"toto au travail"
+        }
+        }       
+        */
+
+
         
         // Sanitize input
         const cleanInput = sanitizeInput(input);
@@ -268,7 +391,7 @@ export default {
         const library = await findLibraryOrThrow(cleanLibraryId);
         
         // Vérifier les droits
-        requireOwnershipOrAdmin(library.id_user, context);
+        //requireOwnershipOrAdmin(library.id_user, context);
         
         // Vérifier si modifiable
         requireEditableLibrary(library);
@@ -338,20 +461,39 @@ export default {
      */
     deleteAllLibrariesFromUser: async (_, { id_user }, context) => {
       try {
-        requireAdmin(context);
+
+        /* exemple context JWT décodé ( à revoir):
+        {
+          userId: "uuid-of-user",
+          email: "user@example.com",
+          role: "admin"
+        }
+        */
+       /*exemple de requête :
+            mutation deleteAllLibrariesFromUser($id_user: ID!) { deleteAllLibrariesFromUser(id_user: $id_user) }
+        */
+        /* Exemple variables :
+        {"id_user":"a1b2c3d4-e5f6-7g8h-9i0j-1k2l3m4n5o6p"}
+        */
+
+
+
+
+        //requireAdmin(context);
         
         // Sanitize input
         const cleanUserId = sanitizeString(id_user);
         
+        // supprimer toutes les bibliothèques de l'utilisateur sauf ceux non modifiables
+
         const result = await db.query(
-          'DELETE FROM libraries WHERE id_user = $1 RETURNING id_library',
+          'DELETE FROM libraries WHERE id_user = $1 AND is_editable = true RETURNING id_library',
           [cleanUserId]
         );
+
         
-        return {
-          data: result.rows.map(row => row.id_library),
-          httpStatus: 200,
-        };
+  if (context?.res?.status) context.res.status(200);
+  return true;
       } catch (error) {
         if (error instanceof GraphQLError) throw error;
         throw new GraphQLError('Erreur lors de la suppression des bibliothèques', {
@@ -372,7 +514,21 @@ export default {
      */
     deleteLibrary: async (_, { input }, context) => {
       try {
-        requireAuth(context);
+
+        /* exemple context JWT décodé ( à revoir):
+        {
+          userId: "uuid-of-user",
+          email: "user@example.com",
+          role: "admin"
+        }
+        */
+       /*exemple de requête :
+            mutation deleteLibrary($input: DeleteLibraryInput!) { deleteLibrary(input: $input) }
+        */
+        /* Exemple variables :
+        {"input": {"id_library":"2b3c4d5e-6f7g-8h9i-0j1k-2l3m4n5o6p7d"} }
+        */
+
         
         // Sanitize input
         const cleanLibraryId = sanitizeString(input.id_library);
@@ -391,10 +547,8 @@ export default {
           [cleanLibraryId]
         );
 
-        return {
-          data: true,
-          httpStatus: 200,
-        };
+        if (context?.res?.status) context.res.status(200);
+        return true;
       } catch (error) {
         if (error instanceof GraphQLError) throw error;
         throw new GraphQLError('Erreur lors de la suppression de la bibliothèque', {
@@ -418,15 +572,6 @@ export default {
      */
     user: async (parent) => {
       return fetchUserById(parent.id_user);
-    },
-
-    /**
-     * Résout le champ "role" d'une bibliothèque
-     * @param {object} parent - Objet bibliothèque parent
-     * @returns {string|null} Nom du rôle
-     */
-    role: async (parent) => {
-      return fetchUserRoleNameById(parent.id_role);
     },
 
   },

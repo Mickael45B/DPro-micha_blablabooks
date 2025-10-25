@@ -7,5 +7,5 @@ type RoleHasPermissions {
   updated_at: Date
   # Relations
   role: Role
-  permission: [Permission!]!
+  permissions: Permission!
 }

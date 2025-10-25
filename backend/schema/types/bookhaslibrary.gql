@@ -5,7 +5,7 @@ type BookHasLibrary {
   id_library: String!
   is_read: Boolean!
   is_favorite: Boolean!
-  created_at: Date!
+  created_at: Date! 
   updated_at: Date
   # Relations
   book: Book!

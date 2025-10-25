@@ -2,6 +2,7 @@
         messages: [Message!]!
         totalCount: Int!
         hasNextPage: Boolean!
+        httpStatus: Int
     }
 
 extend type Query {        # Type pour les résultats de recherche paginés
@@ -18,7 +19,7 @@ extend type Query {        # Type pour les résultats de recherche paginés
         getMessage(id_message: ID!): Message 
 
         # Récupérer les messages d'un utilisateur spécifique avec pagination
-        getUserMessages(userId: ID!, type: String!, limit: Int, offset: Int): PaginatedMessages
+        getUserMessages(userId: ID!, type: String, limit: Int, offset: Int): PaginatedMessages
 
         # Rechercher des messages par contenu avec pagination
         searchMessages(content: String!, limit: Int, offset: Int): PaginatedMessages

@@ -17,7 +17,7 @@ input DeleteMessageInput {
 
 # Marquer un message comme lu
 input MarkMessageAsReadInput {
-  idMessage: ID!
+  id_message: ID!
 }
 
 # Envoyer un message

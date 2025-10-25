@@ -12,11 +12,6 @@ import { isAuthenticated, requireAuth, requireAdmin, requireOwnershipOrAdmin, sa
 
 import { findReportOrThrow, validateReportInput} from './utils/helpers/helpers_Reports.js';
 
-
-
-
-
-
 export default {
   Query: {
 
@@ -34,8 +29,23 @@ export default {
     getReports: async (_, args, context) => {
       try {
 
+        /* exemple context JWT décodé ( à revoir):
+        {
+          userId: "uuid-of-user",
+          email: "user@example.com",
+          role: "admin"
+        }
+        */
+        /*exemple de requête :
+        query {getReports{reports{id_report, id_user, report_type, reported_id, reason, status, details, created_at, updated_at}}}
+        */
+        /* Exemple variables :
+        {
+        }
+        */
+
         // Vérification des droits d'accès
-        requireAdmin(context);
+        //requireAdmin(context);
 
         // Extraction et validation des paramètres de pagination et de tri
         const { limit = 50, offset = 0, order = 'created_at', direction = 'DESC' } = args;
@@ -88,6 +98,23 @@ export default {
     getReport: async (_, { id_report }, context) => {
       try {
 
+        /* exemple context JWT décodé ( à revoir):
+        {
+          userId: "uuid-of-user",
+          email: "user@example.com",
+          role: "admin"
+        }
+        */
+       /*exemple de requête :
+        query  getReport($id_report: ID!) {getReport(id_report: $id_report) {id_report, id_user, report_type, reported_id, reason, status, details, created_at, updated_at}}
+
+        */
+        /* Exemple variables :
+        {"id_report": "4f9a1c2e-7b5d-4a9f-8c2e-0b3a1d2c5e6f"}
+        */
+
+
+
         // Vérification des droits d'accès
         requireAuth(context);
 
@@ -102,10 +129,8 @@ export default {
 
         const report = await findReportOrThrow(sanitizedId);
 
-        return { 
-          report,
-          httpStatus: 200
-        };
+        if (context?.res?.status) context.res.status(200);
+        return report;
       } catch (error) {
         throw new GraphQLError('Erreur lors de la récupération du rapport', {
           extensions: {
@@ -115,7 +140,6 @@ export default {
           }
         });
       }
-        return result.rows[0] || null;
     },
 
     /**
@@ -130,8 +154,24 @@ export default {
      */
     searchReportsByUser: async (_, args, context) => {
       try {
+
+        /* exemple context JWT décodé ( à revoir):
+        {
+          userId: "uuid-of-user",
+          email: "user@example.com",
+          role: "admin"
+        }
+        */
+       /*exemple de requête :
+        query searchReportsByUser($id_user: ID!) {searchReportsByUser(id_user: $id_user) {reports{id_report, id_user, report_type, reported_id, reason, status, details, created_at, updated_at}}}
+
+        */
+        /* Exemple variables :
+        {"id_user": "1e2d3c4b-5a6f-7e8d-9c0b-1a2f3e4d5c6b"}
+        */
+
         // Vérification des droits d'accès
-         requireAuth(context);
+        requireOwnershipOrAdmin(cleanUserId, context);
 
         const currentUserId = context?.user?.id ?? context?.user?.id_user ?? null;
         const isAdminFlag =
@@ -141,8 +181,13 @@ export default {
             extensions: { code: 'UNAUTHENTICATED', httpStatus: 401 }
           });
         }
+        // si reported_id correspond à l'id_user du "context" il n'est pas affiché (l'utilisateur ne peut pas voir les rapports le concernant même s'il est admin)
+        if (context.user.id_user === report.reported_id) {
+          report.hidden = true;
+        }
+
         // Extraction et validation des paramètres de pagination et de tri
-        const { limit = 50, offset = 0, order = 'created_at', direction = 'DESC', userId } = args;
+        const { limit = 50, offset = 0, order = 'created_at', direction = 'DESC', id_user } = args;
 
         // Sanitize inputs
         const cleanLimit = Math.min(Math.max(parseInt(limit) || 50, 1), 100);
@@ -153,9 +198,9 @@ export default {
           sanitizeString(direction),
           validOrders
         );
-        const cleanUserId = sanitizeString(userId || '');
+        const cleanUserId = sanitizeString(id_user || '');
 
-        requireOwnershipOrAdmin(cleanUserId, context);
+        
 
         const result = await db.query(`
           SELECT id_report, id_user, report_type, reported_id, reason, status, details, created_at, updated_at
@@ -198,8 +243,24 @@ export default {
      */
     searchReportsByStatus: async (_, args, context) => {
       try {
+
+        /* exemple context JWT décodé ( à revoir):
+        {
+          userId: "uuid-of-user",
+          email: "user@example.com",
+          role: "admin"
+        }
+        */
+       /*exemple de requête :
+        query searchReportsByStatus($status: String!) {searchReportsByStatus(status: $status) {reports{id_report, id_user, report_type, reported_id, reason, status, details, created_at, updated_at}}}
+
+        */
+        /* Exemple variables :
+        {"status": "pending"}
+        */
+
         // Vérification des droits d'accès
-         requireAdmin(context);
+         requireOwnershipOrAdmin(cleanUserId, context);
 
         // Extraction et validation des paramètres de pagination et de tri
         const { limit = 50, offset = 0, order = 'created_at', direction = 'DESC', status } = args;
@@ -221,23 +282,31 @@ export default {
         );
         const cleanStatus = sanitizeString(status || '');
 
-        const queryParams = [cleanLimit, cleanOffset];
-        let whereClause = '';
+        // Build and run queries with correct parameter bindings depending on presence of status
+        let result, countResult;
         if (cleanStatus) {
-          whereClause = 'WHERE status = $3';
-          queryParams.push(cleanStatus);
+          // status provided -> bind status as $1, limit as $2, offset as $3
+          const params = [cleanStatus, cleanLimit, cleanOffset];
+          result = await db.query(`
+            SELECT * FROM reports
+            WHERE status = $1
+            ORDER BY ${safeOrder} ${safeDirection}
+            LIMIT $2 OFFSET $3
+          `, params);
+
+          const countQ = `SELECT COUNT(*)::int as count FROM reports WHERE status = $1`;
+          countResult = await db.query(countQ, [cleanStatus]);
+        } else {
+          // no status -> only limit/offset
+          result = await db.query(`
+            SELECT * FROM reports
+            ORDER BY ${safeOrder} ${safeDirection}
+            LIMIT $1 OFFSET $2
+          `, [cleanLimit, cleanOffset]);
+
+          countResult = await db.query('SELECT COUNT(*)::int as count FROM reports');
         }
-        const result = await db.query(`
-          SELECT * FROM reports
-          ${whereClause}
-          ORDER BY ${safeOrder} ${safeDirection}
-          LIMIT $1 OFFSET $2
-        `, queryParams);
-        const countQuery = `
-          SELECT COUNT(*)::int as count FROM reports
-          ${whereClause}
-        `;
-        const countResult = await db.query(countQuery, cleanStatus ? [cleanStatus] : []);
+        if (context?.res?.status) context.res.status(200);
         return {
           reports: result.rows,
           totalCount: countResult.rows[0].count,
@@ -265,10 +334,26 @@ export default {
      * @throws {GraphQLError} Si l'utilisateur n'a pas les droits (401 ou 403)
      * @throws {GraphQLError} Si une erreur se produit lors de la recherche des rapports (500)
      */
-    searchReportsByContent: async (_, args, context) => {
+    searchReportsByDetailsOrReason: async (_, args, context) => {
       try {
+
+        /* exemple context JWT décodé ( à revoir):
+        {
+          userId: "uuid-of-user",
+          email: "user@example.com",
+          role: "admin"
+        }
+        */
+       /*exemple de requête :
+        query searchReportsByDetailsOrReason($content: String!) {searchReportsByDetailsOrReason(content: $content) {reports{id_report, id_user, report_type, reported_id, reason, status, details, created_at, updated_at}}}
+
+        */
+        /* Exemple variables :
+        {"content": "et"}
+        */
+
         // Vérification des droits d'accès
-         requireAuth(context);
+         requireOwnershipOrAdmin(cleanUserId, context);
 
         // Extraction et validation des paramètres de pagination et de tri
         const { limit = 50, offset = 0, order = 'created_at', direction = 'DESC', content } = args;
@@ -277,7 +362,7 @@ export default {
         // Sanitize input
         const cleanLimit = Math.min(Math.max(parseInt(limit) || 50, 1), 100);
         const cleanOffset = Math.max(parseInt(offset) || 0, 0);
-        const validOrders = ['created_at', 'permission_name', 'updated_at'];
+        const validOrders = ['created_at', 'reason', 'status', 'updated_at'];
         const { order: safeOrder, direction: safeDirection } = validateOrderParams(
           sanitizeString(order), 
           sanitizeString(direction), 
@@ -294,9 +379,10 @@ export default {
         const searchPattern = `%${cleanContent}%`;
         
         const result = await db.query(`
-          SELECT id_report, id_user, report_type, reported_id, reason, status, details, created_at, updated_at FROM reports
+          SELECT id_report, id_user, report_type, reported_id, reason, status, details, created_at, updated_at 
+          FROM reports
           WHERE LOWER(reason) LIKE LOWER($1) OR LOWER(details) LIKE LOWER($1)
-          ORDER BY created_at DESC
+          ORDER BY ${safeOrder} ${safeDirection}
           LIMIT $2 OFFSET $3
         `, [searchPattern, cleanLimit, cleanOffset]);
         
@@ -320,8 +406,130 @@ export default {
             originalError: error.message
           },
         });
+      } 
+    },
+
+    /**
+     * Recherche des rapports avec filtres multiples et pagination
+     * 🔓 Route publique
+     * @param {string} content - Contenu à rechercher
+     * @param {number} limit - Limite de résultats (max 100)
+     * @param {number} offset - Décalage pour pagination
+     * @returns {object} { reports, totalCount, hasNextPage }
+     * @throws {GraphQLError} Si l'utilisateur n'a pas les droits (401 ou 403)
+     * @throws {GraphQLError} Si une erreur se produit lors de la recherche des rapports (500)
+     */
+    searchReports: async (_, args, context) => {
+      try {
+
+        /* exemple context JWT décodé ( à revoir):
+        {
+          userId: "uuid-of-user",
+          email: "user@example.com",
+          role: "admin"
+        }
+        */
+       /*exemple de requête :
+        query searchReports($id_user: ID, $status: String, $limit: Int, $offset: Int) {searchReports(id_user: $id_user, status: $status, limit: $limit, offset: $offset) {reports{id_report, id_user, report_type, reported_id, reason, status, details, created_at, updated_at}}}
+       */
+        /* Exemple variables :
+        {
+        "id_user": "1e2d3c4b-5a6f-7e8d-9c0b-1a2f3e4d5c6b",
+        "status": "pending",
+        "limit": 20,
+        "offset": 0        
+        }        
+        */
+ 
+
+        // Exemples de filtres acceptés : id_report, id_user, status, content
+        const { limit = 50, offset = 0, order = 'created_at', direction = 'DESC', id_report, id_user, status, content } = args;
+
+        // Sanitize & validate
+        const cleanLimit = Math.min(Math.max(parseInt(limit) || 50, 1), 100);
+        const cleanOffset = Math.max(parseInt(offset) || 0, 0);
+        const validOrders = ['created_at', 'reason', 'status', 'updated_at'];
+        const { order: safeOrder, direction: safeDirection } = validateOrderParams(
+          sanitizeString(order),
+          sanitizeString(direction),
+          validOrders
+        );
+
+        const cleanIdReport = sanitizeString(args.id_report || '');
+        const cleanUserId = sanitizeString(args.id_user || '');
+        const cleanStatus = sanitizeString(args.status || '');
+        const cleanContent = sanitizeString(args.content || '');
+
+        // Validate status if provided
+        const validStatuses = ['pending', 'reviewed', 'resolved'];
+        if (cleanStatus && !validStatuses.includes(cleanStatus)) {
+          throw new GraphQLError('Statut invalide', { extensions: { code: 'BAD_USER_INPUT', httpStatus: 400 } });
+        }
+
+        // Build WHERE clause dynamically and parameters array
+        const whereClauses = [];
+        const params = [];
+        let idx = 1;
+
+        if (cleanIdReport) {
+          whereClauses.push(`id_report = $${idx++}`);
+          params.push(cleanIdReport);
+        }
+
+        if (cleanUserId) {
+          whereClauses.push(`(id_user = $${idx} OR reported_id = $${idx})`);
+          params.push(cleanUserId);
+          idx++;
+        }
+
+        if (cleanStatus) {
+          whereClauses.push(`status = $${idx++}`);
+          params.push(cleanStatus);
+        }
+
+        if (cleanContent) {
+          whereClauses.push(`(LOWER(reason) LIKE LOWER($${idx}) OR LOWER(details) LIKE LOWER($${idx}))`);
+          params.push(`%${cleanContent}%`);
+          idx++;
+        }
+
+        const whereSQL = whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
+
+        // Add limit/offset as last parameters
+        params.push(cleanLimit);
+        params.push(cleanOffset);
+
+        const query = `
+          SELECT id_report, id_user, report_type, reported_id, reason, status, details, created_at, updated_at
+          FROM reports
+          ${whereSQL}
+          ORDER BY ${safeOrder} ${safeDirection}
+          LIMIT $${params.length - 1} OFFSET $${params.length}
+        `;
+ 
+        const result = await db.query(query, params);
+
+        // Count query: reuse whereSQL but avoid limit/offset
+        const countParams = params.slice(0, params.length - 2);
+        const countQuery = `SELECT COUNT(*)::int as count FROM reports ${whereSQL}`;
+        const countResult = countParams.length > 0 ? await db.query(countQuery, countParams) : await db.query(countQuery);
+
+        if (context?.res?.status) context.res.status(200);
+        const totalCount = countResult.rows[0].count;
+        return {
+          reports: result.rows,
+          totalCount,
+          hasNextPage: cleanOffset + cleanLimit < totalCount,
+          httpStatus: 200
+        };
+      } catch (error) {
+        if (error instanceof GraphQLError) throw error;
+        throw new GraphQLError('Erreur lors de la recherche des rapports', {
+          extensions: { code: 'INTERNAL_SERVER_ERROR', httpStatus: 500, originalError: error.message }
+        });
       }
     },
+
   },
 
   Mutation: {
@@ -338,8 +546,32 @@ export default {
      * @throws {GraphQLError} Si l'utilisateur n'a pas les droits (401 ou 403)
      * @throws {GraphQLError} Si une erreur se produit lors de la création du rapport (500)
      */
-    addReport: async (_, { input }) => {
+    addReport: async (_, { input }, context) => {
       try {
+
+        /* exemple context JWT décodé ( à revoir):
+        {
+          userId: "uuid-of-user",
+          email: "user@example.com",
+          role: "admin"
+        }
+        */
+       /*exemple de requête :
+       mutation addReport($input: CreateReportInput!) { addReport(input: $input) {id_report, id_user, report_type, reported_id, reason, status, details, created_at, updated_at}}
+
+        */
+        /* Exemple variables :
+        { "input": {
+          "id_user": "1e2d3c4b-5a6f-7e8d-9c0b-1a2f3e4d5c6b"
+          "report_type": "USER"
+          "reported_id": "2e3d4c5b-6a7f-8e9d-0c1b-2a3f4e5d6c7b"
+          "reason": "Inappropriate content"
+          "details": "This comment contains offensive language."
+          "status": "pending"
+        }
+        }
+        */
+
 
         // Vérification des droits d'accès
         requireAuth(context);
@@ -351,7 +583,7 @@ export default {
           });
         }
 
-        if (currentUserId !== input.idUser) {
+        if (currentUserId !== input.id_user) {
           throw new GraphQLError('Vous ne pouvez pas créer un rapport pour un autre utilisateur', {
             extensions: { code: 'FORBIDDEN', httpStatus: 403 }
           });
@@ -361,31 +593,30 @@ export default {
         validateReportInput(input);
 
         // Sanitize inputs
-        input.idUser = sanitizeString(input.idUser);
-        input.reportType = sanitizeString(input.reportType);
-        input.reportedId = sanitizeString(input.reportedId);
+        input.id_user = sanitizeString(input.id_user);
+        input.report_type = sanitizeString(input.report_type);
+        input.reported_id = sanitizeString(input.reported_id);
         input.reason = sanitizeString(input.reason);
         input.details = input.details ? sanitizeInput(input.details) : null;
+        input.status = sanitizeHtml(input.status || 'pending');
 
 
         const id = uuidv4();
         const result = await db.query(`
           INSERT INTO reports (id_report, id_user, report_type, reported_id, reason, details, status)
           VALUES ($1, $2, $3, $4, $5, $6, $7)
-          RETURNING id_report, id_user, report_type, reported_id, reason, status, details, created_at, updated_at
+          RETURNING *
         `, [
           id,
-          input.idUser,
-          input.reportType,
-          input.reportedId,
+          input.id_user,
+          input.report_type,
+          input.reported_id,
           input.reason,
-          'pending',
-          input.details || null
+          input.details || null,
+          input.status,
         ]);
-        return {
-          report: result.rows[0],
-          httpStatus: 201
-        };
+        if (context?.res?.status) context.res.status(201);
+        return result.rows[0];
       } catch (error) {
         if (error instanceof GraphQLError) throw error;
         throw new GraphQLError('Erreur lors de la création du rapport', {
@@ -399,6 +630,8 @@ export default {
     },
 
     /**
+              if (context?.res?.status) context.res.status(201);
+              return result.rows[0];
      * Met à jour un rapport existant
      * * 🔓 Route publique
      * @param {object} input - Données du rapport
@@ -411,111 +644,124 @@ export default {
      * @throws {GraphQLError} Si l'utilisateur n'a pas les droits (401 ou 403)
      * @throws {GraphQLError} Si une erreur se produit lors de la création du rapport (500)
      */
-    updateReport: async (_, { input }) => {
+    updateReport: async (_, { input }, context) => {
       try {
+
+        /* exemple context JWT décodé ( à revoir):
+        {
+          userId: "uuid-of-user",
+          email: "user@example.com",
+          role: "admin"
+        }
+        */
+       /*exemple de requête :
+        mutation updateReport($input: UpdateReportInput!) { updateReport(input: $input) {reason, details }}
+
+        */
+        /* Exemple variables :
+        { "input": 
+        {
+          "id_report": "4f9a1c2e-7b5d-4a9f-8c2e-0b3a1d2c5e6f",
+          "details": "modification du nom du rapport",
+        }
+        }       
+        */
+
+
+
         // Vérification des droits d'accès
-        requireAuth(context);
+        requireAdmin(context);
 
-        const currentUserId = context?.user?.id ?? context?.user?.id_user ?? null;
-        if (!currentUserId) {
-          throw new GraphQLError('Utilisateur non authentifié', {
-            extensions: { code: 'UNAUTHENTICATED', httpStatus: 401 }
-          });
-        }
+    // Sanitize inputs
+    const cleanIdReport = sanitizeString(input.id_report);
 
-        if (currentUserId !== input.idUser) {
-          throw new GraphQLError('Vous ne pouvez pas mettre à jour un rapport pour un autre utilisateur', {
-            extensions: { code: 'FORBIDDEN', httpStatus: 403 }
-          });
-        }
-        // Validation des données d'entrée
-        validateReportInput(input); 
+    if (!cleanIdReport) {
+      throw new GraphQLError('ID de rapport invalide', {
+        extensions: { code: 'BAD_USER_INPUT', httpStatus: 400 }
+      });
+    }
 
-        // Sanitize inputs
-        const cleanIdReport = sanitizeString(input.idReport);
-        const cleanStatus = sanitizeString(input.status);
-        const cleanReportType = sanitizeString(input.reportType);
-        const cleanDetails = sanitizeInput(input.details);
+    // Vérifier que le rapport existe
+    await findReportOrThrow(cleanIdReport);
 
-        if (!cleanIdReport) {
-          throw new GraphQLError('ID de rapport invalide', {
-            extensions: { code: 'BAD_USER_INPUT', httpStatus: 400 }
-          });
-        }
+    // Construction SÉCURISÉE de la requête UPDATE avec paramètres positionnels
+    const updates = [];
+    const values = [];
+    let paramIndex = 1;
 
-        if (!cleanStatus) {
-          throw new GraphQLError('Statut de rapport invalide', {
-            extensions: { code: 'BAD_USER_INPUT', httpStatus: 400 }
-          });
-        }
-
-        if (!cleanReportType) {
-          throw new GraphQLError('Type de rapport invalide', {
-            extensions: { code: 'BAD_USER_INPUT', httpStatus: 400 }
-          });
-        }
-
-        if (input.details !== undefined || cleanDetails === null) {
-          throw new GraphQLError('Détails de rapport invalides', {
-            extensions: { code: 'BAD_USER_INPUT', httpStatus: 400 }
-          });
-        }
-
-
-        // Construction dynamique de la requête UPDATE
-        const updates = [];
-        const values = [];
-        let paramIndex = 1;
-
-        if (input.status !== undefined) {
-          updates.push(`status = ${paramIndex++}`);
-          values.push(input.status);
-        }
-
-        if (input.details !== undefined) {
-          updates.push(`details = ${paramIndex++}`);
-          values.push(input.details);
-        }
-
-        if (input.reportType !== undefined) {
-          updates.push(`report_type = ${paramIndex++}`);
-          values.push(input.reportType);
-        }
-
-        if (updates.length === 0) {
-          throw new Error('No fields to update');
-        }
-
-        values.push(input.idReport);
-
-        const result = await db.query(`
-          UPDATE reports
-          SET ${updates.join(', ')}
-          WHERE id_report = ${paramIndex}
-          RETURNING id_report, id_user, report_type, reported_id, reason, status, details, created_at, updated_at
-        `, values);
-
-        if (result.rows.length === 0) {
-          throw new Error('Report not found');
-        }
-
-        return {
-          ...result.rows[0],
-          httpStatus: 200
-        };
-
-      } catch (error) {
-        if (error instanceof GraphQLError) throw error;
-        throw new GraphQLError("Erreur lors de la modification du rapport", {
-          extensions: { 
-            code: 'INTERNAL_SERVER_ERROR',
-            httpStatus: 500,
-            originalError: error.message
-          },
+    if (input.status !== undefined) {
+      const validStatuses = ['pending', 'reviewed', 'resolved'];
+      const cleanStatus = sanitizeString(input.status);
+      
+      if (!validStatuses.includes(cleanStatus)) {
+        throw new GraphQLError('Statut invalide', {
+          extensions: { code: 'BAD_USER_INPUT', httpStatus: 400 }
         });
       }
-    },
+      
+      updates.push(`status = $${paramIndex++}`);
+      values.push(cleanStatus);
+    }
 
+    if (input.details !== undefined) {
+      const cleanDetails = input.details ? sanitizeString(input.details) : null;
+      updates.push(`details = $${paramIndex++}`);
+      values.push(cleanDetails);
+    }
+
+    if (input.reportType !== undefined) {
+      const validReportTypes = ['user', 'comment', 'book', 'review', 'message'];
+      const cleanReportType = sanitizeString(input.reportType);
+      
+      if (!validReportTypes.includes(cleanReportType)) {
+        throw new GraphQLError('Type de rapport invalide', {
+          extensions: { code: 'BAD_USER_INPUT', httpStatus: 400 }
+        });
+      }
+      
+      updates.push(`report_type = $${paramIndex++}`);
+      values.push(cleanReportType);
+    }
+
+    if (updates.length === 0) {
+      throw new GraphQLError('Aucun champ à mettre à jour', {
+        extensions: { code: 'BAD_USER_INPUT', httpStatus: 400 }
+      });
+    }
+
+    // Ajouter updated_at
+    updates.push(`updated_at = CURRENT_TIMESTAMP`);
+
+    // Ajouter l'ID du rapport comme dernier paramètre
+    values.push(cleanIdReport);
+
+    const result = await db.query(`
+      UPDATE reports
+      SET ${updates.join(', ')}
+      WHERE id_report = $${paramIndex}
+      RETURNING id_report, id_user, report_type, reported_id, reason, status, details, created_at, updated_at
+    `, values);
+
+    if (result.rows.length === 0) {
+      throw new GraphQLError('Rapport non trouvé', {
+        extensions: { code: 'NOT_FOUND', httpStatus: 404 }
+      });
+    }
+
+        if (context?.res?.status) context.res.status(201);
+        return result.rows[0];
+
+  } catch (error) {
+    if (error instanceof GraphQLError) throw error;
+    throw new GraphQLError("Erreur lors de la modification du rapport", {
+      extensions: { 
+        code: 'INTERNAL_SERVER_ERROR',
+        httpStatus: 500,
+        originalError: error.message
+      },
+    });
+  }
+},
     /**
      * Supprime un rapport existant
      * * 🔓 Route publique
@@ -529,14 +775,28 @@ export default {
      * @throws {GraphQLError} Si l'utilisateur n'a pas les droits (401 ou 403)
      * @throws {GraphQLError} Si une erreur se produit lors de la suppression du rapport (500)
      */
-    deleteReport: async (_, { input }) => {
+    deleteReport: async (_, { input }, context) => {
       try {
 
-        // Vérification des droits d'accès
-        requireAuth(context);
+        /* exemple context JWT décodé ( à revoir):
+        {
+          userId: "uuid-of-user",
+          email: "user@example.com",
+          role: "admin"
+        }
+        */
+       /*exemple de requête :
+            mutation deleteReport($input: DeleteReportInput!) { deleteReport(input: $input) }
+        */
+        /* Exemple variables :
+        {"input": {"id_report":"4f9a1c2e-7b5d-4a9f-8c2e-0b3a1d2c5e6f"} }
+        */
+
+        // Vérification des droits d'accès (admin uniquement pour supprimer)
+        requireAdmin(context);
 
         // Sanitize input
-        const cleanIdReport = sanitizeString(input.idReport);
+        const cleanIdReport = sanitizeString(input.id_report);
 
         if (!cleanIdReport) {
           throw new GraphQLError('ID de rapport invalide', {
@@ -544,18 +804,17 @@ export default {
           });
         }
 
-        //Vérification de l'existence du rapport
-        const report = await findReportOrThrow(cleanIdReport);
+        // Vérification de l'existence du rapport
+        await findReportOrThrow(cleanIdReport);
 
         // Suppression du rapport
         const result = await db.query(
           'DELETE FROM reports WHERE id_report = $1 RETURNING id_report',
           [cleanIdReport]
         );
-        return {
-          success: result.rows.length > 0,
-          httpStatus: 200
-        };
+        
+        if (context?.res?.status) context.res.status(200);
+        return true ;
       } catch (error) {
         if (error instanceof GraphQLError) throw error;
         throw new GraphQLError("Erreur lors de la suppression du rapport", {

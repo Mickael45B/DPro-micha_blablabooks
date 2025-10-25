@@ -32,8 +32,8 @@ export const findPermissionsOrThrow = async (permissionId) => {
  * @param {object} input - Données du message
  * @throws {GraphQLError} Si validation échoue
  */
-export const validatePermissionInput = (input) => {
-if (!input.permission_name || input.permission_name.trim().length < 3) {
+export const validatePermissionInput = (name) => {
+if (!name || name.trim().length < 3) {
     throw new GraphQLError('La permission doit contenir au moins 3 caractères', {
       extensions: { 
         code: 'BAD_REQUEST',
@@ -42,7 +42,7 @@ if (!input.permission_name || input.permission_name.trim().length < 3) {
     });
   }
     
-  if (input.permission_name.length > 100) {
+  if (name.length > 100) {
     throw new GraphQLError('La permission ne peut pas dépasser 100 caractères', {
       extensions: { 
         code: 'BAD_REQUEST',

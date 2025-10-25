@@ -3,6 +3,7 @@ type PaginatedBooksInLibrary {
     books: [BookHasLibrary!]!
     totalCount: Int!
     hasNextPage: Boolean!
+    httpStatus: Int  
 }
 
 extend type Query {

@@ -1,0 +1,77 @@
+import Joi from "joi";
+
+//-----------------------------------------------------------
+//QUERIES 
+//-----------------------------------------------------------
+export const getReportsSchema = Joi.object({
+    limit: Joi.number().integer().min(1).max(100).default(50),
+    offset: Joi.number().integer().min(0).default(0),
+    order: Joi.string().valid('id_report', 'id_user', 'report_type', 'reported_id', 'reason', 'status', 'created_at', 'updated_at').default('created_at'),
+    direction: Joi.string().valid('ASC', 'DESC').default('DESC'),
+});
+
+export const getReportSchema = Joi.object({
+    id_report: Joi.string().min(34).max(36).required(), // UUIDv4
+});
+
+export const searchReportsByUserSchema = Joi.object({
+    id_user: Joi.string().min(34).max(36).required(), // UUIDv4
+});
+
+export const searchReportsByStatusSchema = Joi.object({
+    status: Joi.string().valid('pending', 'in_review', 'resolved', 'dismissed').required(),
+});
+
+export const searchReportsByDetailsOrReasonSchema = Joi.object({
+    content: Joi.string().min(3).max(255).required(),
+});
+
+export const searchReportsSchema = Joi.object({
+    id_report: Joi.string().min(34).max(36).optional(), // UUIDv4
+    id_user: Joi.string().min(34).max(36).optional(), // UUIDv4
+    status: Joi.string().valid('pending', 'in_review', 'resolved', 'dismissed').optional(),
+    content: Joi.string().min(3).max(255).optional(),
+});
+
+//-----------------------------------------------------------
+//MUTATIONS
+//-----------------------------------------------------------
+export const addReportSchema = Joi.object({
+    id_user: Joi.string().min(34).max(36).required(), // UUIDv4
+    report_type: Joi.string().valid('user', 'review', 'message', 'other').required(),
+    reported_id: Joi.string().min(34).max(36).required(), // UUIDv4
+    reason: Joi.string().min(3).max(255).required(),
+    details: Joi.string().max(1000).optional(),
+});
+
+export const updateReportSchema = Joi.object({
+    id_report: Joi.string().min(34).max(36).required(), // UUIDv4
+    id_user: Joi.string().min(34).max(36).optional(), // UUIDv4
+    report_type: Joi.string().valid('user', 'review', 'message', 'other').optional(),
+    reported_id: Joi.string().min(34).max(36).optional(), // UUIDv4
+    reason: Joi.string().min(3).max(255).optional(),
+    details: Joi.string().max(1000).optional(),
+});
+
+export const deleteReportSchema = Joi.object({
+    id_report: Joi.string().min(34).max(36).required(), // UUIDv4
+});
+
+
+
+/*
+-----------------------------------------------------------
+TABLE MESSAGES
+-----------------------------------------------------------
+
+  id_report     VARCHAR(42) PRIMARY KEY,
+  id_user       VARCHAR(42) REFERENCES users(id_user) ON DELETE SET NULL,-- Le champ id_user référence l'utilisateur qui a fait le signalement
+  report_type   VARCHAR(50) NOT NULL CHECK (report_type IN ('user', 'review', 'message', 'other')),-- Le champ report_type indique le type d'entité signalée
+  reported_id   VARCHAR(42), -- Le champ reported_id contient l'ID de l'entité signalée. ID de l'entité signalée (user, review, message, etc.)
+  reason        VARCHAR(255) NOT NULL CHECK (length(btrim(reason)) > 0),-- Le champ reason contient la raison du signalement
+  details       TEXT,-- Le champ details peut contenir des informations supplémentaires
+  status        VARCHAR(50) NOT NULL CHECK (status IN ('pending', 'in_review', 'resolved', 'dismissed')) DEFAULT 'pending',-- Le champ status indique l'état du signalement (en attente, en cours de traitement, résolu, rejeté)
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at    TIMESTAMPTZ
+
+*/

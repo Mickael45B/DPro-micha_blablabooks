@@ -75,8 +75,8 @@ app.get("/graphql", (req, res) => {
 });
 
 // Monter le router REST
-import {router} from "./router/router.js";   // ./router/index.js si tu utilises index
-app.use("/api", router);
+// import {router} from "./router/router.js";   // ./router/index.js si tu utilises index
+// app.use("/api", router);
 
 // 🔗 Route GraphQL (API - use POST with application/json)
 app.use(

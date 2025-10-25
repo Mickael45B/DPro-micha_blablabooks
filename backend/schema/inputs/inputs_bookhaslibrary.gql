@@ -1,12 +1,12 @@
 # Créer une association livre-bibliothèque
 input CreateBookHasLibraryInput {
-  bookId: ID!
-  libraryId: ID!
+  id_book: ID!
+  id_library: ID!
 }
 
 # Mettre à jour une association livre-bibliothèque
 input UpdateBookHasLibraryInput {
-  id_bookhaslibrary: ID!
+  id_bookhaslibrary: ID
   bookId: ID
   libraryId: ID
   is_read: Boolean

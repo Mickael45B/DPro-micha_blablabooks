@@ -1,17 +1,23 @@
         type PaginatedBooks {
+        # flattened list of Book objects - allows queries like getBooks { books { title } }
         books: [Book!]!
+        # backward-compatible access to edges (node + cursor)
+        bookEdges: [BookEdge!]!
+        # convenience: flattened list (alias for books)
+        nodes: [Book!]!
         totalCount: Int!
         hasNextPage: Boolean!
+        httpStatus: Int
         }
 
 extend type Query {        # Type pour les résultats de recherche paginés
 
         # Récupérer tous les livres
-        getBooks(
-            pagination: PaginationInput
-            filter: BookFilter
-            sort: BookSort
-        ): BookConnection!
+                getBooks(
+                        pagination: PaginationInput
+                        filter: BookFilter
+                        sort: BookSort
+                ): PaginatedBooks
         
         # Récupérer un livre par son ID
         getBook(id_book: ID!): Book 

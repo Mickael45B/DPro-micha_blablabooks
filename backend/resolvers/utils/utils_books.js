@@ -1,6 +1,6 @@
 import db from "../../db/connect_DB.js";
 
-const fetchUserById = async (id_book) => {
+const fetchBookById = async (id_book) => {
 
     if (!id_book) return null;
 
@@ -18,5 +18,5 @@ const fetchUserById = async (id_book) => {
 
 
 
-    export default fetchUserById;
+    export default fetchBookById;
 

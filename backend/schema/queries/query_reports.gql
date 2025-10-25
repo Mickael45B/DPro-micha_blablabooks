@@ -2,6 +2,7 @@
         reports: [Report!]!
         totalCount: Int!
         hasNextPage: Boolean!
+        httpStatus: Int
     }
 
 extend type Query {        # Type pour les résultats de recherche paginés
@@ -16,6 +17,18 @@ extend type Query {        # Type pour les résultats de recherche paginés
         # Récupérer un rapport par son ID
         getReport(id_report: ID!): Report 
 
-        # Rechercher des rapports par contenu avec pagination
-        searchReports(content: String!, limit: Int, offset: Int): PaginatedReports!
+        # Rechercher des rapports par utilisateur avec pagination
+        searchReportsByUser(id_user: ID!, limit: Int, offset: Int): PaginatedReports!
+
+        # Rechercher des rapports par statut avec pagination
+        searchReportsByStatus(status: String!, limit: Int, offset: Int): PaginatedReports!
+
+        # Rechercher des rapports par contenu spécifique avec pagination
+        searchReportsByDetailsOrReason(content: String!, limit: Int, offset: Int): PaginatedReports!
+
+        # Recherche des rapports avec filtres multiples et pagination
+        searchReports(id_report: ID, id_user: ID, status: String, content: String, limit: Int, offset: Int): PaginatedReports!
+
+
+
 }

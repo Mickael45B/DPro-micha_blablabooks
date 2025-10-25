@@ -11,3 +11,4 @@ type PageInfo {
   pageNumber: Int
   totalPages: Int
 }
+

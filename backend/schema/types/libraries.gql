@@ -8,6 +8,5 @@ type Library {
   updated_at: Date
   # Relations
   user: User
-  role: String
 }
 

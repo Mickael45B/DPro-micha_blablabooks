@@ -2,6 +2,7 @@
         reviews: [Review!]!
         totalCount: Int!
         hasNextPage: Boolean!
+        httpStatus: Int
         }
 
 extend type Query {

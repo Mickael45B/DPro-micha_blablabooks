@@ -1,15 +1,15 @@
 input CreateBookInput {
   title: String!
-  author: String!
-  genre: String!
-  isbn: String!
-  publication_date: Date!
-  editor: String!
-  vignetteimage: String!
-  bookimage: String!
-  age_limit: Int!
-  description: String!
-  series: String!
+  author: String
+  genre: String
+  isbn: String
+  publication_date: Date
+  editor: String
+  vignetteimage: String
+  bookimage: String
+  age_limit: Int
+  description: String
+  series: String
 
 }
 
@@ -17,7 +17,7 @@ input UpdateBookInput {
   id_book: ID!
   title: String
   author: String
-  genre: BookGenre
+  genre: String
   isbn: String
   publication_date: Date
   editor: String
@@ -39,10 +39,10 @@ input DeleteBookInput {
 input BookFilter {
   title: String
   author: String
-  genre: BookGenre
+  genre: String
   minRating: Float
   maxRating: Float
-  ageLimit: AgeLimit
+  ageLimit: Int
   inLibrary: Boolean
   isFavorite: Boolean
   publicationDate: DateRangeInput

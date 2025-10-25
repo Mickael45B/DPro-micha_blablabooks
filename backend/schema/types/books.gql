@@ -1,7 +1,7 @@
 # Type pour représenter un livre
 type Book {
   id_book: ID! # Utilisation de ID pour les identifiants uniques
-  title: String
+  title: String!
   isbn: String
   publication_date: String # Utilisation de String pour les dates (format ISO 8601 recommandé)
   author: String
@@ -21,3 +21,30 @@ type Book {
   # Relations
 }
 
+type BookEdge {
+  node: Book!
+  cursor: String!
+}
+
+type BookConnection {
+  edges: [BookEdge!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+
+input BookFilter {
+  title: String
+  author: String
+  genre: String
+  minRating: Float
+  maxRating: Float
+  ageLimit: Int
+  inLibrary: Boolean
+  isFavorite: Boolean
+  publicationDate: DateRangeInput
+}
+
+input BookSort {
+  orderBy: BookOrderBy!
+  direction: OrderDirection!
+}

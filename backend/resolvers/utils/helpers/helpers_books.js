@@ -2,8 +2,41 @@ import db from "../../../db/connect_DB.js";
 import { GraphQLError } from 'graphql';
 import fetchLibraryById from '../utils_librairies.js';
 import { requireAuth} from './helpers_general.js';
+import {getBooksSchema, createBookSchema, updateBookSchema, deleteBookSchema} from '../../../schema/schemas_joi/bookSchema.js';
+import pkg from 'joi';
+import { validate as uuidValidate } from 'uuid';
 
+const { validate } = pkg;
 
+/** * Valide les données avec un schéma Joi
+ * @param {Joi.Schema} schema - Schéma de validation Joi
+ * @param {object} data - Données à valider
+ */
+export const validateWithJoi = (schema, data) => {
+  const { error, value } = schema.validate(data, {
+    abortEarly: false, // Récupère toutes les erreurs
+    stripUnknown: true, // Supprime les champs non définis dans le schéma
+  });
+
+  if (error) {
+    const messages = error.details.map(detail => detail.message).join(', ');
+    throw new GraphQLError(messages, {
+      extensions: { 
+        code: 'BAD_REQUEST',
+        httpStatus: 400,
+        originalError: error.message
+      },
+    });
+  }
+
+  return value;
+};
+
+/**
+ * @param {object} bookId 
+  * @returns {object} Livre trouvé 
+  * @throws {GraphQLError} Si le livre n'est pas trouvé (404) 
+ */
 export const findBookOrThrow = async (bookId) => {
   const result = await db.query(
     'SELECT * FROM books WHERE id_book = $1',

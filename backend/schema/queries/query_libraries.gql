@@ -2,6 +2,7 @@
         libraries: [Library!]!
         totalCount: Int!
         hasNextPage: Boolean!
+        httpStatus: Int
         }
 
 extend type Query {        # Type pour les résultats de recherche paginés

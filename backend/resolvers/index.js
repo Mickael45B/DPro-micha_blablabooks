@@ -26,7 +26,7 @@ export default {
     ...roleshaspermissionsResolvers.Query,
     ...userResolvers.Query,
     
-    today: () => new Date().toISOString(),
+    //today: () => new Date().toISOString(),
   },
   
   Mutation: {

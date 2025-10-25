@@ -11,6 +11,7 @@ import fetchLibraryById from './utils/utils_librairies.js';
 import { isAuthenticated, requireAuth, requireAdmin, requireOwnershipOrAdmin, sanitizeString, sanitizeInput } from './utils/helpers/helpers_general.js';
 
 import { findPermissionsOrThrow, validatePermissionInput} from './utils/helpers/helpers_permissions.js';
+import { console } from "inspector";
 
 
 export default {
@@ -29,6 +30,22 @@ export default {
      */
     getPermissions: async (_, args, context) => {
       try {
+
+        /* exemple context JWT décodé ( à revoir):
+        {
+          userId: "uuid-of-user",
+          email: "user@example.com",
+          role: "admin"
+        }
+        */
+        /*exemple de requête :
+        query {getPermissions{permissions{permission_name}}}
+        */
+        /* Exemple variables :
+        {
+        }
+        */
+
         // Vérification des droits d'accès
         requireAdmin(context);
 
@@ -47,7 +64,7 @@ export default {
 
         // Requête SQL pour récupérer toutes les permissions
         const result = await db.query(`
-          SELECT id_permission, permission_name, created_at, updated_at
+          SELECT *
           FROM permissions
           ORDER BY ${safeOrder} ${safeDirection}
           LIMIT $1 OFFSET $2
@@ -84,6 +101,22 @@ export default {
     getPermission: async (_, { id_permission }, context) => {
       try {
 
+        /* exemple context JWT décodé ( à revoir):
+        {
+          userId: "uuid-of-user",
+          email: "user@example.com",
+          role: "admin"
+        }
+        */
+       /*exemple de requête :
+        query  getPermission($id_permission: ID!) {getPermission(id_permission: $id_permission) {permission_name }}
+
+        */
+        /* Exemple variables :
+        {"id_permission": 1}
+        */
+
+
         // Vérification des droits d'accès
         requireAdmin(context);  
 
@@ -100,10 +133,9 @@ export default {
         // Recherche de l'existence (ou non) de la permission dans la base de données
         const permission = await findPermissionsOrThrow(cleanIdPermission);
 
-        return {
-          permission,
-          httpStatus: 200,
-        };
+
+        if (context?.res?.status) context.res.status(200);
+        return permission;
 
       } catch (error) {
         if (error instanceof GraphQLError) throw error;
@@ -130,6 +162,21 @@ export default {
     searchPermissions: async (_, args, context) => {
       try {
 
+        /* exemple context JWT décodé ( à revoir):
+        {
+          userId: "uuid-of-user",
+          email: "user@example.com",
+          role: "admin"
+        }
+        */
+       /*exemple de requête :
+        query searchPermissions($name: String!) {searchPermissions(name: $name) {permissions{permission_name}}}
+
+        */
+        /* Exemple variables :
+        {"name": "et"}
+        */
+
         // Vérification des droits d'accès
         requireAdmin(context);
 
@@ -153,12 +200,12 @@ export default {
           });
         }
 
-        const searchPattern = `%${cleanPermissionName}%`;
+        const searchPattern = `%${cleanName}%`;
         
         const result = await db.query(`
           SELECT * FROM permissions
-          WHERE permission_name LIKE LOWER($1)
-          ORDER BY permission_name ASC
+          WHERE LOWER(permission_name) LIKE LOWER($1)
+          ORDER BY  ${safeOrder} ${safeDirection}
           LIMIT $2 OFFSET $3
         `, [searchPattern, cleanLimit, cleanOffset]);
         
@@ -200,12 +247,31 @@ export default {
     addPermission: async (_, { input }, context) => {
       try {
 
-        // Vérification des droits d'accès
-        requireAdmin(context);
+        /* exemple context JWT décodé ( à revoir):
+        {
+          userId: "uuid-of-user",
+          email: "user@example.com",
+          role: "admin"
+        }
+        */
+       /*exemple de requête :
+       mutation addPermission($input: CreatePermissionInput!) { addPermission(input: $input) {id_permission, permission_name, created_at}}
 
+        */
+        /* Exemple variables :
+        { "input": {
+          "name": "tester"
+        }
+        }               
+        */
+
+        // Vérification des droits d'accès
+        //requireAdmin(context);
+
+        console.log('Context in addPermission:', input);
         // Sanitize input
         const cleanName = sanitizeString(input.name);
-
+        console.log('Cleaned name in addPermission:', cleanName);
         if (!cleanName) {
           throw new GraphQLError('Nom de la permission manquant', {
             extensions: { code: 'BAD_USER_INPUT', httpStatus: 400 }
@@ -221,10 +287,8 @@ export default {
           VALUES ($1, $2)
           RETURNING *
         `, [id, cleanName]);
-        return {
-          data: result.rows[0],
-          httpStatus: 201
-        };
+        if (context?.res?.status) context.res.status(201);
+        return result.rows[0];
       } catch (error) {
         if (error instanceof GraphQLError) throw error;
         throw new GraphQLError("Erreur lors de l'ajout de la permission", {
@@ -250,8 +314,28 @@ export default {
     updatePermission: async (_, { input }, context) => {
       try {
 
+        /* exemple context JWT décodé ( à revoir):
+        {
+          userId: "uuid-of-user",
+          email: "user@example.com",
+          role: "admin"
+        }
+        */
+       /*exemple de requête :
+        mutation updatePermission($input: UpdatePermissionInput!) { updatePermission(input: $input) {__typename }}
+
+        */
+        /* Exemple variables :
+        { "input": 
+        {
+          "id_permission": "3c4d5e6f-7g8h-9i0j-1k2l-3m4n5y6p7q8r",
+          "name": "modification du nom de la permission"
+        }
+        }       
+        */
+        
         // Vérification des droits d'accès
-        requireAdmin(context);
+        //requireAdmin(context);
 
         // Sanitize input
         const cleanIdPermission = sanitizeString(input.id_permission);
@@ -316,6 +400,23 @@ export default {
      */
     deletePermission: async (_, { input }, context) => {
       try {
+
+        /* exemple context JWT décodé ( à revoir):
+        {
+          userId: "uuid-of-user",
+          email: "user@example.com",
+          role: "admin"
+        }
+        */
+       /*exemple de requête :
+            mutation deletePermission($input: DeletePermissionInput!) { deletePermission(input: $input) }
+        */
+        /* Exemple variables :
+        {"input": {"id_permission":"baa03f2e-d66a-413d-ad47-1e55f1c651ca"} }
+        */
+
+
+
         // Vérification des droits d'accès
         requireAdmin(context);
 
@@ -335,7 +436,8 @@ export default {
           'DELETE FROM permissions WHERE id_permission = $1 RETURNING id_permission',
           [cleanIdPermission]
         );
-        return result.rows.length > 0;
+        if (context?.res?.status) context.res.status(200);
+        return true ;
       } catch (error) {
         if (error instanceof GraphQLError) throw error;
         throw new GraphQLError("Erreur lors de la suppression de la permission", {

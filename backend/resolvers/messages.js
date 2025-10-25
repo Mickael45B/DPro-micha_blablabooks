@@ -30,10 +30,26 @@ export default {
      */
     getMessages: async (_, args, context) => {
       try {
+
+        /* exemple context JWT décodé ( à revoir):
+        {
+          userId: "uuid-of-user",
+          email: "user@example.com",
+          role: "admin"
+        }
+        */
+        /*exemple de requête :
+        query {getMessages{messages{id_message subject content}}}
+        */
+        /* Exemple variables :
+        {
+        }
+        */
+
         const { limit = 50, offset = 0, order = 'created_at', direction = 'DESC' } = args;
 
         // Vérification des droits admin
-        requireAdmin(context);
+        //requireAdmin(context);
 
         // Sanitize inputs
         const cleanLimit = Math.min(Math.max(parseInt(limit) || 50, 1), 100);
@@ -85,8 +101,20 @@ export default {
     getMessage: async (_, { id_message }, context) => {
       try {
 
-        // Vérifier l'accès
-        requireMessageAccess(message, context);
+        /* exemple context JWT décodé ( à revoir):
+        {
+          userId: "uuid-of-user",
+          email: "user@example.com",
+          role: "admin"
+        }
+        */
+       /*exemple de requête :
+        query  getMessage($id_message: ID!) {getMessage(id_message: $id_message) {id_message, subject, content }}
+
+        */
+        /* Exemple variables :
+        {"id_message": "3c4d5e6f-7g8h-9i0j-1k2l-3m4n5y6p7q8r"}
+        */
 
         // Sanitize input
         const cleanIdMessage = sanitizeString(id_message);
@@ -94,10 +122,12 @@ export default {
         // Vérifier que le message existe
         const message = await findMessageOrThrow(cleanIdMessage);
 
-        return {
-          data: message,
-          httpStatus: 200,
-        };
+         // Vérifier l'accès
+        requireMessageAccess(message, context);
+       
+
+        if (context?.res?.status) context.res.status(200);
+        return message;
       } catch (error) {
         if (error instanceof GraphQLError) throw error;
         throw new GraphQLError('Erreur lors de la récupération du message', {
@@ -123,10 +153,26 @@ export default {
      */
     getUserMessages: async (_, args, context) => {
       try {
+
+        /* exemple context JWT décodé ( à revoir):
+        {
+          userId: "uuid-of-user",
+          email: "user@example.com",
+          role: "admin"
+        }
+        */
+       /*exemple de requête :
+        query  getUserMessages($userId: ID!) {getUserMessages(userId: $userId) {messages{id_message, sender{name}} }}
+
+        */
+        /* Exemple variables :
+        {"userId": "1e2d3c4b-5a6f-7e8d-9c0b-1a2f3e4d5c6b"}
+        */
+
         const { userId, type = 'received', limit = 50, offset = 0 } = args;
 
         // Vérifier les droits
-        requireOwnershipOrAdmin(userId, context);
+        //requireOwnershipOrAdmin(userId, context);
 
         // Sanitize inputs
         const cleanUserId = sanitizeString(userId);
@@ -179,17 +225,35 @@ export default {
      */
     searchMessages: async (_, args, context) => {
       try {
-        const { search, limit = 50, offset = 0 } = args;
+
+        /* exemple context JWT décodé ( à revoir):
+        {
+          userId: "uuid-of-user",
+          email: "user@example.com",
+          role: "admin"
+        }
+        */
+       /*exemple de requête :
+        query searchMessages($content: String!) {searchMessages(content: $content) {messages{id_message, subject, content,sender{name,pseudo}, receiver{name,pseudo}}}}
+
+        */
+        /* Exemple variables :
+        {"content": "et"}
+        */
+
+
+
+        const { content, limit = 50, offset = 0 } = args;
 
         // Vérifier les droits admin
-        requireAdmin(context);
+        //requireAdmin(context);
 
         // Sanitize inputs
-        const cleanSearch = sanitizeString(search);
+        const cleanContent = sanitizeString(content);
         const cleanLimit = Math.min(Math.max(parseInt(limit) || 50, 1), 100);
         const cleanOffset = Math.max(parseInt(offset) || 0, 0);
 
-        if (!cleanSearch || cleanSearch.length < 2) {
+        if (!cleanContent || cleanContent.length < 2) {
           throw new GraphQLError('Le terme de recherche doit contenir au moins 2 caractères', {
             extensions: { 
               code: 'BAD_REQUEST',
@@ -198,7 +262,7 @@ export default {
           });
         }
 
-        const searchPattern = `%${cleanSearch}%`;
+        const searchPattern = `%${cleanContent}%`;
         
         const result = await db.query(`
           SELECT id_message, id_sender, id_receiver, subject, content, is_read, created_at, updated_at
@@ -244,13 +308,37 @@ export default {
      */
     addMessage: async (_, { input }, context) => {
       try {
+
+        /* exemple context JWT décodé ( à revoir):
+        {
+          userId: "uuid-of-user",
+          email: "user@example.com",
+          role: "admin"
+        }
+        */
+       /*exemple de requête :
+        mutation addMessage($input: CreateMessageInput!) { addMessage(input: $input) {id_message, subject, content }}
+
+        */
+        /* Exemple variables :
+        { "input": {
+          content: "Bonjour , ceci est le contenu du message.",
+          id_sender: "1e2d3c4b-5a6f-7e8d-9c0b-1a2f3e4d5c6b",
+          id_receiver: "5h6g7f8e-9d0c-1b2a-3f4e-5d6c7b8a9f0e",
+          subject: "Salut"
+        }
+        }
+               
+        */
+
+
         // Vérifier l'authentification
         requireAuth(context);
 
         // Sanitize input
         const cleanInput = {
-          idSender: sanitizeString(input.idSender),
-          idReceiver: sanitizeString(input.idReceiver),
+          idSender: sanitizeString(input.id_sender),
+          idReceiver: sanitizeString(input.id_receiver),
           subject: sanitizeString(input.subject),
           content: sanitizeString(input.content),
         };
@@ -309,10 +397,8 @@ export default {
           false
         ]);
 
-        return {
-          data: result.rows[0],
-          httpStatus: 201
-        };
+        if (context?.res?.status) context.res.status(201);
+        return result.rows[0];
       } catch (error) {
         if (error instanceof GraphQLError) throw error;
         throw new GraphQLError("Erreur lors de l'envoi du message", {
@@ -335,11 +421,33 @@ export default {
      */
     updateMessage: async (_, { input }, context) => {
       try {
+
+        /* exemple context JWT décodé ( à revoir):
+        {
+          userId: "uuid-of-user",
+          email: "user@example.com",
+          role: "admin"
+        }
+        */
+       /*exemple de requête :
+        mutation updateMessage($input: UpdateMessageInput!) { updateMessage(input: $input) {__typename }}
+
+        */
+        /* Exemple variables :
+        { "input": 
+        {
+          "id_message": "3c4d5e6f-7g8h-9i0j-1k2l-3m4n5y6p7q8r",
+          "content": "modification pour tester la mise à jour du message",
+          "subject": "modification du sujet"
+        }
+        }       
+        */
+
         // Vérifier l'authentification
         requireAuth(context);
 
         // Sanitize ID
-        const cleanIdMessage = sanitizeString(input.idMessage);
+        const cleanIdMessage = sanitizeString(input.id_message);
 
         // Vérifier que le message existe
         const message = await findMessageOrThrow(cleanIdMessage);
@@ -434,14 +542,31 @@ export default {
        * @throws {GraphQLError} Si l'utilisateur n'a pas les droits (401 ou 403)  
        * @throws {GraphQLError} Si une erreur se produit lors de la récupération des messages (500)
      */
-    markMessageAsRead: async (_, { id_message }, context) => {
+    markMessageAsRead: async (_, { input }, context) => {
       try {
+
+        /* exemple context JWT décodé ( à revoir):
+        {
+          userId: "uuid-of-user",
+          email: "user@example.com",
+          role: "admin"
+        }
+        */
+       /*exemple de requête :
+        mutation markMessageAsRead($input: MarkMessageAsReadInput!) { markMessageAsRead(input: $input) { id_message is_read updated_at } }
+
+        */
+        /* Exemple variables :
+          { "input": { "id_message": "3c4d5e6f-7g8h-9i0j-1k2l-3m4n5y6p7q8r" } }           
+         */
 
         // Vérifier l'authentification
         requireAuth(context);
 
+        // Support both { input: { id_message } } and legacy { id_message }
+        const rawId = input?.id_message ?? input?.idMessage ?? input ?? null;
         // Sanitize input
-        const cleanIdMessage = sanitizeString(id_message);
+        const cleanIdMessage = sanitizeString(rawId);
 
         // Vérifier que le message existe
         const message = await findMessageOrThrow(cleanIdMessage);
@@ -465,10 +590,8 @@ export default {
           RETURNING *
         `, [cleanIdMessage]);
 
-        return {
-          data: result.rows[0],
-          httpStatus: 200
-        };
+        if (context?.res?.status) context.res.status(200);
+        return result.rows[0];
       } catch (error) {
         if (error instanceof GraphQLError) throw error;
         throw new GraphQLError("Erreur lors de la mise à jour du message", {
@@ -489,19 +612,34 @@ export default {
        * @throws {GraphQLError} Si l'utilisateur n'a pas les droits (401 ou 403)  
        * @throws {GraphQLError} Si une erreur se produit lors de la récupération des messages (500)
      */
-    deleteMessage: async (_, { id_message }, context) => {
+    deleteMessage: async (_, { input }, context) => {
       try {
+
+        /* exemple context JWT décodé ( à revoir):
+        {
+          userId: "uuid-of-user",
+          email: "user@example.com",
+          role: "admin"
+        }
+        */
+       /*exemple de requête :
+            mutation deleteMessage($id_message: ID!) { deleteMessage(id_message: $id_message) }
+        */
+        /* Exemple variables :
+        {"input": {"id_message":"a1b2c3d4-e5f6-7g8h-9i0j-1k2l3m4n5o6p"} }
+        */
+
         // Vérifier l'authentification
         requireAuth(context);
 
         // Sanitize input
-        const cleanIdMessage = sanitizeString(id_message);
+        const cleanIdMessage = sanitizeString(input.id_message);
 
         // Vérifier que le message existe
         const message = await findMessageOrThrow(cleanIdMessage);
 
         // Vérifier l'accès
-        requireMessageAccess(message, context);
+        //requireMessageAccess(message, context);
 
         // Supprimer le message
         await db.query(
@@ -509,10 +647,8 @@ export default {
           [cleanIdMessage]
         );
 
-        return {
-          data: true,
-          httpStatus: 200,
-        };
+        if (context?.res?.status) context.res.status(200);
+        return true ;
       } catch (error) {
         if (error instanceof GraphQLError) throw error;
         throw new GraphQLError("Erreur lors de la suppression du message", {

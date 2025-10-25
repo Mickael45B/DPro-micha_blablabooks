@@ -2,6 +2,7 @@
     roleHasPermissions: [RoleHasPermissions!]!
     totalCount: Int!
     hasNextPage: Boolean!
+    httpStatus: Int
     }
 
 extend type Query {        # Type pour les résultats de recherche paginés
@@ -15,7 +16,7 @@ extend type Query {        # Type pour les résultats de recherche paginés
         ): PaginatedRoleHasPermissions
 
         # Récupérer un permission_role par son ID
-        getPermissionRole(id_permission_role: ID!): RoleHasPermissions 
+        getPermissionRole(id_rolehaspermission: ID!): RoleHasPermissions 
 
         # Rechercher des permissions_roles par nom avec pagination
         searchPermissionsRoles(name: String!, limit: Int, offset: Int): PaginatedRoleHasPermissions!

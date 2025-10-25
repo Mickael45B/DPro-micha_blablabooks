@@ -3,9 +3,9 @@ type User {
   id_user: ID!
   name: String
   email: String!
-  # password: String!
   pseudo: String!
   id_role: String
+  status: UserStatus!
   created_at: Date!
   updated_at: Date
   # Relations

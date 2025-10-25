@@ -5,6 +5,9 @@ extend type Mutation {
         # Mettre à jour un utilisateur existant
         updateUser(input: UpdateUserInput!): User!
 
+        # Réinitialisation forcée du mot de passe par un administrateur
+        adminResetPassword(input: AdminResetPasswordInput!): Boolean!
+
         # Changer le mot de passe d'un utilisateur
         changePassword(input: ChangePasswordInput!): Boolean!
 

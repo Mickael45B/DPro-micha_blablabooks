@@ -1,10 +1,10 @@
 input CreateRoleInput {
-  name: String!
+  role_name: String!
 }
 
 input UpdateRoleInput {
   id_role: ID!
-  name: String
+  role_name: String
 }
 
 input DeleteRoleInput {

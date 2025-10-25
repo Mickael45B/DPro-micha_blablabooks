@@ -86,7 +86,7 @@ CREATE TABLE users (
   password      VARCHAR(255) NOT NULL,
   pseudo        VARCHAR(100) UNIQUE NOT NULL CHECK (pseudo ~ '^[A-Za-z0-9](?:[A-Za-z0-9_'' ]*[A-Za-z0-9])?$'), -- lettres, chiffres, underscore, 3-30 caractères. Le pseudo est obligatoire et unique (2 utilisateurs ne peuvent pas avoir le même pseudo)
   id_role       VARCHAR(42) REFERENCES roles(id_role) ON DELETE SET NULL,
-  status        INTEGER NOT NULL DEFAULT 0 CHECK (status IN (0, 1, 2, 3)), -- 0 = non bloqué, 1 = bloqué par modérateur, 2 = bloqué par administrateur, 3 = bloqué par admin + utilisateur
+  status        INTEGER NOT NULL DEFAULT 0 CHECK (status IN (0, 1, 2, 3)), -- 1=actif, 2=bloqué par admin, 3=bloqué par l'utilisateur lui-même 4=bloqué par les 2 parties 5=supprimé
   created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at    TIMESTAMPTZ
 );

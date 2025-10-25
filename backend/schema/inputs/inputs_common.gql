@@ -3,6 +3,8 @@ input PaginationInput {
   after: String
   last: Int
   before: String
+  limit: Int
+  offset: Int
 }
 
 input DateRangeInput {
@@ -10,7 +12,3 @@ input DateRangeInput {
   endDate: Date
 }
 
-input PaginationInput {
-  limit: Int
-  offset: Int
-}

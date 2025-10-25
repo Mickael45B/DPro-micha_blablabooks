@@ -1,6 +1,6 @@
 input CreateLibraryInput {
   name: String!
-  isEditable: Boolean
+  isEditable: Boolean 
   id_user: String!
 }
 

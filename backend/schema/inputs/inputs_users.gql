@@ -11,7 +11,7 @@ input UpdateUserInput {
   name: String
   email: String
   pseudo: String
-  status: String
+  status: Int
   id_role: String
 }
 
@@ -50,13 +50,6 @@ input AdminCreateUserInput {
   isActive: Boolean
 }
 
-# Pour la mise à jour par l'utilisateur
-input UpdateUserInput {
-  name: String
-  email: String
-  pseudo: String
-}
-
 # Pour la mise à jour par l'admin
 input AdminUpdateUserInput {
   idUser: ID!
@@ -65,4 +58,9 @@ input AdminUpdateUserInput {
   pseudo: String
   idRole: ID
   isActive: Boolean
+}
+
+input AdminResetPasswordInput {
+  id_user: ID!
+  newPassword: String!
 }
