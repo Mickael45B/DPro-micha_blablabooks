@@ -13,6 +13,7 @@ import { isAuthenticated, requireAuth, requireAdmin, requireOwnershipOrAdmin, sa
 import { findReviewOrThrow, validateReviewInput} from './utils/helpers/helpers_Reviews.js';
 import { console } from "node:inspector";
 
+import {getReviewsSchema, getReviewSchema, searchReviewsSchema, addReviewSchema, updateReviewSchema, deleteReviewSchema } from '../schema/schemas_joi/reviewSchema.js';
 
 
 export default {

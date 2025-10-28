@@ -1,7 +1,9 @@
 import e from "express";
 import Joi from "joi";
 
-
+//-----------------------------------------------------------
+//QUERIES 
+//-----------------------------------------------------------
 export const getBooksInLibrarySchema = Joi.object({
     limit: Joi.number().integer().min(1).max(100).default(50),
     offset: Joi.number().integer().min(0).default(0),
@@ -19,6 +21,9 @@ export const searchBooksInLibrarySchema = Joi.object({
     offset: Joi.number().integer().min(0).default(0),
 });
 
+//-----------------------------------------------------------
+//MUTATIONS
+//-----------------------------------------------------------
 export const addBookHasLibrarySchema = Joi.object({
     id: Joi.string().min(34).max(36), // UUIDv4
     id_library: Joi.string().min(34).max(36).required(), // UUIDv4
@@ -51,8 +56,6 @@ export const addBooksToLibrarySchema = Joi.object({
     id_library: Joi.string().min(34).max(36).required(), // UUIDv4
     bookIds: Joi.array().items(Joi.string().min(34).max(36).required()).min(1).required(), // Liste des UUIDv4 des livres à ajouter
 });
-
-
 
 /*
 -------------------------------------------------------------------------------------------------------------------------

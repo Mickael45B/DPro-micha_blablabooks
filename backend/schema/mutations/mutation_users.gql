@@ -1,6 +1,6 @@
 extend type Mutation {        
-        # Ajouter un nouvel utilisateur
-        createUser(input: CreateUserInput!): User!
+        # Ajouter un nouvel utilisateur (renvoie AuthPayload pour fournir tokens + bibliothèques)
+        createUser(input: CreateUserInput!): AuthPayload!
 
         # Mettre à jour un utilisateur existant
         updateUser(input: UpdateUserInput!): User!
@@ -13,4 +13,21 @@ extend type Mutation {
 
         # Supprimer un utilisateur par son ID
         deleteUser(input: DeleteUserInput!): Boolean!
-}
+
+        # Inscription (alias possible)
+        register(input: RegisterUserInput!): AuthPayload!
+        
+        # Connexion
+        login(input: LoginInput!): AuthPayload!
+        
+        # Renouveler le token
+        refreshToken(refresh_token: String!): TokenPayload!
+
+        lastLogin(last_login: String!): TokenPayload!
+        
+        # Déconnexion
+        logout: Boolean!
+        }
+
+
+

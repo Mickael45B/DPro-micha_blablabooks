@@ -5,10 +5,13 @@ type User {
   email: String!
   pseudo: String!
   id_role: String
-  status: UserStatus!
+  id_status: Int!
+  refresh_token: String, 
+  last_login: DateTime, 
   created_at: Date!
   updated_at: Date
   # Relations
   role: Role
+  status: Status
   }
 

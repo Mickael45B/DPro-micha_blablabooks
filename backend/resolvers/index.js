@@ -9,6 +9,7 @@ import reviewResolvers from "./reviews.js";
 import rolesResolvers from "./roles.js";
 import roleshaspermissionsResolvers from "./Roleshaspermission.js";
 import userResolvers from "./users.js";
+import statusResolvers from "./status.js";
 
 export default {
   Date: DateResolver,
@@ -25,6 +26,7 @@ export default {
     ...rolesResolvers.Query,
     ...roleshaspermissionsResolvers.Query,
     ...userResolvers.Query,
+    ...statusResolvers.Query,
     
     //today: () => new Date().toISOString(),
   },
@@ -40,6 +42,7 @@ export default {
     ...rolesResolvers.Mutation,
     ...roleshaspermissionsResolvers.Mutation,
     ...userResolvers.Mutation,
+    ...statusResolvers.Mutation,
   },
   
   BookHasLibrary: bookhaslibraryResolvers.BookHasLibrary,
@@ -52,4 +55,5 @@ export default {
   Role: rolesResolvers.Role,
   RoleHasPermissions: roleshaspermissionsResolvers.RoleHasPermissions,
   User: userResolvers.User,
+  Status: statusResolvers.Status,
 };

@@ -1,0 +1,6 @@
+enum StatusOrderBy {
+  STATUS_NAME
+  CREATED_AT
+  UPDATED_AT
+}
+

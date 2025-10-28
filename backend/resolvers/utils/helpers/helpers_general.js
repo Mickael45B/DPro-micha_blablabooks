@@ -19,7 +19,9 @@ export const isAuthenticated = (context) => {
  * @throws {GraphQLError} Si non authentifié
  */
 export const requireAuth = (context) => {
-  if (!context.isAuthenticated) {
+  // Utiliser la fonction utilitaire isAuthenticated pour accepter
+  // context.token ou context.user (createContext fournit context.token)
+  if (!isAuthenticated(context)) {
     throw new GraphQLError('Vous devez être connecté pour effectuer cette action', {
       extensions: { 
         code: 'UNAUTHENTICATED',
@@ -240,8 +242,19 @@ Tu veux que j’applique ces améliorations maintenant (édition des fichiers), 
 
 
 
+"Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZF91c2VyIjoiMWUyZDNjNGItNWE2Zi03ZThkLTljMGItMWEyZjNlNGQ1YzZiIiwibmFtZSI6IkFsaWNlIER1cG9udCIsInBzZXVkbyI6InBldGl0IHBvaXNzb24ifQ.c8A_mkFWejX_6GDls2GbqCykqsvCISe6soTAHzHbQCM"
+
+{
+  "alg": "HS256",
+  "typ": "JWT"
+}
 
 
+{"id_user":"1e2d3c4b-5a6f-7e8d-9c0b-1a2f3e4d5c6b",
+"name":"Alice Dupont",
+"pseudo":"petit poisson"}
+
+si_tu_arrive_a_lire_ca_tu_es_un_genie
 
 
 */

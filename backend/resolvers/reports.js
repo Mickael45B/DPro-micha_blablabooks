@@ -12,6 +12,8 @@ import { isAuthenticated, requireAuth, requireAdmin, requireOwnershipOrAdmin, sa
 
 import { findReportOrThrow, validateReportInput} from './utils/helpers/helpers_Reports.js';
 
+import {getReportsSchema, getReportSchema, searchReportsByUserSchema, searchReportsByStatusSchema, searchReportsByDetailsOrReasonSchema, searchReportsSchema, addReportSchema, updateReportSchema, deleteReportSchema } from '../schema/schemas_joi/reportSchema.js';
+
 export default {
   Query: {
 

@@ -64,3 +64,16 @@ input AdminResetPasswordInput {
   id_user: ID!
   newPassword: String!
 }
+
+input RegisterUserInput {
+  name: String!
+  email: String!
+  pseudo: String!
+  password: String!
+}
+
+input LoginInput {
+  emailOrPseudo: String!
+  password: String!
+  rememberMe: Boolean
+}

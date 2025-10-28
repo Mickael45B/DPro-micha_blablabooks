@@ -1,0 +1,11 @@
+extend type Mutation {        
+        # Ajouter un nouvel utilisateur
+        createStatus(input: CreateStatusInput!): Status!
+
+        # Mettre à jour un utilisateur existant
+        updateStatus(input: UpdateStatusInput!): Status!
+
+        # Réinitialisation forcée du mot de passe par un administrateur
+        deleteStatus(input: DeleteStatusInput!): Boolean!
+
+}

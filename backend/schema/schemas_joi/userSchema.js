@@ -34,7 +34,7 @@ export const createUserSchema = Joi.object({
     email: Joi.string().email().max(255).required(),
     password: Joi.string().min(8).max(255).required(),
     pseudo: Joi.string().pattern(new RegExp('^[A-Za-z0-9](?:[A-Za-z0-9_\' ]*[A-Za-z0-9])?$')).min(3).max(30).required(),
-    id_role: Joi.string().uuid().valid(1, 2, 3, 4, 5).default(1), // par défaut rôle "utilisateur" (id_role = 1)
+    id_role: Joi.number().integer().valid(1, 2, 3, 4, 5).default(1), // par défaut rôle "utilisateur" (id_role = 1)
 });
 
 export const updateUserSchema = Joi.object({

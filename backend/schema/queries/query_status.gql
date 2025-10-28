@@ -1,0 +1,22 @@
+    type PaginatedStatuses {
+    status: [Status!]!
+    totalCount: Int!
+    hasNextPage: Boolean!
+    httpStatus: Int
+    }
+
+extend type Query {        # Type pour les résultats de recherche paginés
+        # Récupérer tous les statuts
+        getStatuses(
+            limit: Int, 
+            offset: Int, 
+            order: String = "created_at", # Colonne par défaut pour le tri
+            direction: String = "ASC" # Direction par défaut pour le tri (ASC ou DESC)
+        ): PaginatedStatuses
+
+        # Récupérer un statut par son ID
+        getStatus(id_status: ID!): Status
+
+        # Rechercher des statuts par nom avec pagination
+        searchStatuses(status_name: String!, limit: Int, offset: Int): PaginatedStatuses!
+}

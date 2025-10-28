@@ -74,9 +74,32 @@ CREATE TABLE rolehaspermissions (
 CREATE INDEX idx_rolehaspermissions_role ON rolehaspermissions(id_role);
 CREATE INDEX idx_rolehaspermissions_permission ON rolehaspermissions(id_permission);
 
+-- ---------------------------------------------------------
+-- 5) STATUS
+-- ---------------------------------------------------------
+-- Option A (développement) : utiliser des identifiants de type VARCHAR (UUID)
+-- Cela facilite la manipulation côté front et l'uniformité des IDs à travers les tables.
+CREATE TABLE status (
+  id_status     VARCHAR(42) PRIMARY KEY,
+  status_name   VARCHAR(100) NOT NULL UNIQUE,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at    TIMESTAMPTZ
+);
+
+CREATE INDEX idx_status_name ON status(status_name);
+
+-- Option B (production) : utiliser INT GENERATED ALWAYS AS IDENTITY
+-- Si vous préférez garder une colonne entière auto-incrémentée, remplacez la définition
+-- ci-dessus par :
+-- CREATE TABLE status (
+--   id_status     INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+--   status_name   VARCHAR(100) NOT NULL UNIQUE,
+--   created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+--   updated_at    TIMESTAMPTZ
+-- );
 
 -- ---------------------------------------------------------
--- 5) USERS
+-- 6) USERS
 -- ---------------------------------------------------------
 CREATE TABLE users (
   id_user       VARCHAR(42) PRIMARY KEY,
@@ -84,9 +107,11 @@ CREATE TABLE users (
   email         VARCHAR(255) NOT NULL UNIQUE 
                 CHECK (email ~* '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$'), -- format d'email basique
   password      VARCHAR(255) NOT NULL,
-  pseudo        VARCHAR(100) UNIQUE NOT NULL CHECK (pseudo ~ '^[A-Za-z0-9](?:[A-Za-z0-9_'' ]*[A-Za-z0-9])?$'), -- lettres, chiffres, underscore, 3-30 caractères. Le pseudo est obligatoire et unique (2 utilisateurs ne peuvent pas avoir le même pseudo)
+  pseudo VARCHAR(100) UNIQUE NOT NULL CHECK (pseudo ~ '^[A-Za-z0-9](?:[A-Za-z0-9_'' ]*[A-Za-z0-9])?$') CHECK (length(btrim(pseudo)) >= 3 AND length(pseudo) <= 32),
   id_role       VARCHAR(42) REFERENCES roles(id_role) ON DELETE SET NULL,
-  status        INTEGER NOT NULL DEFAULT 0 CHECK (status IN (0, 1, 2, 3)), -- 1=actif, 2=bloqué par admin, 3=bloqué par l'utilisateur lui-même 4=bloqué par les 2 parties 5=supprimé
+  id_status     VARCHAR(42) REFERENCES status(id_status) ON DELETE SET NULL,
+  refresh_token TEXT, -- pour stocker le refresh token (optionnel)
+  last_login    TIMESTAMPTZ,
   created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at    TIMESTAMPTZ
 );
@@ -96,8 +121,14 @@ CREATE INDEX idx_users_email ON users(email);
 CREATE INDEX idx_users_pseudo ON users(pseudo) WHERE pseudo IS NOT NULL;
 CREATE INDEX idx_users_role ON users(id_role) WHERE id_role IS NOT NULL;
 CREATE INDEX idx_users_pseudo_lower ON users(LOWER(pseudo));
+CREATE INDEX IF NOT EXISTS idx_users_refresh_token ON users(refresh_token) WHERE refresh_token IS NOT NULL;
+CREATE INDEX idx_users_last_login ON users(last_login) WHERE last_login IS NOT NULL;
 
-
+COMMENT ON TABLE users IS 'Utilisateurs de l''application BlablaBook';
+COMMENT ON COLUMN users.refresh_token IS 'Token JWT de renouvellement (validité 90 jours)';
+COMMENT ON COLUMN users.last_login IS 'Date de dernière connexion réussie';
+COMMENT ON COLUMN users.id_status IS 'Référence au statut utilisateur (actif, bloqué, etc.)';
+COMMENT ON COLUMN users.password IS 'Mot de passe hashé avec bcrypt (10 rounds)';
 -- ---------------------------------------------------------
 -- 6) BOOKS
 -- ---------------------------------------------------------
@@ -708,7 +739,8 @@ COMMIT;
 CREATE STATISTICS books_search_stats (dependencies, ndistinct) ON title, author FROM books;
 
 -- Rôle + statut actif sont souvent utilisés ensemble => dependencies
-CREATE STATISTICS users_role_stats (dependencies, ndistinct) ON id_role, status FROM users;
+-- Utiliser id_status (clé étrangère) au lieu de "status" qui n'existe plus
+CREATE STATISTICS users_role_stats (dependencies, ndistinct) ON id_role, id_status FROM users;
 
 -- Corrélation user/book pour éviter doublons reviews
 CREATE STATISTICS reviews_user_book_stats (dependencies, ndistinct) 

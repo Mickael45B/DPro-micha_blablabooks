@@ -48,13 +48,13 @@ export default {
           // Vérification des droits d'accès
           //requireAuth(context);
 
-          // Validation avec Joi
+          // Validation avec Joi => 1ere couche - défense en profondeur
           const validatedArgs = validateWithJoi(getBooksSchema, args);
 
           const { limit = 50, offset = 0, order = 'created_at', direction = 'DESC' } = validatedArgs;
 
 
-          // Sanitize inputs
+          // Sanitize inputs => 2ème couche - défense en profondeur
           const cleanLimit = Math.min(Math.max(parseInt(limit) || 50, 1), 100);
           const cleanOffset = Math.max(parseInt(offset) || 0, 0);
 
@@ -143,7 +143,7 @@ export default {
         const cleanIdBook = sanitizeString(validatedGetBook.id);
 
         // Vérifier l'accès à la bibliothèque
-        requireAuth( context);
+        //requireAuth( context);
 
         // Vérifier que le livre existe (throw 404 si non trouvé)
         const book = await findBookOrThrow(cleanIdBook);

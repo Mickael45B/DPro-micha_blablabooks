@@ -8,6 +8,8 @@ import fetchUserRoleNameById from './utils/utils_roles.js';
 import { isAuthenticated, requireAuth, requireAdmin, requireOwnershipOrAdmin, sanitizeString, sanitizeInput } from './utils/helpers/helpers_general.js';
 import {findLibraryOrThrow, requireEditableLibrary} from './utils/helpers/helpers_library.js';
 
+import { getLibrariesSchema, getUserLibrariesSchema, getLibrarySchema, searchLibrariesSchema, addLibrarySchema, updateLibrarySchema, deleteAllLibrariesFromUserSchema, deleteLibrarySchema } from '../schema/schemas_joi/librairySchema.js';
+import { validateWithJoi } from './utils/helpers/helpers_books.js';
 
 
 // ========================================
@@ -44,11 +46,14 @@ export default {
         
         // Vérifier les droits d'accès
         //requireAdmin(context);
-        
-        // Sanitize inputs
-        const cleanLimit = Math.min(Math.max(parseInt(limit) || 50, 1), 100);
-        const cleanOffset = Math.max(parseInt(offset) || 0, 0);
-        
+
+        // Validation avec Joi => 1ere couche - défense en profondeur
+        const validatedArgs = validateWithJoi(getLibrariesSchema, args);
+
+        // Sanitize inputs => 2ème couche - défense en profondeur
+        const cleanLimit = Math.min(Math.max(parseInt(validatedArgs.limit) || 50, 1), 100);
+        const cleanOffset = Math.max(parseInt(validatedArgs.offset) || 0, 0);
+
         const validOrders = ['created_at', 'name'];
         const { order: safeOrder, direction: safeDirection } = validateOrderParams(
           sanitizeString(order), 
@@ -105,12 +110,15 @@ export default {
 
         */
         /* Exemple variables :
-        {"id_user": "f6g7h8i9-j0k1-2l3m-4n5o-6p7q8r9s0t1u"}
+        {"id_user": "55530935-6301-4320-9ec9-85e8db741583"}
         */
         
-        // Sanitize input
-        const cleanUserId = sanitizeString(id_user);
-        
+        // Valider avec Joi => 1ere couche - défense en profondeur
+        const validatedArgs = validateWithJoi(getUserLibrariesSchema, { id_user });
+
+        // Sanitize input => 2ème couche - défense en profondeur
+        const cleanUserId = sanitizeString(validatedArgs.id_user);
+
         // Vérifier les droits d'accès
         //requireOwnershipOrAdmin(cleanUserId, context);
         
@@ -159,10 +167,12 @@ export default {
         {"id_library": "2b3c4d5e-6f7g-8h9i-0j1k-2l3m4n5o6p7q"}
         */
 
+        //Validation avec Joi => 1ere couche - défense en profondeur
+        const validatedArgs = validateWithJoi(getLibrarySchema, { id_library });
 
-        // Sanitize input
-        const cleanLibraryId = sanitizeString(id_library);
-        
+        // Sanitize input => 2ème couche - défense en profondeur
+        const cleanLibraryId = sanitizeString(validatedArgs.id_library);
+
         // Trouver la bibliothèque (throw 404 si non trouvée)
         const library = await findLibraryOrThrow(cleanLibraryId);
         
@@ -204,15 +214,15 @@ export default {
         {"name": "bob"}
         */
 
-
-
         const { name, limit = 50, offset = 0 } = args;
         
         // Vérifier les droits d'accès
         requireAuth(context);
 
         // Validation avec Joi => 1ere couche - défense en profondeur
-        const { error } = searchLibrariesSchema.validate({ name: cleanName, limit: cleanLimit, offset: cleanOffset });
+        const validatedArgs = validateWithJoi(searchLibrariesSchema, { name, limit, offset });
+        // Vérifier les erreurs de validation Joi
+        const { error } = validatedArgs;
         if (error) {
           throw new GraphQLError('Paramètres de recherche invalides', {
             extensions: {
@@ -302,8 +312,22 @@ export default {
         }        
         */
         
+        //Validation avec Joi => 1ere couche - défense en profondeur
+        const validatedArgs = validateWithJoi(addLibrarySchema, input);
+
+        const { error } = validatedArgs;
+        if (error) {
+          throw new GraphQLError('Paramètres de création de bibliothèque invalides', {
+            extensions: {
+              code: 'BAD_REQUEST',
+              httpStatus: 400,
+              originalError: error.message
+            },
+          });
+        }
+
         // Sanitize input
-        const cleanInput = sanitizeInput(input);
+        const cleanInput = sanitizeInput(validatedArgs);
         
         // Vérifier les droits
         //requireOwnershipOrAdmin(cleanInput.id_user, context);

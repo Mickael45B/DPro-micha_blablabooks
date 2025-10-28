@@ -2,13 +2,17 @@
 import sanitizeHtml from "sanitize-html"; // Used to sanitize user inputs to prevent XSS attacks
 import { hash, verify } from "../utils/scrypt.js"; // Importing password hashing and verification functions
 import { User, Library, Sequelize } from "../models/associations.js"; // Sequelize models for database interaction
-import jwt from "jsonwebtoken"; // Used to generate JWT tokens for authentication
+		import jwt from "jsonwebtoken"; // Used to generate JWT tokens for authentication
 import { registerSchema, loginSchema } from "../schema/schemas_joi/authSchema.js"; // Validation schemas for registration and login
 import { randomUUID } from "crypto"; // Used to generate unique IDs
 import dotenv from "dotenv"; // Used to load environment variables
 dotenv.config(); // Load environment variables from .env file
 
-// Function to generate a unique UUID
+import {generateAccessToken, generateRefreshToken, verifyToken, decodeToken} from '../resolvers/utils/utils_authentification.js';
+
+
+
+//generate a unique UUID
 function generateUUID() {
 	return randomUUID();
 }
@@ -32,6 +36,32 @@ function generateToken(name, email, id_user, is_admin) {
 	);
 	return token; // Return the generated token
 }
+
+/**
+ * Génère un access token JWT
+ * @param {object} payload - Données utilisateur
+ * @param {boolean} rememberMe - Si true, token valide 30 jours, sinon 24h
+ * @returns {string} Token JWT
+ */
+export const generateAccessToken = (payload, rememberMe = false) => {
+  // Durée du token
+  const expiresIn = rememberMe ? '30d' : '24h';
+  
+  return jwt.sign(
+    {
+      id: payload.id_user,
+      id_user: payload.id_user,
+      email: payload.email,
+      pseudo: payload.pseudo,
+      role: payload.role,
+      isAdmin: payload.role === 'admin' || payload.isAdmin,
+    },
+    process.env.JWT_SECRET,
+    { expiresIn }
+  );
+};
+
+
 
 // Authentication controller
 export const authController = {

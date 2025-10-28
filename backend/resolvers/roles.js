@@ -12,6 +12,9 @@ import { isAuthenticated, requireAuth, requireAdmin, requireOwnershipOrAdmin, sa
 
 import { findRolesOrThrow, validateRolesInput} from './utils/helpers/helpers_Roles.js';
 
+import {getRolesSchema, getRoleSchema, searchRolesSchema, addRoleSchema, updateRoleSchema, deleteRoleSchema } from '../schema/schemas_joi/roleSchema.js';
+
+
 export default {
   Query: {
 

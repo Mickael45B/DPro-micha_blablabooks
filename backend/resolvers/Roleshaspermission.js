@@ -16,6 +16,7 @@ import { findRolePermissionOrThrow, validateRolePermissionInput} from './utils/h
 
 //Revoir le "searchPermissionsRoles" une fois que la colonne name sera dispo dans la table rolehaspermissions
 
+import {getPermissionsRolesSchema, getPermissionRoleSchema, searchPermissionsRolesSchema, addPermissionRoleSchema, updatePermissionRoleSchema, deletePermissionRoleSchema } from '../schema/schemas_joi/RoleshaspermissionSchema.js';
 
 export default {
   Query: {

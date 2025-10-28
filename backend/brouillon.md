@@ -108,3 +108,19 @@ query {
     nb_reviews
   }
 }
+
+Exemple d’en-têtes GraphiQL / Apollo Studio (Headers):
+{
+  "authorization": "Bearer <votre_token_jwt>"
+}
+
+
+Si vous voulez juste vérifier que la résolution fonctionne côté DB/schema localement, on peut temporairement forcer un flag admin dans createContext. Exemple (code à coller dans server.ts dans createContext, uniquement pour dev) :
+// Après extraction du token
+let token = ...;
+// Pour debug local uniquement : si token == 'dev-admin' on simule un user admin
+let user = null;
+if (token === 'dev-admin') {
+  user = { id: 'dev', isAdmin: true, role: 'admin' };
+}
+return { req, res, cache: ..., dataSources: {}, token, user };

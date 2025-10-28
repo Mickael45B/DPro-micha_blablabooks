@@ -14,6 +14,8 @@ import { isAuthenticated, requireAuth, requireAdmin, requireOwnershipOrAdmin, sa
 // Import des helpers spécifiques aux messages
 import { findMessageOrThrow, requireMessageAccess, validateMessageInput} from './utils/helpers/helpers_messages.js';
 
+import {getMessagesSchema, getMessageSchema, getUserMessagesSchema, searchMessagesSchema, addMessageSchema, updateMessageSchema, markMessageAsReadSchema, deleteMessageSchema } from '../schema/schemas_joi/messagesSchema.js';
+
 export default {
   Query: {
 
@@ -49,7 +51,7 @@ export default {
         const { limit = 50, offset = 0, order = 'created_at', direction = 'DESC' } = args;
 
         // Vérification des droits admin
-        //requireAdmin(context);
+        requireAdmin(context);
 
         // Sanitize inputs
         const cleanLimit = Math.min(Math.max(parseInt(limit) || 50, 1), 100);
@@ -154,64 +156,88 @@ export default {
     getUserMessages: async (_, args, context) => {
       try {
 
-        /* exemple context JWT décodé ( à revoir):
-        {
-          userId: "uuid-of-user",
-          email: "user@example.com",
-          role: "admin"
-        }
-        */
-       /*exemple de requête :
-        query  getUserMessages($userId: ID!) {getUserMessages(userId: $userId) {messages{id_message, sender{name}} }}
 
-        */
-        /* Exemple variables :
-        {"userId": "1e2d3c4b-5a6f-7e8d-9c0b-1a2f3e4d5c6b"}
-        */
 
-        const { userId, type = 'received', limit = 50, offset = 0 } = args;
+    /* Exemple de requête :
+    query GetUserMessages($userId: ID) {getUserMessages(userId: $userId) { messages { id_message subject sender { name } receiver { name } } } }
+    */
+    /* Exemple variables :
+    // Pour voir MES messages (userId optionnel)
+    { "type": "received" }
+    
+    // Pour qu'un admin voie les messages d'un autre user
+    { "userId": "autre-user-id", "type": "sent" }
+    */
 
-        // Vérifier les droits
-        //requireOwnershipOrAdmin(userId, context);
 
-        // Sanitize inputs
-        const cleanUserId = sanitizeString(userId);
-        const cleanLimit = Math.min(Math.max(parseInt(limit) || 50, 1), 100);
-        const cleanOffset = Math.max(parseInt(offset) || 0, 0);
+// ✅ Vérifier l'authentification
+    requireAuth(context);
 
-        // Déterminer la colonne à filtrer
-        const column = type === 'sent' ? 'id_sender' : 'id_receiver';
+    const { userId, type = 'received', limit = 50, offset = 0 } = args;
 
-        const result = await db.query(`
-          SELECT *
-          FROM messages
-          WHERE ${column} = $1
-          ORDER BY created_at DESC
-          LIMIT $2 OFFSET $3
-        `, [cleanUserId, cleanLimit, cleanOffset]);
-
-        const countResult = await db.query(`
-          SELECT COUNT(*)::int as count FROM messages
-          WHERE ${column} = $1
-        `, [cleanUserId]);
-
-        return {
-          messages: result.rows,
-          totalCount: countResult.rows[0].count,
-          hasNextPage: cleanOffset + cleanLimit < countResult.rows[0].count,
-          httpStatus: 200,
-        };
-      } catch (error) {
-        if (error instanceof GraphQLError) throw error;
-        throw new GraphQLError('Erreur lors de la récupération des messages utilisateur', {
-          extensions: { 
-            code: 'INTERNAL_SERVER_ERROR',
-            httpStatus: 500,
-            originalError: error.message
-          },
+    // Déterminer l'ID cible
+    let targetUserId;
+    
+    if (userId) {
+      // Un userId est fourni → vérifier les droits
+      requireOwnershipOrAdmin(userId, context);
+      targetUserId = userId;
+    } else {
+      // Pas de userId → utiliser l'utilisateur connecté
+      targetUserId = context.user?.id_user || context.user?.id;
+      
+      if (!targetUserId) {
+        throw new GraphQLError('ID utilisateur introuvable', {
+          extensions: { code: 'UNAUTHORIZED', httpStatus: 401 }
         });
       }
-    },
+    }
+
+    // Sanitize inputs
+    const cleanUserId = sanitizeString(targetUserId);
+    const cleanLimit = Math.min(Math.max(parseInt(limit) || 50, 1), 100);
+    const cleanOffset = Math.max(parseInt(offset) || 0, 0);
+
+    // Déterminer la colonne à filtrer
+    const column = type === 'sent' ? 'id_sender' : 'id_receiver';
+
+    const result = await db.query(`
+      SELECT *
+      FROM messages
+      WHERE ${column} = $1
+      ORDER BY created_at DESC
+      LIMIT $2 OFFSET $3
+    `, [cleanUserId, cleanLimit, cleanOffset]);
+
+    const countResult = await db.query(`
+      SELECT COUNT(*)::int as count FROM messages
+      WHERE ${column} = $1
+    `, [cleanUserId]);
+
+    return {
+      messages: result.rows,
+      totalCount: countResult.rows[0].count,
+      hasNextPage: cleanOffset + cleanLimit < countResult.rows[0].count,
+    };
+  } catch (error) {
+    if (error instanceof GraphQLError) throw error;
+    throw new GraphQLError('Erreur lors de la récupération des messages', {
+      extensions: { 
+        code: 'INTERNAL_SERVER_ERROR',
+        httpStatus: 500,
+        originalError: error.message
+      },
+    });
+  }
+},
+
+
+
+
+
+
+
+
 
     /**
      * Recherche des messages

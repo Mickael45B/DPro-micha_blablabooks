@@ -7,8 +7,8 @@ import cors from "cors";
 import dotenv from "dotenv";
 import path, { dirname } from "path";
 import { fileURLToPath } from "url";
-// Note: older/newer versions of @apollo/server don't always export a renderLandingPage helper.
-// Instead serve a small GraphiQL HTML page directly for browser GET requests.
+import jwt from 'jsonwebtoken';
+import db from './db/connect_DB.js';
 
 dotenv.config();
 
@@ -36,11 +36,12 @@ const server = new ApolloServer({
 
 await server.start();
 
-// ⚙️ Middlewares globaux
+// ⚙️ CORS OPTIONS (À RAJOUTER ICI)
 const corsOptions = {
   origin: ["http://localhost:5173", "http://localhost:4000"],
   credentials: true,
 };
+
 
 app.use(cors(corsOptions));
 app.use(express.json());
@@ -55,16 +56,16 @@ app.get("/graphql", (req, res) => {
       <meta charset="utf-8" />
       <title>GraphiQL</title>
       <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link href="https://cdn.jsdelivr.net/npm/graphiql@2.0.1/graphiql.min.css" rel="stylesheet" />
+      <link href="https://cdn.jsdelivr.net/npm/graphiql@2.0.1/graphiql.min.css" rel="stylesheet" />
     </head>
     <body style="height:100vh;margin:0;">
       <div id="graphiql" style="height:100vh;"></div>
-  <script crossorigin src="https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js"></script>
-  <script crossorigin src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js"></script>
-  <script crossorigin src="https://cdn.jsdelivr.net/npm/graphiql@2.0.1/graphiql.min.js"></script>
+      <script crossorigin src="https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js"></script>
+      <script crossorigin src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js"></script>
+      <script crossorigin src="https://cdn.jsdelivr.net/npm/graphiql@2.0.1/graphiql.min.js"></script>
       <script>
         const fetcher = GraphiQL.createFetcher({ url: '/graphql' });
-  const defaultQuery = '# Test query\\nquery { __typename }';
+        const defaultQuery = '# Test query\\nquery { __typename }';
         ReactDOM.render(
           React.createElement(GraphiQL, { fetcher, defaultQuery }),
           document.getElementById('graphiql'),
@@ -74,19 +75,102 @@ app.get("/graphql", (req, res) => {
   </html>`);
 });
 
-// Monter le router REST
-// import {router} from "./router/router.js";   // ./router/index.js si tu utilises index
+// Monter le router REST (si besoin)
+// import {router} from "./router/router.js";
 // app.use("/api", router);
 
-// 🔗 Route GraphQL (API - use POST with application/json)
 app.use(
   "/graphql",
   expressMiddleware(server, {
-    context: async ({ req }) => (
-      //console.log('le contenu du context', req),
-    {
-      token: req.headers.authorization || null,
-    }),
+    context: async ({ req, res }) => {
+      // Extraire le header Authorization
+      const authHeader = req.headers.authorization || '';
+      
+      // Format attendu : "Bearer eyJhbGc..."
+      const token = authHeader.startsWith('Bearer ') 
+        ? authHeader.substring(7) // Enlever "Bearer "
+        : authHeader;
+      
+      // Si pas de token, retourner un context non authentifié
+      if (!token) {
+        return {
+          req,
+          res,
+          isAuthenticated: false,
+          user: null,
+          isAdmin: false,
+          token: null,
+        };
+      }
+      
+      try {
+        // Vérifier et décoder le JWT
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+        // Debug (à retirer en production)
+        console.log('✅ JWT valide pour:', decoded.email || decoded.pseudo || decoded.id_user || decoded.id);
+
+        // Récupérer l'id_user présent dans le token (si disponible)
+        const tokenUserId = decoded.id_user || decoded.id || null;
+
+        // Enrichir le contexte avec les informations stockées en base
+        let dbUser = null;
+        if (tokenUserId) {
+          try {
+            const userRes = await db.query(
+              `SELECT u.id_user, u.email, u.pseudo, u.id_status, u.id_role,
+                      r.role_name AS role_name, s.status_name AS status_name
+               FROM users u
+               LEFT JOIN roles r ON u.id_role = r.id_role
+               LEFT JOIN status s ON u.id_status = s.id_status
+               WHERE u.id_user = $1`,
+              [tokenUserId]
+            );
+            if (userRes.rows && userRes.rows.length > 0) dbUser = userRes.rows[0];
+          } catch (dbErr) {
+            console.error('❌ DB lookup failed for user metadata:', dbErr?.message || dbErr);
+            // On continue sans metadata (on ne veut pas bloquer uniquement pour une erreur de lookup)
+          }
+        }
+
+        const resolvedRole = dbUser?.role_name || decoded.role || null;
+        const resolvedStatus = dbUser?.status_name || null;
+
+        // Retourner le context avec les infos utilisateur enrichies
+        return {
+          req,
+          res,
+          isAuthenticated: true,
+          user: {
+            id: tokenUserId,
+            id_user: tokenUserId,
+            email: decoded.email || dbUser?.email || null,
+            pseudo: decoded.pseudo || dbUser?.pseudo || null,
+            id_role: dbUser?.id_role || null,
+            role: resolvedRole,
+            id_status: dbUser?.id_status || null,
+            status_name: resolvedStatus,
+            // conserver les flags éventuels présents dans le token
+            isAdmin: Boolean(dbUser?.role_name === 'admin' || decoded.isAdmin || resolvedRole === 'admin'),
+          },
+          isAdmin: Boolean(dbUser?.role_name === 'admin' || decoded.isAdmin || resolvedRole === 'admin'),
+          token,
+        };
+      } catch (error) {
+        // JWT invalide ou expiré
+        console.error('❌ JWT verification failed:', error.message);
+
+        return {
+          req,
+          res,
+          isAuthenticated: false,
+          user: null,
+          isAdmin: false,
+          token: null,
+          error: error.message, // Pour debug
+        };
+      }
+    },
   })
 );
 
@@ -101,4 +185,5 @@ app.listen(port, () => {
   console.log(`API Server run at http://localhost:${port}/api`);
   console.log(`🚀 Server ready at http://localhost:${port}/graphql`);
   console.log(`📊 Health check at http://localhost:${port}/health`);
+  console.log(`🔐 JWT_SECRET: ${process.env.JWT_SECRET ? '✅ Configured' : '❌ Missing'}`);
 });

@@ -17,7 +17,7 @@ export const getMessageSchema = Joi.object({
 });
 
 export const getUserMessagesSchema = Joi.object({
-    id_user: Joi.string().min(34).max(36).required(), // UUIDv4
+    id_user: Joi.string().min(34).max(36).optional(), // UUIDv4 (optionnel: on peut utiliser le user du token en fallback)
     limit: Joi.number().integer().min(1).max(100).default(50),
     offset: Joi.number().integer().min(0).default(0),
 });

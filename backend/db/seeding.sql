@@ -20,7 +20,21 @@ VALUES ('1a2b3c4d-5e6f-7g8h-9i0j-1k2l3m4n5o6p', '1', '1', '2025-01-01 10:00:00',
 ('3c4d5e6f-7g8h-9i0j-1k2l-3m4n5o6p7q8w', '2', '2', '2025-01-01 10:00:00', '2025-01-01 10:00:00'),  -- admin can write
 ('4d5e6f7g-8h9i-0j1k-2l3m-4n5o6p7q8r9s', '2', '3', '2025-01-01 10:00:00', '2025-01-01 10:00:00');  -- admin can delete
 
-INSERT INTO users (id_user, name, email, password, id_role, pseudo, status, created_at, updated_at) --Pa$$w0rd!
+-- Option A : insérer des statuses avec des UUID (développement)
+INSERT INTO status (id_status, status_name, created_at, updated_at)
+VALUES
+    ('1', 'active', '2025-01-01 10:00:00', '2025-01-01 10:00:00'),
+    ('2', 'blocked_by_admin', '2025-01-01 10:00:00', '2025-01-01 10:00:00'),
+    ('3', 'blocked_by_user', '2025-01-01 10:00:00', '2025-01-01 10:00:00'),
+    ('4', 'blocked_by_both', '2025-01-01 10:00:00', '2025-01-01 10:00:00'),
+    ('5', 'deleted', '2025-01-01 10:00:00', '2025-01-01 10:00:00');
+
+-- Option B (production) : si vous utilisez INT GENERATED ALWAYS AS IDENTITY,
+-- remplacez le bloc ci-dessus par une insertion sans id_status explicite et utilisez RESTART IDENTITY.
+
+
+-- Utiliser id_status (FK vers table status) au lieu de l'ancienne colonne status
+INSERT INTO users (id_user, name, email, password, id_role, pseudo, id_status, created_at, updated_at) --Pa$$w0rd!
 VALUES ('1e2d3c4b-5a6f-7e8d-9c0b-1a2f3e4d5c6b', 'Alice Dupont', 'alice.dupont@example.com', '23e3fc5b1c95c802a262cdde4fa950f4:a00542662e9c2632082ba4739fe50f75024bb2f717f56f82154421ddad5776bed61dcc68f1ced3e2310a1db8280ccc124c624fa78f904ccbf96840e972999e64', 2,'petit poisson', 1, '2025-01-01 10:00:00', '2025-01-01 10:00:00'),
 ('2e3d4c5b-6a7f-8e9d-0c1b-2a3f4e5d6c7b', 'Bob Martin', 'bob.martin@example.com', '23e3fc5b1c95c802a262cdde4fa950f4:a00542662e9c2632082ba4739fe50f75024bb2f717f56f82154421ddad5776bed61dcc68f1ced3e2310a1db8280ccc124c624fa78f904ccbf96840e972999e64', 2, 'red tag', 1, '2025-01-02 11:00:00', '2025-01-02 11:00:00'),
 ('3f4e5d6c-7b8a-9f0e-1d2c-3b4a5f6e7d8c', 'Charlie Durand', 'charlie.durand@example.com', '23e3fc5b1c95c802a262cdde4fa950f4:a00542662e9c2632082ba4739fe50f75024bb2f717f56f82154421ddad5776bed61dcc68f1ced3e2310a1db8280ccc124c624fa78f904ccbf96840e972999e64', 1, 'Harold the best', 1, '2025-01-03 12:00:00', '2025-01-03 12:00:00'),
@@ -41,6 +55,13 @@ VALUES ('1e2d3c4b-5a6f-7e8d-9c0b-1a2f3e4d5c6b', 'Alice Dupont', 'alice.dupont@ex
 ('h8i9j0k1-l2m3-4n5o-6p7q-8r9s0t1u2v3w', 'Camille Girard', 'camille.girard@example.com', '23e3fc5b1c95c802a262cdde4fa950f4:a00542662e9c2632082ba4739fe50f75024bb2f717f56f82154421ddad5776bed61dcc68f1ced3e2310a1db8280ccc124c624fa78f904ccbf96840e972999e64', 1, 'ShadowByte', 1, '2025-01-18 17:00:00', '2025-01-18 17:00:00'),
 ('i9j0k1l2-m3n4-5o6p-7q8r-9s0t1u2v3w4x', 'Léo Dupuis', 'leo.dupuis@example.com', '23e3fc5b1c95c802a262cdde4fa950f4:a00542662e9c2632082ba4739fe50f75024bb2f717f56f82154421ddad5776bed61dcc68f1ced3e2310a1db8280ccc124c624fa78f904ccbf96840e972999e64', 1, 'CrystalRoot', 1, '2025-01-19 18:00:00', '2025-01-19 18:00:00'),
 ('j0k1l2m3-n4o5-6p7q-8r9s-0t1u2v3w4x5y', 'Julie Caron', 'julietoto.caron@example.com', '23e3fc5b1c95c802a262cdde4fa950f4:a00542662e9c2632082ba4739fe50f75024bb2f717f56f82154421ddad5776bed61dcc68f1ced3e2310a1db8280ccc124c624fa78f904ccbf96840e972999e64', 1, 'tatoo', 1, '2025-01-19 18:00:00', '2025-01-19 18:00:00');
+
+-- Après l'insertion des utilisateurs, migrer les id_status numériques vers les UUID insérés ci-dessus
+-- (la table users dans l'ancien seeding utilisait la valeur 1 pour "active").
+UPDATE users u
+SET id_status = s.id_status
+FROM status s
+WHERE s.status_name = 'active' AND u.id_status::text = '1';
 
 INSERT INTO books (id_book, isbn, title, author, publication_date, genre, editor, bookimage, vignetteimage, age_limit, description, created_at, updated_at, series, is_in_favorite, nb_reviews, is_in_library, avg_rating)
 VALUES 

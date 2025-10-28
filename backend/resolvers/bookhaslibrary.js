@@ -59,7 +59,7 @@ export default {
           direction : args.direction  
         });
 
-        // Sanitize inputs
+        // Sanitize inputs => 2ème couche - défense en profondeur
         const cleanLimit = Math.min(Math.max(parseInt(limit) || 50, 1), 100);
         const cleanOffset = Math.max(parseInt(offset) || 0, 0);
         

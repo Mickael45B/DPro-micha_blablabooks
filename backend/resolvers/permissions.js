@@ -13,6 +13,7 @@ import { isAuthenticated, requireAuth, requireAdmin, requireOwnershipOrAdmin, sa
 import { findPermissionsOrThrow, validatePermissionInput} from './utils/helpers/helpers_permissions.js';
 import { console } from "inspector";
 
+import {getPermissionsSchema, getPermissionSchema, searchPermissionsSchema, addPermissionSchema, updatePermissionSchema, deletePermissionSchema } from '../schema/schemas_joi/permissionsSchema.js';
 
 export default {
   Query: {

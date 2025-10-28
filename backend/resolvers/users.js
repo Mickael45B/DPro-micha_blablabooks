@@ -3,19 +3,40 @@ import { v4 as uuidv4 } from 'uuid';
 import bcrypt from 'bcrypt';
 import { validateOrderParams, handleDbError } from '../utils/validators.js';
 import  fetchRoleById  from './utils/utils_roles.js';
+import  fetchStatusById  from './utils/utils_status.js';
 import { fetchUserById } from './utils/utils_users.js';
 import { flattenEdges, makePageInfo, makeEdgeFromBook } from '../utils/helpers_books.js';
 import sanitizeHtml from 'sanitize-html';
 import { GraphQLError } from 'graphql';
 import fetchBookById from './utils/utils_books.js';
 import fetchLibraryById from './utils/utils_librairies.js';
+import { validateWithJoi } from './utils/helpers/helpers_books.js';
 
 import { isAuthenticated, requireAuth, requireAdmin, requireOwnershipOrAdmin, sanitizeString, sanitizeInput } from './utils/helpers/helpers_general.js';
 
 import { findUserOrThrow, validateUserInput, validatePasswordInput} from './utils/helpers/helpers_Users.js';
 import { clean } from "semver";
 
+import {getUsersSchema, getUserSchema, searchUsersSchema, createUserSchema, updateUserSchema, deleteUserSchema, adminResetPasswordSchema, changePasswordSchema } from '../schema/schemas_joi/userSchema.js';
+import { log } from "console";
+
+import {generateAccessToken, generateRefreshToken, verifyToken, decodeToken} from './utils/utils_authentification.js';
+
+
+
+
 // Revoir le resolver "changePassword",
+
+const initializationUser = {
+  defaultStatus: "active",
+  defaultRole: "user",
+  librariesStartup: ["Bibliothèque livres lus", "Bibliothèque livres favoris"],
+  libraryDefaultEditable: false,
+  id_role: 1,
+  id_status: 1,
+  created_at: new Date(),
+  updated_at: new Date()
+};
 
 export default {
   Query: {
@@ -50,7 +71,7 @@ export default {
         */
 
         // Vérification des droits d'accès
-        requireAdmin(context);
+        //requireAdmin(context);
 
         // Extraction et validation des paramètres de pagination et de tri
         const { limit = 70, offset = 0, order = 'created_at', direction = 'DESC' } = args;
@@ -66,7 +87,7 @@ export default {
         );
         
         const result = await db.query(`
-          SELECT id_user, name, email, pseudo, id_role, status, created_at, updated_at
+          SELECT id_user, name, email, pseudo, id_role, id_status, created_at, updated_at
           FROM users
           ORDER BY ${safeOrder} ${safeDirection}
           LIMIT $1 OFFSET $2
@@ -123,7 +144,7 @@ export default {
         // Vérification des droits d'accès (propriétaire ou admin)
         requireOwnershipOrAdmin(id_user, context);
 
-        // Sanitize input
+        // Sanitize input => 2ème couche - défense en profondeur
         const cleanIdUser = sanitizeString(id_user);
 
         if (!cleanIdUser) {
@@ -203,7 +224,7 @@ export default {
         const searchPattern = `%${cleanNameOrPseudo}%`;
 
         const result = await db.query(`
-          SELECT id_user, name, email, pseudo, id_role, status, created_at, updated_at
+          SELECT id_user, name, email, pseudo, id_role, id_status, created_at, updated_at
           FROM users
           WHERE LOWER(name) LIKE LOWER($1) OR LOWER(email) LIKE LOWER($1) OR LOWER(pseudo) LIKE LOWER($1)
           ORDER BY ${safeOrder} ${safeDirection}
@@ -263,7 +284,7 @@ export default {
 
         */
         /* Exemple variables : 
-        { "input": {
+          { "input": {
           "name": "johnDoe",
           "pseudo": "reinconnu",
           "email": "johnDoe@example.com",
@@ -292,54 +313,139 @@ export default {
         validateUserInput(cleanInput);
 
         // Vérifier que l'email n'existe pas déjà
-        const existingEmail = await db.query(
-          'SELECT id_user FROM users WHERE LOWER(email) = LOWER($1)',
-          [cleanInput.email]
-        );
+          const existingEmail = await db.query(
+            'SELECT id_user FROM users WHERE LOWER(email) = LOWER($1)',
+            [cleanInput.email]
+          );
 
-        if (existingEmail.rows.length > 0) {
-          throw new GraphQLError('Cet email est déjà utilisé', {
-            extensions: { code: 'CONFLICT', httpStatus: 409 }
-          });
-        }
+          if (existingEmail.rows.length > 0) {
+            throw new GraphQLError('Cet email est déjà utilisé', {
+              extensions: { code: 'CONFLICT', httpStatus: 409 }
+            });
+          }
 
         // Vérifier que le pseudo n'existe pas déjà
-        const existingPseudo = await db.query(
-          'SELECT id_user FROM users WHERE LOWER(pseudo) = LOWER($1)',
-          [cleanInput.pseudo]
-        );
+          const existingPseudo = await db.query(
+            'SELECT id_user FROM users WHERE LOWER(pseudo) = LOWER($1)',
+            [cleanInput.pseudo]
+          );
 
-        if (existingPseudo.rows.length > 0) {
-          throw new GraphQLError('Ce pseudo est déjà utilisé', {
-            extensions: { code: 'CONFLICT', httpStatus: 409 }
-          });
-        }
+          if (existingPseudo.rows.length > 0) {
+            throw new GraphQLError('Ce pseudo est déjà utilisé', {
+              extensions: { code: 'CONFLICT', httpStatus: 409 }
+            });
+          }
 
         // Déterminer l'ID du rôle par défaut 'user' depuis la table roles
-        // Ne pas utiliser de placeholder hardcodé — se baser sur la table roles/seed.
         const roleLookup = await db.query(
           'SELECT id_role FROM roles WHERE role_name = $1 LIMIT 1',
-          ['user']
+          [initializationUser.defaultRole]
         );
+
         if (!roleLookup.rows || roleLookup.rows.length === 0) {
           throw new GraphQLError('Rôle par défaut introuvable dans la base de données', {
             extensions: { code: 'INTERNAL_SERVER_ERROR', httpStatus: 500 }
           });
         }
-        const id_role = roleLookup.rows[0].id_role;
-        const status = 1; // Remplacer par le statut par défaut ==> 1=actif, 2=bloqué par admin, 3=bloqué par l'utilisateur lui-même 4=bloqué par les 2 parties 5=supprimé
+        const role = roleLookup.rows[0].id_role;
+
+        // Déterminer l'ID du statut par défaut 'active' depuis la table status
+        const statusLookup = await db.query(
+          'SELECT id_status FROM status WHERE status_name = $1 LIMIT 1',
+          [initializationUser.defaultStatus]
+        );
+
+        if (!statusLookup.rows || statusLookup.rows.length === 0) {
+          throw new GraphQLError('Statut par défaut introuvable dans la base de données', {
+            extensions: { code: 'INTERNAL_SERVER_ERROR', httpStatus: 500 }
+          });
+        }
+        const status = statusLookup.rows[0].id_status;
+
         const hashedPassword = await bcrypt.hash(cleanInput.password, 10);
 
+        // Utiliser l'import statique en haut du fichier : uuidv4
         const id = uuidv4();
-        
-        const result = await db.query(`
-          INSERT INTO users (id_user, name, email, pseudo, password, id_role, status, created_at, updated_at)
-          VALUES ($1, $2, $3, $4, $5, $6, $7, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-          RETURNING id_user, name, email, pseudo, id_role, status, created_at, updated_at
-        `, [id, cleanInput.name, cleanInput.email, cleanInput.pseudo, hashedPassword, id_role, status]);
 
-        if (context?.res?.status) context.res.status(201);
-        return result.rows[0];
+        // Envelopper la création utilisateur + bibliothèques par défaut dans une transaction
+        await db.query('BEGIN');
+        try {
+          const result = await db.query(`
+            INSERT INTO users (id_user, name, email, pseudo, password, id_role, id_status, created_at, updated_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            RETURNING id_user, name, email, pseudo, id_role, id_status, created_at, updated_at
+          `, [id, cleanInput.name, cleanInput.email, cleanInput.pseudo, hashedPassword, role, status]);
+
+          if (!result.rows || result.rows.length === 0) {
+            throw new Error('Insertion utilisateur échouée');
+          }
+          console.log('createUser - user created:', result.rows[0]);
+          // Créer les bibliothèques par défaut pour l'utilisateur
+          const createdLibraries = [];
+          for (const libraryName of initializationUser.librariesStartup) {
+            const libraryId = uuidv4();
+            const libRes = await db.query(`
+              INSERT INTO libraries (id_library, id_user, name, is_editable, created_at, updated_at)
+              VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+              RETURNING id_library, name, is_editable, id_user, created_at, updated_at
+            `, [libraryId, id, libraryName, initializationUser.libraryDefaultEditable]);
+            createdLibraries.push(libRes.rows[0]);
+          }
+          console.log('createUser - createdLibraries:', createdLibraries);
+          await db.query('COMMIT');
+
+          // création du token JWT et connexion automatique (le nouvel utilisateur est connecté dès la création de son compte)
+          const user = result.rows[0];
+
+          // NOTE : pour des raison de sécurité, le status et le role ne sont pas inclus dans le token d'accès, mais dans le "context" lors de la validation du token
+          // Ne pas muter context ici (server.js gère l'enrichissement lors de la validation du token)
+
+          // Générer les tokens
+          const accessToken = generateAccessToken({
+            id_user: user.id_user,
+            pseudo: user.pseudo,
+            name: user.name,
+          });
+          console.log('createUser - accessToken generated', accessToken);
+          const refreshToken = generateRefreshToken({ id_user: user.id_user });
+
+          if (context?.res?.status) context.res.status(201);
+
+          // En DEV : on retourne un AuthPayload contenant user + tokens + libraries
+          // -> Le schéma a été mis à jour pour createUser: AuthPayload!
+          // En production, préférez mettre le refresh token dans un cookie HttpOnly
+          // et/ou le stocker côté serveur (BDD) plutôt que de l'exposer dans le body.
+          // Exemple (commenté) :
+          // if (context?.res?.cookie) {
+          //   // cookie settings: HttpOnly, secure en prod, durée courte/raisonnable
+          //   context.res.cookie('refresh_token', refreshToken, {
+          //     httpOnly: true,
+          //     secure: process.env.NODE_ENV === 'production',
+          //     sameSite: 'lax',
+          //     maxAge: 30 * 24 * 60 * 60 * 1000 // par ex. 30 jours
+          //   });
+          // }
+          // // Optionnel : stocker le refresh token en BDD pour pouvoir le révoquer
+          // await db.query('UPDATE users SET refresh_token = $1 WHERE id_user = $2', [refreshToken, user.id_user]);
+
+          // Construire l'AuthPayload
+          const authPayload = {
+            user,
+            last_login: new Date().toISOString(),
+            refresh_token: refreshToken,
+            accessToken,
+            libraries: createdLibraries
+          };
+
+          return authPayload;
+        } catch (txErr) {
+          // rollback et propager erreur
+          await db.query('ROLLBACK');
+          // Fournir un message plus clair pour le debug
+          console.error('createUser transaction error:', txErr && txErr.message ? txErr.message : txErr);
+          throw txErr;
+        }
+         
       } catch (error) {
         if (error instanceof GraphQLError) throw error;
         throw new GraphQLError('Erreur lors de la création de l\'utilisateur', {
@@ -459,7 +565,7 @@ export default {
           UPDATE users
           SET ${fields.join(', ')}
           WHERE id_user = $${idx}
-          RETURNING id_user, name, email, pseudo, id_role, status, created_at, updated_at
+          RETURNING id_user, name, email, pseudo, id_role, id_status, created_at, updated_at
         `, values);
 
         if (result.rows.length === 0) {
@@ -535,6 +641,46 @@ export default {
           'DELETE FROM users WHERE id_user = $1 RETURNING id_user',
           [cleanIdUser]
         );
+
+        if (result.rows.length === 0) {
+          throw new GraphQLError('Utilisateur non trouvé', {
+            extensions: { code: 'NOT_FOUND', httpStatus: 404 }
+          });
+        }
+
+        // recuperer l'id de toutes les bibliothèques associées à l'utilisateur
+        const librariesResult = await db.query(
+          'SELECT id_library FROM libraries WHERE id_user = $1',
+          [cleanIdUser]
+        );
+
+        // supprimer tous les livres et avis associés à ces bibliothèques
+        for (const row of librariesResult.rows) {
+          const idLibrary = row.id_library;
+
+          //supprimer les entrées dans bookhaslibrary et reviews associées à cette bibliothèque
+          await db.query(
+            'DELETE FROM bookhaslibrary WHERE id_library = $1',
+            [idLibrary]
+          );
+        }
+          // supprimer tous les avis associés à cet utilisateur
+          await db.query(
+            'DELETE FROM reviews WHERE id_user = $1',
+            [cleanIdUser]
+          );
+
+          // supprimer tous les messages associés à cet utilisateur
+          await db.query(
+            'DELETE FROM messages WHERE id_user = $1',
+            [cleanIdUser]
+          );
+
+          // supprimer tous les rapports associés à cet utilisateur
+          await db.query(
+            'DELETE FROM reports WHERE id_user = $1',
+            [cleanIdUser]
+          );
 
         if (context && context.res && typeof context.res.status === 'function') {
           context.res.status(200);
@@ -707,6 +853,280 @@ export default {
           });
         }
     },
+
+
+
+
+
+
+
+
+
+
+    /**
+     * 🔑 CONNEXION - Vérifier identifiants + générer token
+     * @param {object} input - Email/pseudo + password + rememberMe
+     * @returns {object} { user, accessToken, refreshToken }
+     */
+    login: async (_, { input }) => {
+      try {
+        /*
+        mutation Login($input: LoginInput!) {
+          login(input: $input) {
+            user {
+              id_user
+              email
+              pseudo
+              role
+            }
+            accessToken
+            refreshToken
+          }
+        }
+        
+        Variables:
+        {
+          "input": {
+            "emailOrPseudo": "john@example.com",
+            "password": "securepassword123",
+            "rememberMe": true
+          }
+        }
+        */
+        
+        const { emailOrPseudo, password, rememberMe = false } = input;
+        
+        // Sanitize
+        const cleanLogin = sanitizeString(emailOrPseudo);
+        const cleanPassword = sanitizeString(password);
+        
+        if (!cleanLogin || !cleanPassword) {
+          throw new GraphQLError('Email/pseudo et mot de passe requis', {
+            extensions: { code: 'BAD_USER_INPUT', httpStatus: 400 }
+          });
+        }
+        
+        // Chercher l'utilisateur par email OU pseudo
+        const result = await db.query(`
+          SELECT u.id_user, u.email, u.pseudo, u.password, u.id_role, u.status,
+                 r.role_name
+          FROM users u
+          LEFT JOIN roles r ON u.id_role = r.id_role
+          WHERE LOWER(u.email) = LOWER($1) OR LOWER(u.pseudo) = LOWER($1)
+        `, [cleanLogin]);
+        
+        if (result.rows.length === 0) {
+          throw new GraphQLError('Email/pseudo ou mot de passe incorrect', {
+            extensions: { code: 'UNAUTHORIZED', httpStatus: 401 }
+          });
+        }
+        
+        const user = result.rows[0];
+        
+        // Vérifier le statut du compte (1 = actif)
+        if (user.status !== 1) {
+          throw new GraphQLError('Votre compte est bloqué', {
+            extensions: { code: 'FORBIDDEN', httpStatus: 403 }
+          });
+        }
+        
+        // Vérifier le mot de passe
+        const isPasswordValid = await bcrypt.compare(cleanPassword, user.password);
+        
+        if (!isPasswordValid) {
+          throw new GraphQLError('Email/pseudo ou mot de passe incorrect', {
+            extensions: { code: 'UNAUTHORIZED', httpStatus: 401 }
+          });
+        }
+        
+        // Générer les tokens (durée selon rememberMe)
+        const accessToken = generateAccessToken({
+          id_user: user.id_user,
+          email: user.email,
+          pseudo: user.pseudo,
+          role: user.role_name || 'user',
+        }, rememberMe);
+        
+        const refreshToken = generateRefreshToken({
+          id_user: user.id_user,
+        });
+        
+        // Stocker le refresh token en BDD
+        // await db.query(`
+        //   UPDATE users 
+        //   SET refresh_token = $1, last_login = NOW() 
+        //   WHERE id_user = $2
+        // `, [refreshToken, user.id_user]);
+        
+        // Retourner sans le mot de passe
+        delete user.password;
+        
+        return {
+          user: {
+            id_user: user.id_user,
+            email: user.email,
+            pseudo: user.pseudo,
+          },
+          accessToken,
+          refreshToken,
+        };
+      } catch (error) {
+        if (error instanceof GraphQLError) throw error;
+        throw new GraphQLError('Erreur lors de la connexion', {
+          extensions: { 
+            code: 'INTERNAL_SERVER_ERROR',
+            httpStatus: 500,
+            originalError: error.message
+          },
+        });
+      }
+    },
+    
+    /**
+     * 🔄 REFRESH TOKEN - Renouveler l'access token
+     * @param {string} refreshToken - Refresh token
+     * @returns {object} { accessToken, refreshToken }
+     */
+    refreshToken: async (_, { refreshToken }) => {
+      try {
+        /*
+        mutation RefreshToken($refreshToken: String!) {
+          refreshToken(refreshToken: $refreshToken) {
+            accessToken
+            refreshToken
+          }
+        }
+        
+        Variables:
+        {
+          "refreshToken": "eyJhbGc..."
+        }
+        */
+        
+        if (!refreshToken) {
+          throw new GraphQLError('Refresh token requis', {
+            extensions: { code: 'BAD_USER_INPUT', httpStatus: 400 }
+          });
+        }
+        
+        // Vérifier le refresh token
+        const decoded = verifyToken(refreshToken, true);
+        
+        if (!decoded || decoded.type !== 'refresh') {
+          throw new GraphQLError('Refresh token invalide', {
+            extensions: { code: 'UNAUTHORIZED', httpStatus: 401 }
+          });
+        }
+        
+        // Vérifier que le token existe en BDD
+        const result = await db.query(`
+          SELECT u.id_user, u.email, u.pseudo, u.refresh_token, r.role_name
+          FROM users u
+          LEFT JOIN roles r ON u.id_role = r.id_role
+          WHERE u.id_user = $1
+        `, [decoded.id_user]);
+        
+        if (result.rows.length === 0 || result.rows[0].refresh_token !== refreshToken) {
+          throw new GraphQLError('Refresh token invalide ou révoqué', {
+            extensions: { code: 'UNAUTHORIZED', httpStatus: 401 }
+          });
+        }
+        
+        const user = result.rows[0];
+        
+        // Générer un nouveau access token
+        const newAccessToken = generateAccessToken({
+          id_user: user.id_user,
+          email: user.email,
+          pseudo: user.pseudo,
+        });
+        
+        // Optionnel : Rotation du refresh token (plus sécurisé)
+        const newRefreshToken = generateRefreshToken({
+          id_user: user.id_user,
+        });
+        
+        await db.query(`
+          UPDATE users SET refresh_token = $1 WHERE id_user = $2
+        `, [newRefreshToken, user.id_user]);
+        
+        return {
+          accessToken: newAccessToken,
+          refreshToken: newRefreshToken,
+        };
+      } catch (error) {
+        if (error instanceof GraphQLError) throw error;
+        throw new GraphQLError('Erreur lors du renouvellement du token', {
+          extensions: { 
+            code: 'INTERNAL_SERVER_ERROR',
+            httpStatus: 500,
+            originalError: error.message
+          },
+        });
+      }
+    },
+    
+    /**
+     * 🚪 DÉCONNEXION - Invalider le refresh token
+     * @param {object} context - Context avec user
+     * @returns {boolean} true si déconnexion réussie
+     */
+    logout: async (_, __, context) => {
+      try {
+        /*
+        mutation Logout {
+          logout
+        }
+        
+        Headers:
+        {
+          "Authorization": "Bearer eyJhbGc..."
+        }
+        */
+        
+        if (!context.isAuthenticated) {
+          throw new GraphQLError('Non authentifié', {
+            extensions: { code: 'UNAUTHENTICATED', httpStatus: 401 }
+          });
+        }
+        
+        const userId = context.user?.id_user;
+        
+        if (!userId) {
+          throw new GraphQLError('ID utilisateur introuvable', {
+            extensions: { code: 'UNAUTHORIZED', httpStatus: 401 }
+          });
+        }
+        
+        // Supprimer le refresh token en BDD
+        await db.query(`
+          UPDATE users SET refresh_token = NULL WHERE id_user = $1
+        `, [userId]);
+        
+        return true;
+      } catch (error) {
+        if (error instanceof GraphQLError) throw error;
+        throw new GraphQLError('Erreur lors de la déconnexion', {
+          extensions: { 
+            code: 'INTERNAL_SERVER_ERROR',
+            httpStatus: 500,
+            originalError: error.message
+          },
+        });
+      }
+    },
+
+
+
+
+
+
+
+
+
+
+
+
   },
 
   User: {
@@ -716,5 +1136,8 @@ export default {
       return fetchRoleById(parent.id_role);
     },
 
+    status: (parent) => {
+      return fetchStatusById(parent.id_status);
+    },
   },
 };

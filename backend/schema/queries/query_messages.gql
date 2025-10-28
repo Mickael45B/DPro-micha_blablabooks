@@ -18,8 +18,9 @@ extend type Query {        # Type pour les résultats de recherche paginés
         # Récupérer un message par son ID
         getMessage(id_message: ID!): Message 
 
-        # Récupérer les messages d'un utilisateur spécifique avec pagination
-        getUserMessages(userId: ID!, type: String, limit: Int, offset: Int): PaginatedMessages
+    # Récupérer les messages d'un utilisateur spécifique avec pagination
+    # userId est optionnel : si absent, le resolver utilisera l'utilisateur extrait du token
+    getUserMessages(userId: ID, type: String, limit: Int, offset: Int): PaginatedMessages
 
         # Rechercher des messages par contenu avec pagination
         searchMessages(content: String!, limit: Int, offset: Int): PaginatedMessages

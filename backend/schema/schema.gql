@@ -12,6 +12,38 @@ type Mutation {
   _empty: String
 }
 
+schema {
+  query: Query
+  mutation: Mutation
+}
+
+type Query {
+  _empty: String
+}
+
+type Mutation {
+  _empty: String
+}
+
+"""
+Auth payload renvoyé lors de l'authentification / inscription.
+En développement on expose accessToken + refresh_token dans la réponse.
+En production, préférez stocker le refresh token en cookie HttpOnly (voir commentaires
+dans les resolvers) pour réduire la surface d'attaque.
+"""
+type AuthPayload {
+  user: User!
+  last_login: String!
+  refresh_token: String!    # ATTENTION: en production, envoyez ce token dans un cookie HttpOnly plutôt que dans le body
+  accessToken: String!      # token d'accès court
+  libraries: [Library!]!    # bibliothèques créées par défaut
+}
+
+type TokenPayload {
+  last_login: String!
+  refresh_token: String!
+}
+
 # schema.gql
 # Ce fichier sert de point d'entrée pour la documentation
 # Les types sont chargés automatiquement depuis les sous-dossiers

@@ -1,6 +1,10 @@
 import e from "express";
 import Joi from "joi";
 
+
+//-----------------------------------------------------------
+//QUERIES 
+//-----------------------------------------------------------
 export const getBooksSchema = Joi.object({
 	limit: Joi.number().integer().min(1).max(100).default(50),
 	offset: Joi.number().integer().min(0).default(0),
@@ -20,6 +24,9 @@ export const searchBooksSchema = Joi.object({
 	direction: Joi.string().valid('ASC', 'DESC').default('DESC'),// Direction du tri (ascendant ou descendant)
 });
 
+//-----------------------------------------------------------
+//MUTATIONS
+//-----------------------------------------------------------
 export const createBookSchema = Joi.object({
 	id: Joi.string().min(34).max(36), // UUIDv4
 	isbn: Joi.string().max(42), // ISBN du livre
@@ -52,8 +59,6 @@ export const updateBookSchema = Joi.object({
 	series: Joi.string().max(42), // Description du tome
 	updated_at: Joi.date(),// Date de mise à jour
 });
-
-
 
 export const deleteBookSchema = Joi.object({
 	id: Joi.string().min(34).max(36).required(), // UUIDv4

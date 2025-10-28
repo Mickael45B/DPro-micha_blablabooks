@@ -4,7 +4,7 @@ export const fetchUserById = async (id_user) => {
   if (!id_user) return null;
   try {
     const result = await db.query(
-      'SELECT id_user, name, email, id_role, pseudo, status, created_at, updated_at FROM users WHERE id_user = $1',
+      'SELECT id_user, name, email, id_role, pseudo, id_status, created_at, updated_at FROM users WHERE id_user = $1',
       [id_user]
     );
     return result.rows[0] || null;

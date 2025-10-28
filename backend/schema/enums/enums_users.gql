@@ -3,15 +3,15 @@ enum UserOrderBy {
   EMAIL
   PSEUDO
   ROLE
-  STATUS
+  ID_STATUS
   CREATED_AT
 }
 
 enum UserStatus {
-  1              # ACTIVE
-  2              # BLOCKED_BY_ADMIN
-  3              # BLOCKED_BY_USER
-  4              # BLOCKED_BY_BOTH
-  5              # DELETED
+  ACTIVE #1
+  BLOCKED_BY_ADMIN #2
+  BLOCKED_BY_USER #3
+  BLOCKED_BY_BOTH #4
+  DELETED #5
 }
 

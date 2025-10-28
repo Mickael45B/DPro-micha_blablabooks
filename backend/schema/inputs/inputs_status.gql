@@ -1,0 +1,18 @@
+input CreateStatusInput {     
+  status_name: String!
+}
+
+input UpdateStatusInput {
+  id_status: ID!
+  status_name: String!
+}
+
+input DeleteStatusInput {
+  id_status: ID!
+}
+
+
+input StatusSortInput {
+  orderBy: StatusOrderBy!
+  direction: OrderDirection!
+}
