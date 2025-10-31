@@ -5,14 +5,16 @@ import { validateOrderParams, handleDbError } from '../utils/validators.js';
 import sanitizeHtml from 'sanitize-html'
 import fetchBookById from './utils/utils_books.js';
 import fetchLibraryById from './utils/utils_librairies.js';
-import { isAuthenticated, requireAuth, requireAdmin, requireOwnershipOrAdmin, sanitizeString, sanitizeInput } from './utils/helpers/helpers_general.js';
+import { isAuthenticated, requireAuth, requireAdmin, requireOwnershipOrAdmin, sanitizeString, sanitizeInput, flattenEdges, makePageInfo, makeEdgeFromBook, withErrorHandling, withRateLimit } from './utils/helpers/helpers_general.js';
 import { findBookLibraryOrThrow, requireEditableLibrary, verifyLibraryAccess, validateWithJoi} from './utils/helpers/helpers_bookhaslibrary.js';
 
 import {getBooksInLibrarySchema, getBookInLibrarySchema, searchBooksInLibrarySchema, addBookHasLibrarySchema, updateBookHasLibrarySchema, deleteBookHasLibrarySchema, addBooksToLibrarySchema, removeBooksFromLibrarySchema} from '../schema/schemas_joi/bookhaslibrarySchema.js';
 import { validate as uuidValidate } from 'uuid';
 
 
-
+// ========================================
+// RESOLVERS POUR LES LIVRES EN BIBLIOTHÈQUE
+// ======================================== 
 
 export default {
   Query: {
@@ -29,80 +31,71 @@ export default {
      * @throws {GraphQLError} Si l'utilisateur n'a pas les droits (401 ou 403)  
      * @throws {GraphQLError} Si une erreur se produit lors de la récupération des livres (500)
      */
-    getBooksInLibrary: async (_, args, context) => {
-      try {
-        /* exemple context JWT décodé ( à revoir):
-        {
-          userId: "uuid-of-user",
-          email: "user@example.com",
-          role: "admin"
-        }
-        */
-       /*exemple de requête :
-        query {
-            getBooksInLibrary { books{id_bookhaslibrary, book{title,description}, library{id_library name, user{name, role{role_name}}}} }
-        }
-        */
-        /* Exemple variables :
-        {
-        }
-        */
+    getBooksInLibrary: withErrorHandling(
+        async (_, args, context) => {
+      
+          /* exemple context JWT décodé ( à revoir):
+          {
+            userId: "uuid-of-user",
+            email: "user@example.com",
+            role: "admin"
+          }
+          */
+          /*exemple de requête :
+          query {
+              getBooksInLibrary { books{id_bookhaslibrary, book{title,description}, library{id_library name, user{name, role{role_name}}}} }
+          }
+          */
+          /* Exemple variables :
+          {
+          }
+          */
+      
+          const { limit = 50, offset = 0, order = 'created_at', direction = 'ASC' } = args;
+          
+          // Validation avec Joi => 1ere couche - défense en profondeur
+          const validatedArgs = validateWithJoi(getBooksInLibrarySchema, {
+            limit : args.limit,
+            offset : args.offset,
+            order : args.order,
+            direction : args.direction  
+          });
 
+          // Sanitize inputs => 2ème couche - défense en profondeur
+          const cleanLimit = Math.min(Math.max(parseInt(limit) || 50, 1), 100);
+          const cleanOffset = Math.max(parseInt(offset) || 0, 0);
+          
+          // Vérifier l'accès à la bibliothèque
+          requireAuth( context);
+          
+          // Valider les paramètres de tri
+          const validOrders = ['created_at', 'updated_at'];
+          const { order: safeOrder, direction: safeDirection } = validateOrderParams(
+            sanitizeString(order), 
+            sanitizeString(direction), 
+            validOrders
+          );
+          
+          const result = await db.query(`
+            SELECT * FROM bookhaslibrary
+            ORDER BY ${safeOrder} ${safeDirection}
+            LIMIT $1 OFFSET $2
+          `, [cleanLimit, cleanOffset]);
 
-        const { limit = 50, offset = 0, order = 'created_at', direction = 'ASC' } = args;
-        
-        // Validation avec Joi => 1ere couche - défense en profondeur
-        const validatedArgs = validateWithJoi(getBooksInLibrarySchema, {
-          limit : args.limit,
-          offset : args.offset,
-          order : args.order,
-          direction : args.direction  
-        });
+          const countResult = await db.query('SELECT COUNT(*)::int as count FROM bookhaslibrary');
 
-        // Sanitize inputs => 2ème couche - défense en profondeur
-        const cleanLimit = Math.min(Math.max(parseInt(limit) || 50, 1), 100);
-        const cleanOffset = Math.max(parseInt(offset) || 0, 0);
-        
-        // Vérifier l'accès à la bibliothèque
-         requireAuth( context);
-        
-        // Valider les paramètres de tri
-        const validOrders = ['created_at', 'updated_at'];
-        const { order: safeOrder, direction: safeDirection } = validateOrderParams(
-          sanitizeString(order), 
-          sanitizeString(direction), 
-          validOrders
-        );
-        
-        const result = await db.query(`
-          SELECT * FROM bookhaslibrary
-          ORDER BY ${safeOrder} ${safeDirection}
-          LIMIT $1 OFFSET $2
-        `, [cleanLimit, cleanOffset]);
-
-        const countResult = await db.query('SELECT COUNT(*)::int as count FROM bookhaslibrary');
-
-        const totalCount = countResult.rows[0].count;
-        
-        return {
-          books: result.rows,
-          totalCount,
-          hasNextPage: cleanOffset + cleanLimit < totalCount,
-          httpStatus: 200,
-        };
-      } catch (error) {
-        console.error('ERROR getBooksInLibrary:', error);
-        if (error instanceof GraphQLError) throw error;
-        throw new GraphQLError('Erreur lors de la récupération des livres', {
-          extensions: { 
-            code: 'INTERNAL_SERVER_ERROR',
-            httpStatus: 500,
-            originalError: error.message
-          },
-        });
-      }
-    },
-
+          const totalCount = countResult.rows[0].count;
+          
+          return {
+            books: result.rows,
+            totalCount,
+            hasNextPage: cleanOffset + cleanLimit < totalCount,
+            httpStatus: 200,
+          };
+        },    
+      'Erreur lors de la récupération des livres en bibliothèque'
+    ),
+    
     /**
      * Récupère un livre d'une bibliothèque
      * 🔒 Route protégée - L'utilisateur ne peut voir que ses propres livres (sauf admin)
@@ -111,8 +104,9 @@ export default {
      * @throws {GraphQLError} Si l'utilisateur n'a pas les droits (401 ou 403)
      * @throws {GraphQLError} Si une erreur se produit lors de la récupération des livres (500)
      */
-    getBookInLibrary: async (_, { id_bookhaslibrary }, context) => {
-      try {
+    getBookInLibrary: withErrorHandling(
+      async (_, args, context) => {
+
         /* exemple context JWT décodé ( à revoir):
         {
           userId: "uuid-of-user",
@@ -131,9 +125,11 @@ export default {
           id_bookhaslibrary: "11b3c4d5e-6f7g-8h9i-0j1k-2l3m4n5o6p7"
         }
         */
-
+    
         // Vérifier les droits d'accès
         requireAuth(context);
+
+        const { id_bookhaslibrary } = args;
 
         // Validation avec Joi => 1ère couche - défense en profondeur
         const validatedArgs = validateWithJoi(getBookInLibrarySchema, {
@@ -151,18 +147,11 @@ export default {
         
         if (context?.res?.status) context.res.status(200);
         return bookLibrary;
-      } catch (error) {
-        if (error instanceof GraphQLError) throw error;
-        throw new GraphQLError('Erreur lors de la récupération du livre', {
-          extensions: { 
-            code: 'INTERNAL_SERVER_ERROR',
-            httpStatus: 500,
-            originalError: error.message
-          },
-        });
-      }
-    },
-
+        
+      },
+      'Erreur lors de la récupération du livre en bibliothèque'
+    ),
+    
     /**
      * Recherche des livres dans une bibliothèque
      * 🔒 Route protégée - L'utilisateur ne peut voir que les livres dans ses bibliothèques (sauf admin)
@@ -174,9 +163,9 @@ export default {
      * @throws {GraphQLError} Si l'utilisateur n'a pas les droits (401 ou 403)
      * @throws {GraphQLError} Si une erreur se produit lors de la récupération des livres (500)
      */
-    searchBooksInLibrary: async (_, args, context) => {
-      try {
-
+    searchBooksInLibrary: withErrorHandling(
+      async (_, args, context) => {
+    
         /* exemple context JWT décodé ( à revoir):
         {
           userId: "uuid-of-user",
@@ -190,8 +179,7 @@ export default {
         /* Exemple variables :
         { "titleOrAuthor": "00" }        
         */
-
-
+    
         const { titleOrAuthor, limit = 50, offset = 0, order = 'created_at', direction = 'DESC' } = args;
         
         // Validation avec Joi => 1ère couche - défense en profondeur
@@ -243,22 +231,15 @@ export default {
           books: result.rows || [],
           totalCount: countResult.rows[0].count || 0,
           hasNextPage: cleanOffset + cleanLimit < (countResult.rows[0].count || 0),
+          httpStatus: 200,
         };
-      } catch (error) {
-        if (error instanceof GraphQLError) throw error;
-        throw new GraphQLError('Erreur lors de la recherche', {
-          extensions: { 
-            code: 'INTERNAL_SERVER_ERROR',
-            httpStatus: 500,
-            originalError: error.message
-          },
-        });
-      }
-    },
+        
+      },
+      'Erreur lors de la recherche de livre en bibliothèque'
+    ),       
   },
 
   Mutation: {
-
     /**
      * Ajoute un livre à une bibliothèque
      * 🔒 Route protégée - L'utilisateur ne peut ajouter que dans ses propres bibliothèques (sauf admin)
@@ -269,10 +250,9 @@ export default {
      * @throws {GraphQLError} Si l'utilisateur n'a pas les droits (401 ou 403)
      * @throws {GraphQLError} Conflit lors de l'ajout du livre (409)
      * @throws {GraphQLError} Si une erreur se produit lors de la récupération des livres (500)
-     */
-    addBookHasLibrary: async (_, { input }, context) => {
-      try {
-
+     */  
+    addBookHasLibrary: withErrorHandling(
+      async (_, { input }, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
           userId: "uuid-of-user",
@@ -280,7 +260,7 @@ export default {
           role: "admin"
         }
         */
-       /*exemple de requête :
+        /*exemple de requête :
         mutation AddBookHasLibrary($input: CreateBookHasLibraryInput!) { addBookHasLibrary(input: $input) {__typename id_bookhaslibrary id_book id_library }}
 
         */
@@ -291,7 +271,7 @@ export default {
         }
         }        
         */
-
+    
         // Validation avec Joi => 1ere couche - défense en profondeur
         const validatedArgs = validateWithJoi(addBookHasLibrarySchema, {
             id_library: input.id_library,
@@ -363,18 +343,11 @@ export default {
         }
 
         return result.rows[0];
-      } catch (error) {
-        if (error instanceof GraphQLError) throw error;
-        throw new GraphQLError('Erreur lors de l\'ajout du livre', {
-          extensions: { 
-            code: 'INTERNAL_SERVER_ERROR',
-            httpStatus: 500,
-            originalError: error.message
-          },
-        });
-      }
-    },
-
+    
+      },
+      'Erreur lors de l\'ajout du livre'
+    ),
+    
     /**
      * Met à jour un livre dans une bibliothèque (déplacement du livre dans une autre bibliothèque, marquer comme lu/favori, etc.)
      * 🔒 Route protégée - L'utilisateur ne peut modifier que dans ses propres bibliothèques (sauf admin)
@@ -385,8 +358,8 @@ export default {
      * @throws {GraphQLError} Si l'utilisateur n'a pas les droits (401 ou 403)
      * @throws {GraphQLError} Si une erreur se produit lors de la récupération des livres (500)
      */
-    updateBookHasLibrary: async (_, { input }, context) => {
-      try {
+    updateBookHasLibrary: withErrorHandling(
+      async (_, { input }, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
           userId: "uuid-of-user",
@@ -406,9 +379,7 @@ export default {
         }
         }       
         */
-
-        console.log('Input reçu pour la mise à jour:', input);
-
+    
         // Vérifier les droits d'accès
           requireAuth(context);
 
@@ -420,10 +391,10 @@ export default {
             is_read: input.is_read,
             is_favorite: input.is_favorite,
         });
-        console.log('Arguments validés:', validatedArgs);
+
         // Sanitize input => 2ème couche - défense en profondeur
         const cleanInput = sanitizeInput(validatedArgs);
-        console.log('Input nettoyé:', cleanInput);
+
         // Validation
         if (!cleanInput.id) {
           throw new GraphQLError('id_bookhaslibrary est requis', {
@@ -458,7 +429,6 @@ export default {
           updates.push(`id_library = $${paramIndex++}`);
           values.push(cleanInput.id_library);
         }
-
         if (cleanInput.isRead !== undefined) {
           updates.push(`is_read = $${paramIndex++}`);
           values.push(cleanInput.isRead);
@@ -467,7 +437,6 @@ export default {
           updates.push(`is_favorite = $${paramIndex++}`);
           values.push(cleanInput.isFavorite);
         }
-
         if (updates.length === 0) {
           throw new GraphQLError('Aucun champ à mettre à jour', {
             extensions: { 
@@ -490,18 +459,12 @@ export default {
           data: result.rows[0],
           httpStatus: 200,
         };
-      } catch (error) {
-        if (error instanceof GraphQLError) throw error;
-        throw new GraphQLError('Erreur lors de la mise à jour', {
-          extensions: { 
-            code: 'INTERNAL_SERVER_ERROR',
-            httpStatus: 500,
-            originalError: error.message
-          },
-        });
-      }
-    },
-
+    
+    
+      },
+      'Erreur lors de la mise à jour'
+    ), 
+    
     /**
      * Supprime un livre d'une bibliothèque
      * 🔒 Route protégée - L'utilisateur ne peut supprimer que dans ses propres bibliothèques (sauf admin)
@@ -512,8 +475,8 @@ export default {
      * @throws {GraphQLError} Si l'utilisateur n'a pas les droits (401 ou 403)
      * @throws {GraphQLError} Si une erreur se produit lors de la récupération des livres (500)
      */
-    deleteBookHasLibrary: async (_, { input }, context) => {
-      try {
+    deleteBookHasLibrary: withErrorHandling(
+      async (_, { input }, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
           userId: "uuid-of-user",
@@ -527,7 +490,7 @@ export default {
         /* Exemple variables :
         {"input": {"id_bookhaslibrary":"1a2b3c4d-5e6f-7g8h-9i0j-1k2l3m4n5o6p"} }
         */
-
+    
         // Vérifier les droits d'accès
         requireAuth(context);
 
@@ -570,18 +533,11 @@ export default {
         }
 
         return deleted;
-      } catch (error) {
-        if (error instanceof GraphQLError) throw error;
-        throw new GraphQLError('Erreur lors de la suppression', {
-          extensions: { 
-            code: 'INTERNAL_SERVER_ERROR',
-            httpStatus: 500,
-            originalError: error.message
-          },
-        });
-      }
-    },
-
+        
+      },
+      'Erreur lors de la suppression du livre en bibliothèque'
+    ),
+    
     /**
      * Ajoute plusieurs livres à une bibliothèque
      * 🔒 Route protégée - L'utilisateur ne peut ajouter que dans ses propres bibliothèques (sauf admin)
@@ -592,11 +548,50 @@ export default {
      * @throws {GraphQLError} Si l'utilisateur n'a pas les droits ou Si la bibliothèque n'est pas modifiable(401 ou 403)
      * @throws {GraphQLError} Si une erreur se produit lors de la récupération des livres (500)
      */
-    addBooksToLibrary: async (_, { input }, context) => {
-      /* voir plus tard */
-    },
+    addBooksToLibrary: withErrorHandling(
+      async (_, { input }, context) => {
+        // Vérifier les droits d'accès
+        requireAuth(context);
 
+        // Validation avec Joi => 1ere couche - défense en profondeur
+        const validatedArgs = validateWithJoi(addBooksToLibrarySchema, input);
 
+        // Sanitize input => 2ème couche - défense en profondeur
+        const cleanBooks = validatedArgs.books.map(book => ({
+          id: sanitizeString(book.id),
+          id_library: sanitizeString(book.id_library),
+        }));
+
+        // Validation
+        if (!cleanBooks.length) {
+          throw new GraphQLError('books est requis', {
+            extensions: {
+              code: 'BAD_REQUEST',
+              httpStatus: 400
+            },
+          });
+        }
+
+        // Vérifier l'accès et que la bibliothèque est modifiable
+        const libraries = await Promise.all(cleanBooks.map(book => verifyLibraryAccess(book.id_library, context)));
+        libraries.forEach(library => requireEditableLibrary(library));
+
+        // Ajouter les livres
+        const addResult = await db.query(
+          'INSERT INTO bookhaslibrary (id_book, id_library) VALUES ($1, $2) RETURNING id_bookhaslibrary',
+          [cleanBooks.map(book => book.id), cleanBooks.map(book => book.id_library)]
+        );
+
+        return {
+          data: {
+            added: addResult.rowCount
+          },
+          httpStatus: 201
+        };    
+      },
+      'Erreur lors de la récupération du livre en bibliothèque'
+    ),
+    
     /**
      * Supprime plusieurs livres d'une bibliothèque
      * 🔒 Route protégée - L'utilisateur ne peut supprimer que dans ses propres bibliothèques (sauf admin
@@ -606,9 +601,42 @@ export default {
      * @throws {GraphQLError} Si l'utilisateur n'a pas les droits ou Si la bibliothèque n'est pas modifiable(401 ou 403)
      * @throws {GraphQLError} Si une erreur se produit lors de la récupération des livres (500)
      */
-    removeBooksFromLibrary: async (_, { input }, context) => {
-      /* voir plus tard */
-    },
+    removeBooksFromLibrary: withErrorHandling(
+      async (_, args, context) => {
+        // Vérifier les droits d'accès
+        requireAuth(context);
+
+        // Validation des arguments
+        const validatedArgs = validateWithJoi(removeBooksFromLibrarySchema, args);
+
+        // Vérifier l'accès à la bibliothèque
+        const library = await verifyLibraryAccess(validatedArgs.id_library, context);
+        requireEditableLibrary(library);
+
+        // Supprimer les livres de la bibliothèque
+        const deleteResult = await db.query(
+          'DELETE FROM bookhaslibrary WHERE id_book = $1 AND id_library = $2 RETURNING id_bookhaslibrary',
+          [validatedArgs.id_book, validatedArgs.id_library]
+        );
+
+        if (deleteResult.rowCount === 0) {
+          throw new GraphQLError('Livre non trouvé dans la bibliothèque', {
+            extensions: {
+              code: 'NOT_FOUND',
+              httpStatus: 404
+            },
+          });
+        }
+
+        return {
+          data: {
+            removed: deleteResult.rowCount
+          },
+          httpStatus: 200
+        };
+      },
+      'Erreur lors de la suppression du livre en bibliothèque'
+    ),     
   },
 
   BookHasLibrary: {

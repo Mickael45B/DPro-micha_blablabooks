@@ -5,7 +5,7 @@ import sanitizeHtml from 'sanitize-html';
 import { validateOrderParams, handleDbError } from '../utils/validators.js';
 import { fetchUserById } from './utils/utils_users.js';
 import fetchUserRoleNameById from './utils/utils_roles.js';
-import { isAuthenticated, requireAuth, requireAdmin, requireOwnershipOrAdmin, sanitizeString, sanitizeInput } from './utils/helpers/helpers_general.js';
+import { isAuthenticated, requireAuth, requireAdmin, requireOwnershipOrAdmin, sanitizeString, sanitizeInput, flattenEdges, makePageInfo, makeEdgeFromBook, withErrorHandling } from './utils/helpers/helpers_general.js';
 import {findLibraryOrThrow, requireEditableLibrary} from './utils/helpers/helpers_library.js';
 
 import { getLibrariesSchema, getUserLibrariesSchema, getLibrarySchema, searchLibrariesSchema, addLibrarySchema, updateLibrarySchema, deleteAllLibrariesFromUserSchema, deleteLibrarySchema } from '../schema/schemas_joi/librairySchema.js';
@@ -24,9 +24,8 @@ export default {
      * 🔓 Route publique
      * @returns {object} { libraries, totalCount, hasNextPage }
      */
-    getLibraries: async (_, args, context) => {
-      try {
-
+    getLibraries: withErrorHandling(
+      async (_, args, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
           userId: "uuid-of-user",
@@ -41,11 +40,11 @@ export default {
         {
         }
         */
-        
+    
         const { limit = 50, offset = 0, order = 'created_at', direction = 'ASC' } = args;
         
         // Vérifier les droits d'accès
-        //requireAdmin(context);
+        requireAdmin(context);
 
         // Validation avec Joi => 1ere couche - défense en profondeur
         const validatedArgs = validateWithJoi(getLibrariesSchema, args);
@@ -76,28 +75,19 @@ export default {
           totalCount,
           hasNextPage: cleanOffset + cleanLimit < totalCount,
           httpStatus: 200,
-        };
-      } catch (error) {
-        if (error instanceof GraphQLError) throw error;
-        throw new GraphQLError('Erreur lors de la récupération des bibliothèques', {
-          extensions: { 
-            code: 'INTERNAL_SERVER_ERROR',
-            httpStatus: 500,
-            originalError: error.message
-          },
-        });
-      }
-    },
-
+        };    
+      },
+      'Erreur lors de la récupération des bibliothèques'
+    ),
+    
     /**
      * Récupère les bibliothèques d'un utilisateur
      * 🔒 Route protégée - L'utilisateur ne peut voir que ses propres bibliothèques (sauf admin)
      * @param {string} id_user - ID de l'utilisateur
      * @returns {array} Liste des bibliothèques
      */
-    getUserLibraries: async (_, { id_user }, context) => {
-      try {
-
+    getUserLibraries: withErrorHandling(
+      async (_, args, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
           userId: "uuid-of-user",
@@ -112,7 +102,9 @@ export default {
         /* Exemple variables :
         {"id_user": "55530935-6301-4320-9ec9-85e8db741583"}
         */
-        
+    
+        const { id_user } = args;
+
         // Valider avec Joi => 1ere couche - défense en profondeur
         const validatedArgs = validateWithJoi(getUserLibrariesSchema, { id_user });
 
@@ -131,27 +123,19 @@ export default {
         // On renvoie directement les rows (array) : [Library]
         if (context?.res?.status) context.res.status(200);
         return result.rows;
-      } catch (error) {
-        if (error instanceof GraphQLError) throw error;
-        throw new GraphQLError('Erreur lors de la récupération des bibliothèques utilisateur', {
-          extensions: { 
-            code: 'INTERNAL_SERVER_ERROR',
-            httpStatus: 500,
-            originalError: error.message
-          },
-        });
-      }
-    },
-
+        
+      },
+      'Erreur lors de la récupération des bibliothèques utilisateur'
+    ),
+    
     /**
      * Récupère une bibliothèque par son ID
      * 🔓 Route publique
      * @param {string} id_library - ID de la bibliothèque
      * @returns {object} Bibliothèque trouvée
      */
-    getLibrary: async (_, { id_library }, context) => {
-      try {
-
+    getLibrary: withErrorHandling(
+      async (_, args, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
           userId: "uuid-of-user",
@@ -167,6 +151,8 @@ export default {
         {"id_library": "2b3c4d5e-6f7g-8h9i-0j1k-2l3m4n5o6p7q"}
         */
 
+        const { id_library } = args;
+    
         //Validation avec Joi => 1ere couche - défense en profondeur
         const validatedArgs = validateWithJoi(getLibrarySchema, { id_library });
 
@@ -178,27 +164,18 @@ export default {
         
         if (context?.res?.status) context.res.status(200);
         return library;
-      } catch (error) {
-        if (error instanceof GraphQLError) throw error;
-        throw new GraphQLError('Erreur lors de la récupération de la bibliothèque', {
-          extensions: { 
-            code: 'INTERNAL_SERVER_ERROR',
-            httpStatus: 500,
-            originalError: error.message
-          },
-        });
-      }
-    },
-
+      },
+      'Erreur lors de la récupération de la bibliothèque'
+    ),
+    
     /**
      * Recherche des bibliothèques par nom
      * 🔓 Route publique
      * @param {string} name - Terme de recherche
      * @returns {object} { libraries, totalCount, hasNextPage }
      */
-    searchLibraries: async (_, args, context) => {
-      try {
-
+    searchLibraries: withErrorHandling(
+      async (_, args, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
           userId: "uuid-of-user",
@@ -213,7 +190,7 @@ export default {
         /* Exemple variables :
         {"name": "bob"}
         */
-
+    
         const { name, limit = 50, offset = 0 } = args;
         
         // Vérifier les droits d'accès
@@ -268,31 +245,20 @@ export default {
           hasNextPage: cleanOffset + cleanLimit < countResult.rows[0].count,
           httpStatus: 200,
         };
-      } catch (error) {
-        if (error instanceof GraphQLError) throw error;
-        throw new GraphQLError('Erreur lors de la recherche des bibliothèques', {
-          extensions: { 
-            code: 'INTERNAL_SERVER_ERROR',
-            httpStatus: 500,
-            originalError: error.message
-          },
-        });
-      }
-    },
-
+      },
+      'Erreur lors de la recherche des bibliothèques'
+    ),
   },
   
   Mutation: {
-
     /**
      * Crée une nouvelle bibliothèque
      * 🔒 Route protégée - L'utilisateur ne peut créer que ses propres bibliothèques (sauf admin)
      * @param {object} input - { name, isEditable, idUser }
      * @returns {object} Bibliothèque créée
      */
-    addLibrary: async (_, { input }, context) => {
-      try {
-
+    addLibrary: withErrorHandling(
+      async (_, { input }, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
           userId: "uuid-of-user",
@@ -311,7 +277,7 @@ export default {
         }
         }        
         */
-        
+    
         //Validation avec Joi => 1ere couche - défense en profondeur
         const validatedArgs = validateWithJoi(addLibrarySchema, input);
 
@@ -364,18 +330,10 @@ export default {
         
         if (context?.res?.status) context.res.status(201);
         return result.rows[0];
-
-      } catch (error) {
-        if (error instanceof GraphQLError) throw error;
-        throw new GraphQLError('Erreur lors de la création de la bibliothèque', {
-          extensions: { 
-            code: 'INTERNAL_SERVER_ERROR',
-            httpStatus: 500,
-            originalError: error.message
-          },
-        });
-      }
-    },
+    
+      },
+      'Erreur lors de la création de la bibliothèque'
+    ),
     
     /**
      * Met à jour une bibliothèque
@@ -383,9 +341,8 @@ export default {
      * @param {object} input - { id_library, name?, isEditable? }
      * @returns {object} Bibliothèque mise à jour
      */
-    updateLibrary: async (_, { input }, context) => {
-      try {
-
+    updateLibrary: withErrorHandling(
+      async (_, { input }, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
           userId: "uuid-of-user",
@@ -404,10 +361,11 @@ export default {
         }
         }       
         */
-
-
+    
+        //Validation avec Joi => 1ere couche - défense en profondeur
+        const validatedArgs = validateWithJoi(updateLibrarySchema, input);
         
-        // Sanitize input
+        // Sanitize input => 2ème couche - défense en profondeur
         const cleanInput = sanitizeInput(input);
         const cleanLibraryId = sanitizeString(cleanInput.id_library);
         
@@ -415,7 +373,7 @@ export default {
         const library = await findLibraryOrThrow(cleanLibraryId);
         
         // Vérifier les droits
-        //requireOwnershipOrAdmin(library.id_user, context);
+        requireOwnershipOrAdmin(library.id_user, context);
         
         // Vérifier si modifiable
         requireEditableLibrary(library);
@@ -465,17 +423,10 @@ export default {
           data: result.rows[0],
           httpStatus: 200,
         };
-      } catch (error) {
-        if (error instanceof GraphQLError) throw error;
-        throw new GraphQLError('Erreur lors de la mise à jour de la bibliothèque', {
-          extensions: { 
-            code: 'INTERNAL_SERVER_ERROR',
-            httpStatus: 500,
-            originalError: error.message
-          },
-        });
-      }
-    },
+    
+      },
+      'Erreur lors de la mise à jour de la bibliothèque'
+    ),
     
     /**
      * Supprime toutes les bibliothèques d'un utilisateur
@@ -483,9 +434,8 @@ export default {
      * @param {string} id_user - ID de l'utilisateur
      * @returns {array} IDs des bibliothèques supprimées
      */
-    deleteAllLibrariesFromUser: async (_, { id_user }, context) => {
-      try {
-
+    deleteAllLibrariesFromUser: withErrorHandling(
+      async (_, args, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
           userId: "uuid-of-user",
@@ -493,18 +443,17 @@ export default {
           role: "admin"
         }
         */
-       /*exemple de requête :
+        /*exemple de requête :
             mutation deleteAllLibrariesFromUser($id_user: ID!) { deleteAllLibrariesFromUser(id_user: $id_user) }
         */
         /* Exemple variables :
         {"id_user":"a1b2c3d4-e5f6-7g8h-9i0j-1k2l3m4n5o6p"}
         */
 
-
-
-
-        //requireAdmin(context);
+        // Vérifier les droits
+        requireAdmin(context);
         
+        const { id_user } = args;
         // Sanitize input
         const cleanUserId = sanitizeString(id_user);
         
@@ -516,29 +465,21 @@ export default {
         );
 
         
-  if (context?.res?.status) context.res.status(200);
-  return true;
-      } catch (error) {
-        if (error instanceof GraphQLError) throw error;
-        throw new GraphQLError('Erreur lors de la suppression des bibliothèques', {
-          extensions: { 
-            code: 'INTERNAL_SERVER_ERROR',
-            httpStatus: 500,
-            originalError: error.message
-          },
-        });
-      }
-    },
-
+        if (context?.res?.status) context.res.status(200);
+        return true;
+    
+      },
+      'Erreur lors de la suppression des bibliothèques'
+    ),
+    
     /**
      * Supprime une bibliothèque
      * 🔒 Route protégée - L'utilisateur ne peut supprimer que ses propres bibliothèques (sauf admin)
      * @param {object} input - { id_library }
      * @returns {boolean} true si supprimée
      */
-    deleteLibrary: async (_, { input }, context) => {
-      try {
-
+    deleteLibrary: withErrorHandling(
+      async (_, { input }, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
           userId: "uuid-of-user",
@@ -553,7 +494,6 @@ export default {
         {"input": {"id_library":"2b3c4d5e-6f7g-8h9i-0j1k-2l3m4n5o6p7d"} }
         */
 
-        
         // Sanitize input
         const cleanLibraryId = sanitizeString(input.id_library);
         
@@ -573,18 +513,11 @@ export default {
 
         if (context?.res?.status) context.res.status(200);
         return true;
-      } catch (error) {
-        if (error instanceof GraphQLError) throw error;
-        throw new GraphQLError('Erreur lors de la suppression de la bibliothèque', {
-          extensions: { 
-            code: 'INTERNAL_SERVER_ERROR',
-            httpStatus: 500,
-            originalError: error.message
-          },
-        });
-      }
-    },
-
+    
+      },
+      'Erreur lors de la suppression de la bibliothèque'
+    ),
+    
   },
   
   Library: {

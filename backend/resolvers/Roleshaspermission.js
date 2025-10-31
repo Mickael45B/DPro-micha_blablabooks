@@ -5,12 +5,11 @@ import fetchRoleById from './utils/utils_roles.js';
 import  fetchPermissionById  from './utils/utils_permissions.js';
 import { fetchUserById } from './utils/utils_users.js';
 import fetchBookById from './utils/utils_books.js'; 
-import { flattenEdges, makePageInfo, makeEdgeFromBook } from '../utils/helpers_books.js';
 import sanitizeHtml from 'sanitize-html';
 import { GraphQLError } from 'graphql';
 import fetchLibraryById from './utils/utils_librairies.js';
 
-import { isAuthenticated, requireAuth, requireAdmin, requireOwnershipOrAdmin, sanitizeString, sanitizeInput } from './utils/helpers/helpers_general.js';
+import { isAuthenticated, requireAuth, requireAdmin, requireOwnershipOrAdmin, sanitizeString, sanitizeInput, flattenEdges, makePageInfo, makeEdgeFromBook, withErrorHandling } from './utils/helpers/helpers_general.js';
 
 import { findRolePermissionOrThrow, validateRolePermissionInput} from './utils/helpers/helpers_RolePermissions.js';
 
@@ -20,7 +19,6 @@ import {getPermissionsRolesSchema, getPermissionRoleSchema, searchPermissionsRol
 
 export default {
   Query: {
-
     /**
      * Récupère les relations avec pagination et tri
      * 🔒 Route protégée (administrateur uniquement)
@@ -32,9 +30,8 @@ export default {
        * @throws {GraphQLError} Si l'utilisateur n'a pas les droits (401 ou 403)  
        * @throws {GraphQLError} Si une erreur se produit lors de la récupération des relations (500)
      */
-    getPermissionsRoles: async (_, args, context) => {
-      try {
-
+    getPermissionsRoles: withErrorHandling(
+      async (_, args, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
           userId: "uuid-of-user",
@@ -49,7 +46,7 @@ export default {
         {
         }
         */
-
+    
         // Vérification des droits d'accès
         requireAdmin(context);
 
@@ -83,18 +80,11 @@ export default {
           hasNextPage: cleanOffset + cleanLimit < totalCount,
           httpStatus: 200
         };
-      } catch (error) {
-        if (error instanceof GraphQLError) throw error;
-        throw new GraphQLError('Erreur lors de la récupération des relations', {
-          extensions: { 
-            code: 'INTERNAL_SERVER_ERROR',
-            httpStatus: 500,
-            originalError: error.message
-          }
-        });
-      }
-    },
-
+    
+      },
+      'Erreur lors de la récupération des relations'
+    ),
+    
     /** 
        * Récupère une relation par son ID
        * 🔒 Route protégée (administrateur uniquement)
@@ -102,9 +92,9 @@ export default {
        * @returns {object} La relation trouvée
        * @throws {GraphQLError} Si la relation n'est pas trouvée (404)
        */
-    getPermissionRole: async (_, { id_rolehaspermission }, context) => {
-      try {
-
+    getPermissionRole: withErrorHandling(
+      async (_, args, context) => {
+    
         /* exemple context JWT décodé ( à revoir):
         {
           userId: "uuid-of-user",
@@ -112,7 +102,7 @@ export default {
           role: "admin"
         }
         */
-       /*exemple de requête :
+        /*exemple de requête :
         query  getPermissionRole($id_rolehaspermission: ID!) {getPermissionRole(id_rolehaspermission: $id_rolehaspermission) {id_rolehaspermission, id_role, id_permission, created_at, updated_at}}
         */
         /* Exemple variables :
@@ -120,10 +110,11 @@ export default {
           id_rolehaspermission: "1a2b3c4d-5e6f-7g8h-9i0j-1k2l3m4n5o6p"
         }
         */
-
-        
+    
         // Vérification des droits d'accès
-        //requireAuth(context);
+        requireAuth(context);
+
+        const { id_rolehaspermission } = args;
 
         // Validation de l'ID 
         if (!id_rolehaspermission) {
@@ -140,18 +131,11 @@ export default {
 
         if (context?.res?.status) context.res.status(200);
         return rolePermission;
-      } catch (error) {
-        if (error instanceof GraphQLError) throw error;
-        throw new GraphQLError("Erreur lors de la récupération de la relation", {
-          extensions: {
-            code: 'INTERNAL_SERVER_ERROR',
-            httpStatus: 500,
-            originalError: error.message
-          }
-        });
-      }
-    },
-
+    
+      },
+      "Erreur lors de la récupération de la relation"
+    ),
+    
     /**
      * Recherche des relations par ID de rôle ou permission avec pagination et tri
      * 🔒 Route protégée (utilisateur authentifié)
@@ -162,9 +146,9 @@ export default {
      * @throws {GraphQLError} Si l'utilisateur n'est pas authentifié (401)
      * @throws {GraphQLError} Si une erreur se produit lors de la recherche (500)
      */
-    searchPermissionsRoles: async (_, args, context) => {
-      try {
-
+    searchPermissionsRoles: withErrorHandling(
+      async (_, args, context) => {
+    
         /* exemple context JWT décodé ( à revoir):
         {
           userId: "uuid-of-user",
@@ -172,15 +156,14 @@ export default {
           role: "admin"
         }
         */
-       /*exemple de requête :
+        /*exemple de requête :
         query searchPermissionsRoles($name: String!) {searchPermissionsRoles(name: $name) {permissions{permission_name}}}
 
         */
         /* Exemple variables :
         {"name": "et"}
         */
-
-
+    
         // Vérification des droits d'accès
         requireAuth(context);
 
@@ -241,21 +224,13 @@ export default {
           hasNextPage: offset + limit < countResult.rows[0].count,
           httpStatus: 200
         };
-      } catch (error) {
-        if (error instanceof GraphQLError) throw error;
-        throw new GraphQLError('Erreur lors de la recherche des rôles', {
-          extensions: { 
-            code: 'INTERNAL_SERVER_ERROR',
-            httpStatus: 500,
-            originalError: error.message
-          },
-        });
-      }
-    },
+      },
+      'Erreur lors de la recherche des rôles'
+    ),
+    
   },
 
   Mutation: {
-
     /**
      * Ajout d'une relation entre un rôle et une permission
      * 🔒 Route protégée (utilisateur authentifié)
@@ -264,9 +239,9 @@ export default {
      * @throws {GraphQLError} Si l'utilisateur n'est pas authentifié (401)
      * @throws {GraphQLError} Si une erreur se produit lors de la création (500)
      */
-    addPermissionRole: async (_, { input }, context) => {
-      try {
-
+    addPermissionRole: withErrorHandling(
+      async (_, { input }, context) => {
+    
         /* exemple context JWT décodé ( à revoir):
         {
           userId: "uuid-of-user",
@@ -274,8 +249,8 @@ export default {
           role: "admin"
         }
         */
-       /*exemple de requête :
-       mutation addPermissionRole($input: CreateRoleHasPermissionInput!) { addPermissionRole(input: $input) {id_rolehaspermission, id_permission, id_role}}
+        /*exemple de requête :
+        mutation addPermissionRole($input: CreateRoleHasPermissionInput!) { addPermissionRole(input: $input) {id_rolehaspermission, id_permission, id_role}}
 
         */
         /* Exemple variables :
@@ -285,9 +260,9 @@ export default {
         }
         }               
         */
-        
+    
         // Vérification des droits d'accès
-        //requireAdmin(context);
+        requireAdmin(context);
 
         // Vérifier si l'input est fourni
         if (!input) {
@@ -337,19 +312,10 @@ export default {
 
         if (context?.res?.status) context.res.status(201);
         return result.rows[0];
-        
-      } catch (error) {
-        if (error instanceof GraphQLError) throw error;
-        throw new GraphQLError("Erreur lors de l'ajout de la relation", {
-          extensions: { 
-            code: 'INTERNAL_SERVER_ERROR',
-            httpStatus: 500,
-            originalError: error.message
-          },
-        });
-      }
-    },
-
+      },
+      "Erreur lors de l'ajout de la relation"
+    ),
+    
     /**
      * Met à jour une relation existante
      * 🔒 Route protégée (propriétaire de l'avis ou administrateur)
@@ -361,9 +327,9 @@ export default {
      * @throws {GraphQLError} Si l'utilisateur n'est pas authentifié (401)
      * @throws {GraphQLError} Si une erreur se produit lors de la mise à jour de la relation (500)
      */
-    updatePermissionRole: async (_, { input }, context) => {
-      try {
-
+    updatePermissionRole: withErrorHandling(
+      async (_, { input }, context) => {
+    
         /* exemple context JWT décodé ( à revoir):
         {
           userId: "uuid-of-user",
@@ -371,7 +337,7 @@ export default {
           role: "admin"
         }
         */
-       /*exemple de requête :
+        /*exemple de requête :
         mutation updatePermissionRole($input: UpdateRoleHasPermissionInput!) { updatePermissionRole(input: $input) {id_rolehaspermission role{role_name}, permission{permission_name} }}
 
         */
@@ -383,7 +349,7 @@ export default {
         }
         }
         */
-        
+    
         // Vérification des droits d'accès
         requireAdmin(context);
 
@@ -450,18 +416,10 @@ export default {
         }
         if (context?.res?.status) context.res.status(200);
         return result.rows[0];
-      } catch (error) {
-        if (error instanceof GraphQLError) throw error;
-        throw new GraphQLError("Erreur lors de la mise à jour de la relation", {
-          extensions: { 
-            code: 'INTERNAL_SERVER_ERROR',
-            httpStatus: 500,
-            originalError: error.message
-          },
-        });
-      }
-    },
-
+      },
+      "Erreur lors de la mise à jour de la relation"
+    ),
+    
     /**
      * Supprime une relation existante
      * 🔒 Route protégée (propriétaire de l'avis ou administrateur)
@@ -471,9 +429,8 @@ export default {
      * @throws {GraphQLError} Si l'utilisateur n'est pas authentifié (401)
      * @throws {GraphQLError} Si une erreur se produit lors de la suppression de la relation (500)
      */
-    deletePermissionRole: async (_, { input }, context) => {
-      try {
-
+    deletePermissionRole: withErrorHandling(
+      async (_, { input }, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
           userId: "uuid-of-user",
@@ -481,13 +438,13 @@ export default {
           role: "admin"
         }
         */
-       /*exemple de requête :
+        /*exemple de requête :
             mutation deletePermissionRole($input: DeleteRoleHasPermissionInput!) { deletePermissionRole(input: $input) }
         */
         /* Exemple variables :
         {"input": {"id_permission":"329bb3b5-fb4c-4785-bfc5-06fca44b8f85"} }
         */
-
+    
         // Vérification des droits d'accès
         requireAdmin(context);
 
@@ -530,17 +487,10 @@ export default {
           httpStatus: result.rows.length > 0 ? 200 : 404
         };
         */
-      } catch (error) {
-        if (error instanceof GraphQLError) throw error;
-        throw new GraphQLError('Erreur lors de la suppression de la relation', {
-          extensions: { 
-            code: 'INTERNAL_SERVER_ERROR',
-            httpStatus: 500,
-            originalError: error.message
-          }
-        });
-      }
-    },
+      },
+      'Erreur lors de la suppression de la relation'
+    ),
+    
   },
 
   RoleHasPermissions: {

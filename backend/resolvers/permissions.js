@@ -2,13 +2,12 @@ import db from "../db/connect_DB.js";
 import { v4 as uuidv4 } from 'uuid';
 import { validateOrderParams, handleDbError } from '../utils/validators.js';
 import { fetchUserById } from './utils/utils_users.js';
-import { flattenEdges, makePageInfo, makeEdgeFromBook } from '../utils/helpers_books.js';
 import sanitizeHtml from 'sanitize-html';
 import { GraphQLError } from 'graphql';
 import fetchBookById from './utils/utils_books.js';
 import fetchLibraryById from './utils/utils_librairies.js';
 
-import { isAuthenticated, requireAuth, requireAdmin, requireOwnershipOrAdmin, sanitizeString, sanitizeInput } from './utils/helpers/helpers_general.js';
+import { isAuthenticated, requireAuth, requireAdmin, requireOwnershipOrAdmin, sanitizeString, sanitizeInput, flattenEdges, makePageInfo, makeEdgeFromBook, withErrorHandling } from './utils/helpers/helpers_general.js';
 
 import { findPermissionsOrThrow, validatePermissionInput} from './utils/helpers/helpers_permissions.js';
 import { console } from "inspector";
@@ -29,9 +28,8 @@ export default {
        * @throws {GraphQLError} Si l'utilisateur n'a pas les droits (401 ou 403)  
        * @throws {GraphQLError} Si une erreur se produit lors de la récupération des permissions (500)
      */
-    getPermissions: async (_, args, context) => {
-      try {
-
+    getPermissions: withErrorHandling(
+      async (_, args, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
           userId: "uuid-of-user",
@@ -46,7 +44,7 @@ export default {
         {
         }
         */
-
+    
         // Vérification des droits d'accès
         requireAdmin(context);
 
@@ -80,17 +78,11 @@ export default {
           hasNextPage: cleanOffset + cleanLimit < totalCount,
           httpStatus: 200,
         };
-      } catch (error) {
-        throw new GraphQLError('Erreur lors de la récupération des messages', {
-          extensions: { 
-            code: 'INTERNAL_SERVER_ERROR',
-            httpStatus: 500,
-            originalError: error.message
-          }
-        });
-      }
-    },
-
+    
+      },
+      'Erreur lors de la récupération des messages'
+    ),
+    
     /**
      * Récupère une permission par son ID
      * 🔒 Route protégée (administrateur uniquement)
@@ -99,9 +91,8 @@ export default {
      * @throws {GraphQLError} Si l'utilisateur n'a pas les droits (401 ou 403)  
      * @throws {GraphQLError} Si une erreur se produit lors de la récupération de la permission (500)
      */
-    getPermission: async (_, { id_permission }, context) => {
-      try {
-
+    getPermission: withErrorHandling(
+      async (_, args, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
           userId: "uuid-of-user",
@@ -109,17 +100,18 @@ export default {
           role: "admin"
         }
         */
-       /*exemple de requête :
+        /*exemple de requête :
         query  getPermission($id_permission: ID!) {getPermission(id_permission: $id_permission) {permission_name }}
 
         */
         /* Exemple variables :
         {"id_permission": 1}
         */
-
-
+    
         // Vérification des droits d'accès
         requireAdmin(context);  
+
+        const { id_permission } = args;
 
         // Sanitize input
         const cleanIdPermission = sanitizeString(id_permission);
@@ -137,19 +129,11 @@ export default {
 
         if (context?.res?.status) context.res.status(200);
         return permission;
-
-      } catch (error) {
-        if (error instanceof GraphQLError) throw error;
-        throw new GraphQLError('Erreur lors de la récupération de la permission', {
-          extensions: { 
-            code: 'INTERNAL_SERVER_ERROR',
-            httpStatus: 500,
-            originalError: error.message
-          },
-        });
-      }
-    },
-
+    
+      },
+      'Erreur lors de la récupération de la permission'
+    ),
+    
     /**
      * Recherche des permissions par ID avec pagination
      * 🔒 Route protégée (administrateur uniquement)
@@ -160,9 +144,8 @@ export default {
      * @throws {GraphQLError} Si l'utilisateur n'a pas les droits (401 ou 403)  
      * @throws {GraphQLError} Si une erreur se produit lors de la recherche des permissions (500)
      */
-    searchPermissions: async (_, args, context) => {
-      try {
-
+    searchPermissions: withErrorHandling(
+      async (_, args, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
           userId: "uuid-of-user",
@@ -170,14 +153,14 @@ export default {
           role: "admin"
         }
         */
-       /*exemple de requête :
+        /*exemple de requête :
         query searchPermissions($name: String!) {searchPermissions(name: $name) {permissions{permission_name}}}
 
         */
         /* Exemple variables :
         {"name": "et"}
         */
-
+    
         // Vérification des droits d'accès
         requireAdmin(context);
 
@@ -220,18 +203,11 @@ export default {
           totalCount: countResult.rows[0].count,
           hasNextPage: cleanOffset + cleanLimit < countResult.rows[0].count,
           httpStatus: 200,
-        };
-      } catch (error) {
-        if (error instanceof GraphQLError) throw error;
-        throw new GraphQLError('Erreur lors de la recherche des permissions', {
-          extensions: { 
-            code: 'INTERNAL_SERVER_ERROR',
-            httpStatus: 500,
-            originalError: error.message
-          },
-        });
-      }
-    },
+        };    
+      },
+      'Erreur lors de la recherche des permissions'
+    ),
+
   },
 
   Mutation: {
@@ -245,9 +221,8 @@ export default {
      * @throws {GraphQLError} Si l'utilisateur n'a pas les droits (401 ou 403)  
      * @throws {GraphQLError} Si une erreur se produit lors de la création de la permission (500)
      */
-    addPermission: async (_, { input }, context) => {
-      try {
-
+    addPermission: withErrorHandling(
+      async (_, { input }, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
           userId: "uuid-of-user",
@@ -255,8 +230,8 @@ export default {
           role: "admin"
         }
         */
-       /*exemple de requête :
-       mutation addPermission($input: CreatePermissionInput!) { addPermission(input: $input) {id_permission, permission_name, created_at}}
+        /*exemple de requête :
+        mutation addPermission($input: CreatePermissionInput!) { addPermission(input: $input) {id_permission, permission_name, created_at}}
 
         */
         /* Exemple variables :
@@ -265,9 +240,9 @@ export default {
         }
         }               
         */
-
+    
         // Vérification des droits d'accès
-        //requireAdmin(context);
+        requireAdmin(context);
 
         console.log('Context in addPermission:', input);
         // Sanitize input
@@ -290,18 +265,11 @@ export default {
         `, [id, cleanName]);
         if (context?.res?.status) context.res.status(201);
         return result.rows[0];
-      } catch (error) {
-        if (error instanceof GraphQLError) throw error;
-        throw new GraphQLError("Erreur lors de l'ajout de la permission", {
-          extensions: { 
-            code: 'INTERNAL_SERVER_ERROR',
-            httpStatus: 500,
-            originalError: error.message
-          },
-        });
-      }
-    },
-
+    
+      },
+      "Erreur lors de l'ajout de la permission"
+    ),
+    
     /**
      * Met à jour une permission existante
      * 🔒 Route protégée (administrateur uniquement)
@@ -312,9 +280,8 @@ export default {
      * @throws {GraphQLError} Si l'utilisateur n'a pas les droits (401 ou 403)  
      * @throws {GraphQLError} Si une erreur se produit lors de la mise à jour de la permission (500)
    */
-    updatePermission: async (_, { input }, context) => {
-      try {
-
+    updatePermission: withErrorHandling(
+      async (_, { input }, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
           userId: "uuid-of-user",
@@ -322,7 +289,7 @@ export default {
           role: "admin"
         }
         */
-       /*exemple de requête :
+        /*exemple de requête :
         mutation updatePermission($input: UpdatePermissionInput!) { updatePermission(input: $input) {__typename }}
 
         */
@@ -334,9 +301,9 @@ export default {
         }
         }       
         */
-        
+    
         // Vérification des droits d'accès
-        //requireAdmin(context);
+        requireAdmin(context);
 
         // Sanitize input
         const cleanIdPermission = sanitizeString(input.id_permission);
@@ -377,19 +344,11 @@ export default {
           data: result.rows[0],
           httpStatus: 200
         };
-        
-      } catch (error) {
-        if (error instanceof GraphQLError) throw error;
-        throw new GraphQLError("Erreur lors de la modification de la permission", {
-          extensions: { 
-            code: 'INTERNAL_SERVER_ERROR',
-            httpStatus: 500,
-            originalError: error.message
-          },
-        });
-      }
-    },
-
+    
+      },
+      'Erreur lors de la modification de la permission'
+    ),
+    
     /**
      * Supprime une permission par son ID
      * 🔒 Route protégée (administrateur uniquement)
@@ -399,9 +358,8 @@ export default {
      * @throws {GraphQLError} Si l'utilisateur n'a pas les droits (401 ou 403)  
      * @throws {GraphQLError} Si une erreur se produit lors de la suppression de la permission (500)
      */
-    deletePermission: async (_, { input }, context) => {
-      try {
-
+    deletePermission: withErrorHandling(
+      async (_, { input }, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
           userId: "uuid-of-user",
@@ -409,15 +367,13 @@ export default {
           role: "admin"
         }
         */
-       /*exemple de requête :
+        /*exemple de requête :
             mutation deletePermission($input: DeletePermissionInput!) { deletePermission(input: $input) }
         */
         /* Exemple variables :
         {"input": {"id_permission":"baa03f2e-d66a-413d-ad47-1e55f1c651ca"} }
         */
-
-
-
+    
         // Vérification des droits d'accès
         requireAdmin(context);
 
@@ -439,17 +395,11 @@ export default {
         );
         if (context?.res?.status) context.res.status(200);
         return true ;
-      } catch (error) {
-        if (error instanceof GraphQLError) throw error;
-        throw new GraphQLError("Erreur lors de la suppression de la permission", {
-          extensions: { 
-            code: 'INTERNAL_SERVER_ERROR',
-            httpStatus: 500,
-            originalError: error.message
-          },
-        });
-      }
-    },
+    
+      },
+      'Erreur lors de la suppression de la permission'
+    ),
+    
   },
 
   Permission: {},

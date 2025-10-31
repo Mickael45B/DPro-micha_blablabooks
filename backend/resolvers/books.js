@@ -1,35 +1,38 @@
 import db from "../db/connect_DB.js";
 import { v4 as uuidv4 } from 'uuid';
 import { validateOrderParams, handleDbError } from '../utils/validators.js';
-import { flattenEdges, makePageInfo, makeEdgeFromBook } from '../utils/helpers_books.js';
 import sanitizeHtml from 'sanitize-html';
 import { GraphQLError } from 'graphql';
 import fetchBookById from './utils/utils_books.js';
 import fetchLibraryById from './utils/utils_librairies.js';
-import { isAuthenticated, requireAuth, requireAdmin, requireOwnershipOrAdmin, sanitizeString, sanitizeInput } from './utils/helpers/helpers_general.js';
+// import { flattenEdges, makePageInfo, makeEdgeFromBook } from '../utils/helpers_books.js';
+// import { isAuthenticated, requireAuth, requireAdmin, requireOwnershipOrAdmin, sanitizeString, sanitizeInput } from './utils/helpers/helpers_general.js';
+import { isAuthenticated, requireAuth, requireAdmin, requireOwnershipOrAdmin, sanitizeString, sanitizeInput, flattenEdges, makePageInfo, makeEdgeFromBook, withErrorHandling  } from './utils/helpers/helpers_general.js';
 
 import { findBookOrThrow, validateBookInput, validateWithJoi} from './utils/helpers/helpers_books.js';
 
 import {getBooksSchema, getBookSchema, searchBooksSchema , createBookSchema, updateBookSchema, deleteBookSchema} from '../schema/schemas_joi/bookSchema.js';
 import { validate as uuidValidate } from 'uuid';
 
+// ========================================
+// RESOLVERS POUR LES LIVRES
+// ======================================== 
+
 export default {
   Query: {
-
     /**
-       * Récupère les livres d'une bibliothèque avec pagination et tri
-       * 🔓 Route publique 
-       * @param {number} limit - Limite de résultats (max 100)
-       * @param {number} offset - Décalage pour pagination
-       * @param {string} order - Champ de tri
-       * @param {string} direction - Direction du tri (ASC/DESC)
-       * @returns {object} { books, totalCount, hasNextPage, httpStatus }
-       * @throws {GraphQLError} Si l'utilisateur n'a pas les droits (401 ou 403)  
-       * @throws {GraphQLError} Si une erreur se produit lors de la récupération des livres (500)
+     * Récupère la liste des livres avec pagination et tri
+     * 🔓 Route publique
+     * @param {number} limit - Limite de résultats (max 100)
+     * @param {number} offset - Décalage pour pagination
+     * @param {string} order - Champ de tri
+     * @param {string} direction - Direction du tri (ASC/DESC)
+     * @returns {object} { books, totalCount, hasNextPage, httpStatus }
+     * @throws {GraphQLError} Si l'utilisateur n'a pas les droits (401 ou 403)
+     * @throws {GraphQLError} Si une erreur se produit lors de la récupération des livres (500)
      */
-    getBooks: async (_, args, context) => {
-        try {
-
+    getBooks: withErrorHandling(
+      async (_, args, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
           userId: "uuid-of-user",
@@ -44,26 +47,26 @@ export default {
         {
         }
         */
-          
-          // Vérification des droits d'accès
-          //requireAuth(context);
 
-          // Validation avec Joi => 1ere couche - défense en profondeur
-          const validatedArgs = validateWithJoi(getBooksSchema, args);
+        // Vérification des droits d'accès
+        requireAuth(context);
 
-          const { limit = 50, offset = 0, order = 'created_at', direction = 'DESC' } = validatedArgs;
+        // Validation avec Joi => 1ere couche - défense en profondeur
+        const validatedArgs = validateWithJoi(getBooksSchema, args);
+
+        const { limit = 50, offset = 0, order = 'created_at', direction = 'DESC' } = validatedArgs;
 
 
-          // Sanitize inputs => 2ème couche - défense en profondeur
-          const cleanLimit = Math.min(Math.max(parseInt(limit) || 50, 1), 100);
-          const cleanOffset = Math.max(parseInt(offset) || 0, 0);
+        // Sanitize inputs => 2ème couche - défense en profondeur
+        const cleanLimit = Math.min(Math.max(parseInt(limit) || 50, 1), 100);
+        const cleanOffset = Math.max(parseInt(offset) || 0, 0);
 
-          // Valider les paramètres de tri
-          const validOrders = ['created_at', 'title', 'author', 'avg_rating', 'nb_reviews', 'is_in_favorite', 'publication_date'];// Definir les colonnes valides pour le tri
-          const { order: safeOrder, direction: safeDirection } = validateOrderParams(
-          sanitizeString(order), 
-          sanitizeString(direction), 
-          validOrders
+        // Valider les paramètres de tri
+        const validOrders = ['created_at', 'title', 'author', 'avg_rating', 'nb_reviews', 'is_in_favorite', 'publication_date'];// Definir les colonnes valides pour le tri
+        const { order: safeOrder, direction: safeDirection } = validateOrderParams(
+        sanitizeString(order), 
+        sanitizeString(direction), 
+        validOrders
         );
 
 
@@ -78,33 +81,24 @@ export default {
         const countResult = await db.query('SELECT COUNT(*)::int as count FROM books');
         const totalCount = countResult.rows[0].count;
 
-          // Transformer les résultats en une structure conforme à BookConnection
-            const edges = result.rows.map(makeEdgeFromBook);
-              const nodes = flattenEdges(edges);
+        // Transformer les résultats en une structure conforme à BookConnection
+        const edges = result.rows.map(makeEdgeFromBook);
+        const nodes = flattenEdges(edges);
 
-            return {
-              // flattened list of Book objects for simple queries: getBooks { books { title } }
-              books: nodes,
-              // backward-compatible edge representation
-              bookEdges: edges,
-              // convenience alias
-              nodes,
-              totalCount,
-              hasNextPage: cleanOffset + cleanLimit < totalCount,
-              httpStatus: 200,
-            };
-
-        } catch (error) {
-          if (error instanceof GraphQLError) throw error;
-          throw new GraphQLError('Erreur lors de la récupération des livres', {
-            extensions: { 
-              code: 'INTERNAL_SERVER_ERROR',
-              httpStatus: 500,
-              originalError: error.message
-            },
-          });          
-        }
-    },
+        return {
+          // flattened list of Book objects for simple queries: getBooks { books { title } }
+          books: nodes,
+          // backward-compatible edge representation
+          bookEdges: edges,
+          // convenience alias
+          nodes,
+          totalCount,
+          hasNextPage: cleanOffset + cleanLimit < totalCount,
+          httpStatus: 200,
+        };
+      },
+      'Erreur lors de la récupération des livres'
+    ),
 
     /**
        * Récupère les livres d'une bibliothèque avec pagination et tri
@@ -118,9 +112,8 @@ export default {
        * @throws {GraphQLError} Si l'utilisateur n'a pas les droits (401 ou 403)  
        * @throws {GraphQLError} Si une erreur se produit lors de la récupération des livres (500)
      */
-    getBook: async (_, { id_book }, context) => {
-      try {
-      
+    getBook: withErrorHandling(
+      async (_, args, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
           userId: "uuid-of-user",
@@ -128,13 +121,15 @@ export default {
           role: "admin"
         }
         */
-       /*exemple de requête :
+        /*exemple de requête :
         query  getBook($id_book: ID!) {getBook(id_book: $id_book) {id_book,title }}
 
         */
         /* Exemple variables :
         {"id_book": "i9j0k1l2-m3n4-5o6p-7q8r-9s0t1u2v3w4z"}
         */
+
+        const { id_book } = args;
 
         // Validation avec Joi => 1ere couche - défense en profondeur
         const validatedGetBook = validateWithJoi(getBookSchema, { id: id_book });
@@ -143,7 +138,7 @@ export default {
         const cleanIdBook = sanitizeString(validatedGetBook.id);
 
         // Vérifier l'accès à la bibliothèque
-        //requireAuth( context);
+        requireAuth( context);
 
         // Vérifier que le livre existe (throw 404 si non trouvé)
         const book = await findBookOrThrow(cleanIdBook);
@@ -152,18 +147,9 @@ export default {
         if (context?.res?.status) context.res.status(200);
         return book;
 
-      } catch (error) {
-        if (error instanceof GraphQLError) throw error;
-        throw new GraphQLError('Erreur lors de la récupération des livres', {
-          extensions: { 
-            code: 'INTERNAL_SERVER_ERROR',
-            httpStatus: 500,
-            originalError: error.message
-          },
-        });
-
-      }
-    },
+      },
+      'Erreur lors de la récupération d un livre'
+    ),
 
     /**
        * Recherche des livres par titre ou auteur avec pagination
@@ -176,9 +162,8 @@ export default {
        * @throws {GraphQLError} Si l'utilisateur n'a pas fourni de terme de recherche (400)  
        * @throws {GraphQLError} Si une erreur se produit lors de la recherche de livres (500)
      */
-    searchBooks: async (_, args, context) => {
-      try {
-
+    searchBooks: withErrorHandling(
+      async (_, args, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
           userId: "uuid-of-user",
@@ -186,14 +171,14 @@ export default {
           role: "admin"
         }
         */
-       /*exemple de requête :
+        /*exemple de requête :
         query  searchBooks($titleOrAuthor: String!) {searchBooks(titleOrAuthor: $titleOrAuthor) {id_book,title }}
 
         */
         /* Exemple variables :
         {"titleOrAuthor": "ta"}
         */
-        
+
         const { titleOrAuthor, limit = 50, offset = 0 } = args;
         
         // Validation avec Joi => 1ere couche - défense en profondeur
@@ -219,8 +204,7 @@ export default {
         }
 
         // Vérifier l'authentification
-        //requireAuth(context);
-
+        requireAuth(context);
         
         const searchPattern = `%${cleanSearch}%`;
 
@@ -236,29 +220,20 @@ export default {
           SELECT COUNT(*)::int as count FROM books
           WHERE LOWER(title) LIKE LOWER($1) OR LOWER(author) LIKE LOWER($1)
         `, [searchPattern]);
-        
-        
+
         return {
           books: result.rows,
           totalCount: countResult.rows[0].count,
           hasNextPage: cleanOffset + cleanLimit < countResult.rows[0].count,
           httpStatus: 200,
         };
-      } catch (error) {
-        if (error instanceof GraphQLError) throw error;
-        throw new GraphQLError('Erreur lors de la recherche de livres', {
-          extensions: { 
-            code: 'INTERNAL_SERVER_ERROR',
-            httpStatus: 500,
-            originalError: error.message
-          },
-        });
-      }
-    },
+        
+      },
+      'Erreur lors de la recherche de livres'
+    ),    
   },
   
   Mutation: {
-
     /**
      * Ajoute un livre
      * 🔒 Route protégée
@@ -267,17 +242,16 @@ export default {
      * @throws {GraphQLError} Si l'utilisateur n'a pas les droits (401 ou 403)
      * @throws {GraphQLError} Si une erreur se produit lors de l'ajout du livre (500)
      */
-    addBook: async (_, { input }, context) => {
-      try {
-
+    addBook: withErrorHandling(
+      async (_, { input }, context) => {
         /* exemple context JWT décodé ( à revoir):
-        {
-          userId: "uuid-of-user",
-          email: "user@example.com",
-          role: "admin"
-        }
+          {
+            userId: "uuid-of-user",
+            email: "user@example.com",
+            role: "admin"
+          }
         */
-       /*exemple de requête :
+        /*exemple de requête :
         mutation addBook($input: CreateBookInput!) { addBook(input: $input) {isbn }}
 
         */
@@ -293,14 +267,14 @@ export default {
           "description": "Cest lhistoire de toto",
           "series":"1sur999999",
           "bookimage": "tret",
-					"vignetteimage" : "test"
+          "vignetteimage" : "test"
         }
         }        
         */
-
+    
         // Vérifier que l'utilisateur est un administrateur avec accès aux données
         requireAdmin(context);
-
+    
         // Validation Joi de l'input => 1ere couche - défense en profondeur
         const validatedInput = validateWithJoi(createBookSchema, {        
           title: input.title,
@@ -318,7 +292,7 @@ export default {
 
         // Générer un nouvel ID
         const id = uuidv4();
-
+    
         // Sanitize inputs => 2ème couche - défense en profondeur
         const cleanInput = {
           title: sanitizeString(validatedInput.title),
@@ -384,24 +358,13 @@ export default {
           updatedAt
         ]);
 
-
-
         if (context?.res?.status) context.res.status(201);
         return result.rows[0];
 
-      } catch (error) {
-
-        if (error instanceof GraphQLError) throw error;
-        throw new GraphQLError("Erreur lors de l'ajout du livre", {
-          extensions: { 
-            code: 'INTERNAL_SERVER_ERROR',
-            httpStatus: 500,
-            originalError: error.message
-          },
-        });
-      }
-    },
-
+      },
+      "Erreur lors de l'ajout du livre"
+    ),    
+    
     /**
     * Met à jour un livre
     * 🔒 Route protégée
@@ -410,9 +373,8 @@ export default {
     * @throws {GraphQLError} Si l'utilisateur n'a pas les droits (401 ou 403)
     * @throws {GraphQLError} Si une erreur se produit lors de la mise à jour du livre (500)
     */
-    updateBook: async (_, { input }, context) => {
-      try {
-
+    updateBook: withErrorHandling(
+      async (_, { input }, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
           userId: "uuid-of-user",
@@ -431,10 +393,10 @@ export default {
         }
         }       
         */
-
+    
         // Vérifier que l'utilisateur est un administrateur avec accès aux données
         requireAdmin(context);
-
+    
         // Validation Joi de l'input => 1ere couche - défense en profondeur
         const validatedInput = validateWithJoi(updateBookSchema, {   
           id: input.id_book,     
@@ -531,7 +493,7 @@ export default {
           updates.push(`series = $${paramIndex++}`);
           values.push(sanitizeInput(validatedInput.series));
         }
-
+    
         if (updates.length === 0) {
           throw new GraphQLError('Aucun champ à mettre à jour', {
             extensions: { 
@@ -557,17 +519,11 @@ export default {
         // Return the Book object directly to match the schema (Book!)
         if (context?.res?.status) context.res.status(200);
         return result.rows[0];
-      } catch (error) {
-        throw new GraphQLError("Erreur lors de la mise à jour du livre", {
-          extensions: { 
-            code: 'INTERNAL_SERVER_ERROR',
-            httpStatus: 500,
-            originalError: error.message
-          },
-        });
-      }
-    },
-
+    
+      },
+      "Erreur lors de l'ajout du livre"
+    ),    
+    
       /**
     * Supprime un livre
     * 🔒 Route protégée
@@ -576,24 +532,23 @@ export default {
     * @throws {GraphQLError} Si l'utilisateur n'a pas les droits (401 ou 403)
     * @throws {GraphQLError} Si une erreur se produit lors de la suppression du livre (500)
     */
-    deleteBook: async (_, { input }, context) => {
-      try {
-
-        /* exemple context JWT décodé ( à revoir):
+    deleteBook: withErrorHandling(
+      async (_, { input }, context) => {
+    
+      /* exemple context JWT décodé ( à revoir):
         {
           userId: "uuid-of-user",
           email: "user@example.com",
           role: "admin"
         }
         */
-       /*exemple de requête :
+      /*exemple de requête :
             mutation deleteBook($input: DeleteBookInput!) { deleteBook(input: $input) }
         */
-        /* Exemple variables :
+      /* Exemple variables :
         {"input": {"id_book":"a1b2c3d4-e5f6-7g8h-9i0j-1k2l3m4n5o6p"} }
         */
-
-
+    
         // Vérifier que l'utilisateur est un administrateur avec accès aux données
         requireAdmin(context);
 
@@ -636,17 +591,10 @@ export default {
         }
 
         return true;
-
-      } catch (error) {
-        throw new GraphQLError("Erreur lors de la suppression du livre", {
-          extensions: { 
-            code: 'INTERNAL_SERVER_ERROR',
-            httpStatus: 500,
-            originalError: error.message
-          },
-        });
-      }
-    },
+        
+      },
+      "Erreur lors de la suppression du livre"
+    ),    
   },
 
   Book: {},

@@ -2,13 +2,12 @@ import db from "../db/connect_DB.js";
 import { v4 as uuidv4 } from "uuid";
 import { validateOrderParams, handleDbError } from '../utils/validators.js';
 import { fetchUserById } from './utils/utils_users.js';
-import { flattenEdges, makePageInfo, makeEdgeFromBook } from '../utils/helpers_books.js';
 import sanitizeHtml from 'sanitize-html';
 import { GraphQLError } from 'graphql';
 import fetchBookById from './utils/utils_books.js';
 import fetchLibraryById from './utils/utils_librairies.js';
 
-import { isAuthenticated, requireAuth, requireAdmin, requireOwnershipOrAdmin, sanitizeString, sanitizeInput } from './utils/helpers/helpers_general.js';
+import { isAuthenticated, requireAuth, requireAdmin, requireOwnershipOrAdmin, sanitizeString, sanitizeInput, flattenEdges, makePageInfo, makeEdgeFromBook, withErrorHandling } from './utils/helpers/helpers_general.js';
 
 import { findReportOrThrow, validateReportInput} from './utils/helpers/helpers_Reports.js';
 
@@ -16,7 +15,6 @@ import {getReportsSchema, getReportSchema, searchReportsByUserSchema, searchRepo
 
 export default {
   Query: {
-
     /**
      * Récupère les commentaires avec pagination et tri
      * 🔒 Route protégée (administrateur uniquement)
@@ -28,9 +26,8 @@ export default {
        * @throws {GraphQLError} Si l'utilisateur n'a pas les droits (401 ou 403)  
        * @throws {GraphQLError} Si une erreur se produit lors de la récupération des permissions (500)
      */
-    getReports: async (_, args, context) => {
-      try {
-
+    getReports: withErrorHandling(
+      async (_, args, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
           userId: "uuid-of-user",
@@ -45,9 +42,9 @@ export default {
         {
         }
         */
-
+    
         // Vérification des droits d'accès
-        //requireAdmin(context);
+        requireAdmin(context);
 
         // Extraction et validation des paramètres de pagination et de tri
         const { limit = 50, offset = 0, order = 'created_at', direction = 'DESC' } = args;
@@ -78,17 +75,11 @@ export default {
           hasNextPage: cleanOffset + cleanLimit < totalCount,
           httpStatus: 200
         };
-      } catch (error) {
-        throw new GraphQLError('Erreur lors de la récupération des messages', {
-          extensions: { 
-            code: 'INTERNAL_SERVER_ERROR',
-            httpStatus: 500,
-            originalError: error.message
-          }
-        });
-      }
-    },
-
+    
+      },
+      'Erreur lors de la récupération des messages'
+    ),
+    
     /**
      * Récupère une permission par son ID
      * * 🔓 Route publique
@@ -97,9 +88,8 @@ export default {
      * @throws {GraphQLError} Si l'utilisateur n'a pas les droits (401 ou 403)  
      * @throws {GraphQLError} Si une erreur se produit lors de la récupération de la permission (500)
      */
-    getReport: async (_, { id_report }, context) => {
-      try {
-
+    getReport: withErrorHandling(
+      async (_, args, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
           userId: "uuid-of-user",
@@ -107,7 +97,7 @@ export default {
           role: "admin"
         }
         */
-       /*exemple de requête :
+        /*exemple de requête :
         query  getReport($id_report: ID!) {getReport(id_report: $id_report) {id_report, id_user, report_type, reported_id, reason, status, details, created_at, updated_at}}
 
         */
@@ -115,10 +105,10 @@ export default {
         {"id_report": "4f9a1c2e-7b5d-4a9f-8c2e-0b3a1d2c5e6f"}
         */
 
-
-
         // Vérification des droits d'accès
         requireAuth(context);
+
+        const { id_report } = args;
 
         // Sanitize input
         const sanitizedId = sanitizeString(id_report);
@@ -133,17 +123,10 @@ export default {
 
         if (context?.res?.status) context.res.status(200);
         return report;
-      } catch (error) {
-        throw new GraphQLError('Erreur lors de la récupération du rapport', {
-          extensions: {
-            code: 'INTERNAL_SERVER_ERROR',
-            httpStatus: 500,
-            originalError: error.message
-          }
-        });
-      }
-    },
-
+      },
+      'Erreur lors de la récupération du rapport'
+    ),
+    
     /**
      * Recherche des rapports par ID avec pagination
      * * 🔓 Route publique
@@ -154,9 +137,8 @@ export default {
      * @throws {GraphQLError} Si l'utilisateur n'a pas les droits (401 ou 403)  
      * @throws {GraphQLError} Si une erreur se produit lors de la recherche des rapports (500)
      */
-    searchReportsByUser: async (_, args, context) => {
-      try {
-
+    searchReportsByUser: withErrorHandling(
+      async (_, args, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
           userId: "uuid-of-user",
@@ -164,16 +146,13 @@ export default {
           role: "admin"
         }
         */
-       /*exemple de requête :
+        /*exemple de requête :
         query searchReportsByUser($id_user: ID!) {searchReportsByUser(id_user: $id_user) {reports{id_report, id_user, report_type, reported_id, reason, status, details, created_at, updated_at}}}
 
         */
         /* Exemple variables :
         {"id_user": "1e2d3c4b-5a6f-7e8d-9c0b-1a2f3e4d5c6b"}
         */
-
-        // Vérification des droits d'accès
-        requireOwnershipOrAdmin(cleanUserId, context);
 
         const currentUserId = context?.user?.id ?? context?.user?.id_user ?? null;
         const isAdminFlag =
@@ -201,8 +180,9 @@ export default {
           validOrders
         );
         const cleanUserId = sanitizeString(id_user || '');
-
-        
+    
+        // Vérification des droits d'accès
+        requireOwnershipOrAdmin(cleanUserId, context);
 
         const result = await db.query(`
           SELECT id_report, id_user, report_type, reported_id, reason, status, details, created_at, updated_at
@@ -222,17 +202,10 @@ export default {
           hasNextPage: cleanOffset + cleanLimit < totalCount,
           httpStatus: 200
         };
-      } catch (error) {
-        throw new GraphQLError('Erreur lors de la recherche des rapports de l\'utilisateur', {
-          extensions: {
-            code: 'INTERNAL_SERVER_ERROR',
-            httpStatus: 500,
-            originalError: error.message
-          }
-        });
-      }
-    },
-
+      },
+      "Erreur lors de la recherche des rapports de l'utilisateur"
+    ),
+    
     /**
      * Recherche des rapports par statut 
      * * 🔓 Route publique
@@ -243,9 +216,8 @@ export default {
      * @throws {GraphQLError} Si l'utilisateur n'a pas les droits (401 ou 403)  
      * @throws {GraphQLError} Si une erreur se produit lors de la recherche des rapports (500)
      */
-    searchReportsByStatus: async (_, args, context) => {
-      try {
-
+    searchReportsByStatus: withErrorHandling(
+      async (_, args, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
           userId: "uuid-of-user",
@@ -253,14 +225,14 @@ export default {
           role: "admin"
         }
         */
-       /*exemple de requête :
+        /*exemple de requête :
         query searchReportsByStatus($status: String!) {searchReportsByStatus(status: $status) {reports{id_report, id_user, report_type, reported_id, reason, status, details, created_at, updated_at}}}
 
         */
         /* Exemple variables :
         {"status": "pending"}
         */
-
+    
         // Vérification des droits d'accès
          requireOwnershipOrAdmin(cleanUserId, context);
 
@@ -315,17 +287,10 @@ export default {
           hasNextPage: cleanOffset + cleanLimit < countResult.rows[0].count,
           httpStatus: 200
         };
-      } catch (error) {
-        throw new GraphQLError('Erreur lors de la recherche des rapports par statut', {
-          extensions: {   
-            code: 'INTERNAL_SERVER_ERROR',
-            httpStatus: 500,
-            originalError: error.message
-          }
-        });
-      }
-    },
-
+      },
+      'Erreur lors de la recherche des rapports par statut'
+    ),
+    
     /**
      * Recherche des rapports par contenu (raison, détails) avec pagination
      * * 🔓 Route publique
@@ -336,9 +301,8 @@ export default {
      * @throws {GraphQLError} Si l'utilisateur n'a pas les droits (401 ou 403)
      * @throws {GraphQLError} Si une erreur se produit lors de la recherche des rapports (500)
      */
-    searchReportsByDetailsOrReason: async (_, args, context) => {
-      try {
-
+    searchReportsByDetailsOrReason: withErrorHandling(
+      async (_, args, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
           userId: "uuid-of-user",
@@ -346,14 +310,14 @@ export default {
           role: "admin"
         }
         */
-       /*exemple de requête :
+        /*exemple de requête :
         query searchReportsByDetailsOrReason($content: String!) {searchReportsByDetailsOrReason(content: $content) {reports{id_report, id_user, report_type, reported_id, reason, status, details, created_at, updated_at}}}
 
         */
         /* Exemple variables :
         {"content": "et"}
         */
-
+    
         // Vérification des droits d'accès
          requireOwnershipOrAdmin(cleanUserId, context);
 
@@ -399,18 +363,11 @@ export default {
           hasNextPage: cleanOffset + cleanLimit < countResult.rows[0].count,
           httpStatus: 200
         };
-      } catch (error) {
-        if (error instanceof GraphQLError) throw error;
-        throw new GraphQLError('Erreur lors de la recherche des rapports', {
-          extensions: { 
-            code: 'INTERNAL_SERVER_ERROR',
-            httpStatus: 500,
-            originalError: error.message
-          },
-        });
-      } 
-    },
-
+    
+      },
+      'Erreur lors de la recherche des rapports'
+    ),
+    
     /**
      * Recherche des rapports avec filtres multiples et pagination
      * 🔓 Route publique
@@ -421,9 +378,8 @@ export default {
      * @throws {GraphQLError} Si l'utilisateur n'a pas les droits (401 ou 403)
      * @throws {GraphQLError} Si une erreur se produit lors de la recherche des rapports (500)
      */
-    searchReports: async (_, args, context) => {
-      try {
-
+    searchReports: withErrorHandling(
+      async (_, args, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
           userId: "uuid-of-user",
@@ -431,9 +387,9 @@ export default {
           role: "admin"
         }
         */
-       /*exemple de requête :
+        /*exemple de requête :
         query searchReports($id_user: ID, $status: String, $limit: Int, $offset: Int) {searchReports(id_user: $id_user, status: $status, limit: $limit, offset: $offset) {reports{id_report, id_user, report_type, reported_id, reason, status, details, created_at, updated_at}}}
-       */
+        */
         /* Exemple variables :
         {
         "id_user": "1e2d3c4b-5a6f-7e8d-9c0b-1a2f3e4d5c6b",
@@ -442,8 +398,7 @@ export default {
         "offset": 0        
         }        
         */
- 
-
+    
         // Exemples de filtres acceptés : id_report, id_user, status, content
         const { limit = 50, offset = 0, order = 'created_at', direction = 'DESC', id_report, id_user, status, content } = args;
 
@@ -524,14 +479,11 @@ export default {
           hasNextPage: cleanOffset + cleanLimit < totalCount,
           httpStatus: 200
         };
-      } catch (error) {
-        if (error instanceof GraphQLError) throw error;
-        throw new GraphQLError('Erreur lors de la recherche des rapports', {
-          extensions: { code: 'INTERNAL_SERVER_ERROR', httpStatus: 500, originalError: error.message }
-        });
-      }
-    },
-
+    
+      },
+      'Erreur lors de la recherche des rapports'
+    ),
+  
   },
 
   Mutation: {
@@ -548,9 +500,8 @@ export default {
      * @throws {GraphQLError} Si l'utilisateur n'a pas les droits (401 ou 403)
      * @throws {GraphQLError} Si une erreur se produit lors de la création du rapport (500)
      */
-    addReport: async (_, { input }, context) => {
-      try {
-
+    addReport: withErrorHandling(
+      async (_, { input }, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
           userId: "uuid-of-user",
@@ -558,8 +509,8 @@ export default {
           role: "admin"
         }
         */
-       /*exemple de requête :
-       mutation addReport($input: CreateReportInput!) { addReport(input: $input) {id_report, id_user, report_type, reported_id, reason, status, details, created_at, updated_at}}
+        /*exemple de requête :
+        mutation addReport($input: CreateReportInput!) { addReport(input: $input) {id_report, id_user, report_type, reported_id, reason, status, details, created_at, updated_at}}
 
         */
         /* Exemple variables :
@@ -573,8 +524,7 @@ export default {
         }
         }
         */
-
-
+    
         // Vérification des droits d'accès
         requireAuth(context);
 
@@ -619,18 +569,11 @@ export default {
         ]);
         if (context?.res?.status) context.res.status(201);
         return result.rows[0];
-      } catch (error) {
-        if (error instanceof GraphQLError) throw error;
-        throw new GraphQLError('Erreur lors de la création du rapport', {
-          extensions: { 
-            code: 'INTERNAL_SERVER_ERROR',
-            httpStatus: 500,
-            originalError: error.message
-          },
-        });
-      }
-    },
-
+    
+      },
+      'Erreur lors de la création du rapport'
+    ),
+    
     /**
               if (context?.res?.status) context.res.status(201);
               return result.rows[0];
@@ -646,9 +589,8 @@ export default {
      * @throws {GraphQLError} Si l'utilisateur n'a pas les droits (401 ou 403)
      * @throws {GraphQLError} Si une erreur se produit lors de la création du rapport (500)
      */
-    updateReport: async (_, { input }, context) => {
-      try {
-
+    updateReport: withErrorHandling(
+      async (_, { input }, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
           userId: "uuid-of-user",
@@ -656,7 +598,7 @@ export default {
           role: "admin"
         }
         */
-       /*exemple de requête :
+        /*exemple de requête :
         mutation updateReport($input: UpdateReportInput!) { updateReport(input: $input) {reason, details }}
 
         */
@@ -668,102 +610,92 @@ export default {
         }
         }       
         */
-
-
-
+    
         // Vérification des droits d'accès
         requireAdmin(context);
 
-    // Sanitize inputs
-    const cleanIdReport = sanitizeString(input.id_report);
+        // Sanitize inputs
+        const cleanIdReport = sanitizeString(input.id_report);
 
-    if (!cleanIdReport) {
-      throw new GraphQLError('ID de rapport invalide', {
-        extensions: { code: 'BAD_USER_INPUT', httpStatus: 400 }
-      });
-    }
+        if (!cleanIdReport) {
+          throw new GraphQLError('ID de rapport invalide', {
+            extensions: { code: 'BAD_USER_INPUT', httpStatus: 400 }
+          });
+        }
 
-    // Vérifier que le rapport existe
-    await findReportOrThrow(cleanIdReport);
+        // Vérifier que le rapport existe
+        await findReportOrThrow(cleanIdReport);
 
-    // Construction SÉCURISÉE de la requête UPDATE avec paramètres positionnels
-    const updates = [];
-    const values = [];
-    let paramIndex = 1;
+        // Construction SÉCURISÉE de la requête UPDATE avec paramètres positionnels
+        const updates = [];
+        const values = [];
+        let paramIndex = 1;
 
-    if (input.status !== undefined) {
-      const validStatuses = ['pending', 'reviewed', 'resolved'];
-      const cleanStatus = sanitizeString(input.status);
-      
-      if (!validStatuses.includes(cleanStatus)) {
-        throw new GraphQLError('Statut invalide', {
-          extensions: { code: 'BAD_USER_INPUT', httpStatus: 400 }
-        });
-      }
-      
-      updates.push(`status = $${paramIndex++}`);
-      values.push(cleanStatus);
-    }
+        if (input.status !== undefined) {
+          const validStatuses = ['pending', 'reviewed', 'resolved'];
+          const cleanStatus = sanitizeString(input.status);
+          
+          if (!validStatuses.includes(cleanStatus)) {
+            throw new GraphQLError('Statut invalide', {
+              extensions: { code: 'BAD_USER_INPUT', httpStatus: 400 }
+            });
+          }
+        
+          updates.push(`status = $${paramIndex++}`);
+          values.push(cleanStatus);
+        }
 
-    if (input.details !== undefined) {
-      const cleanDetails = input.details ? sanitizeString(input.details) : null;
-      updates.push(`details = $${paramIndex++}`);
-      values.push(cleanDetails);
-    }
+        if (input.details !== undefined) {
+          const cleanDetails = input.details ? sanitizeString(input.details) : null;
+          updates.push(`details = $${paramIndex++}`);
+          values.push(cleanDetails);
+        }
 
-    if (input.reportType !== undefined) {
-      const validReportTypes = ['user', 'comment', 'book', 'review', 'message'];
-      const cleanReportType = sanitizeString(input.reportType);
-      
-      if (!validReportTypes.includes(cleanReportType)) {
-        throw new GraphQLError('Type de rapport invalide', {
-          extensions: { code: 'BAD_USER_INPUT', httpStatus: 400 }
-        });
-      }
-      
-      updates.push(`report_type = $${paramIndex++}`);
-      values.push(cleanReportType);
-    }
+        if (input.reportType !== undefined) {
+          const validReportTypes = ['user', 'comment', 'book', 'review', 'message'];
+          const cleanReportType = sanitizeString(input.reportType);
+          
+          if (!validReportTypes.includes(cleanReportType)) {
+            throw new GraphQLError('Type de rapport invalide', {
+              extensions: { code: 'BAD_USER_INPUT', httpStatus: 400 }
+            });
+          }
+          
+          updates.push(`report_type = $${paramIndex++}`);
+          values.push(cleanReportType);
+        }
 
-    if (updates.length === 0) {
-      throw new GraphQLError('Aucun champ à mettre à jour', {
-        extensions: { code: 'BAD_USER_INPUT', httpStatus: 400 }
-      });
-    }
+        if (updates.length === 0) {
+          throw new GraphQLError('Aucun champ à mettre à jour', {
+            extensions: { code: 'BAD_USER_INPUT', httpStatus: 400 }
+          });
+        }
 
-    // Ajouter updated_at
-    updates.push(`updated_at = CURRENT_TIMESTAMP`);
+        // Ajouter updated_at
+        updates.push(`updated_at = CURRENT_TIMESTAMP`);
 
-    // Ajouter l'ID du rapport comme dernier paramètre
-    values.push(cleanIdReport);
+        // Ajouter l'ID du rapport comme dernier paramètre
+        values.push(cleanIdReport);
 
-    const result = await db.query(`
-      UPDATE reports
-      SET ${updates.join(', ')}
-      WHERE id_report = $${paramIndex}
-      RETURNING id_report, id_user, report_type, reported_id, reason, status, details, created_at, updated_at
-    `, values);
+        const result = await db.query(`
+          UPDATE reports
+          SET ${updates.join(', ')}
+          WHERE id_report = $${paramIndex}
+          RETURNING id_report, id_user, report_type, reported_id, reason, status, details, created_at, updated_at
+        `, values);
 
-    if (result.rows.length === 0) {
-      throw new GraphQLError('Rapport non trouvé', {
-        extensions: { code: 'NOT_FOUND', httpStatus: 404 }
-      });
-    }
+        if (result.rows.length === 0) {
+          throw new GraphQLError('Rapport non trouvé', {
+            extensions: { code: 'NOT_FOUND', httpStatus: 404 }
+          });
+        }
 
         if (context?.res?.status) context.res.status(201);
         return result.rows[0];
-
-  } catch (error) {
-    if (error instanceof GraphQLError) throw error;
-    throw new GraphQLError("Erreur lors de la modification du rapport", {
-      extensions: { 
-        code: 'INTERNAL_SERVER_ERROR',
-        httpStatus: 500,
-        originalError: error.message
       },
-    });
-  }
-},
+      'Erreur lors de la modification du rapport'
+    ),
+    
     /**
      * Supprime un rapport existant
      * * 🔓 Route publique
@@ -777,9 +709,8 @@ export default {
      * @throws {GraphQLError} Si l'utilisateur n'a pas les droits (401 ou 403)
      * @throws {GraphQLError} Si une erreur se produit lors de la suppression du rapport (500)
      */
-    deleteReport: async (_, { input }, context) => {
-      try {
-
+    deleteReport: withErrorHandling(
+      async (_, { input }, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
           userId: "uuid-of-user",
@@ -787,15 +718,15 @@ export default {
           role: "admin"
         }
         */
-       /*exemple de requête :
+        /*exemple de requête :
             mutation deleteReport($input: DeleteReportInput!) { deleteReport(input: $input) }
         */
         /* Exemple variables :
         {"input": {"id_report":"4f9a1c2e-7b5d-4a9f-8c2e-0b3a1d2c5e6f"} }
         */
-
+    
         // Vérification des droits d'accès (admin uniquement pour supprimer)
-        requireAdmin(context);
+        requireOwnershipOrAdmin(context);
 
         // Sanitize input
         const cleanIdReport = sanitizeString(input.id_report);
@@ -817,17 +748,11 @@ export default {
         
         if (context?.res?.status) context.res.status(200);
         return true ;
-      } catch (error) {
-        if (error instanceof GraphQLError) throw error;
-        throw new GraphQLError("Erreur lors de la suppression du rapport", {
-          extensions: { 
-            code: 'INTERNAL_SERVER_ERROR',
-            httpStatus: 500,
-            originalError: error.message
-          },
-        });
-      }
-    },
+    
+      },
+      'Erreur lors de la suppression du rapport"'
+    ),
+    
   },
 
   Report: {

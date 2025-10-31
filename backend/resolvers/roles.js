@@ -3,12 +3,11 @@ import { v4 as uuidv4 } from "uuid";
 import { validateOrderParams, handleDbError } from '../utils/validators.js';
 import { fetchUserById } from './utils/utils_users.js';
 import fetchBookById from './utils/utils_books.js'; 
-import { flattenEdges, makePageInfo, makeEdgeFromBook } from '../utils/helpers_books.js';
 import sanitizeHtml from 'sanitize-html';
 import { GraphQLError } from 'graphql';
 import fetchLibraryById from './utils/utils_librairies.js';
 
-import { isAuthenticated, requireAuth, requireAdmin, requireOwnershipOrAdmin, sanitizeString, sanitizeInput } from './utils/helpers/helpers_general.js';
+import { isAuthenticated, requireAuth, requireAdmin, requireOwnershipOrAdmin, sanitizeString, sanitizeInput, flattenEdges, makePageInfo, makeEdgeFromBook, withErrorHandling } from './utils/helpers/helpers_general.js';
 
 import { findRolesOrThrow, validateRolesInput} from './utils/helpers/helpers_Roles.js';
 
@@ -29,9 +28,8 @@ export default {
        * @throws {GraphQLError} Si l'utilisateur n'a pas les droits (401 ou 403)  
        * @throws {GraphQLError} Si une erreur se produit lors de la récupération des rôles (500)
      */
-    getRoles: async (_, args, context) => {
-      try {
-
+    getRoles: withErrorHandling(
+      async (_, args, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
           userId: "uuid-of-user",
@@ -46,8 +44,7 @@ export default {
         {
         }
         */
-
-
+    
         // Vérification des droits d'accès
         requireAdmin(context);
 
@@ -80,18 +77,11 @@ export default {
           hasNextPage: cleanOffset + cleanLimit < totalCount,
           httpStatus: 200
         };
-      } catch (error) {
-        if (error instanceof GraphQLError) throw error;
-        throw new GraphQLError('Erreur lors de la récupération des rôles', {
-          extensions: { 
-            code: 'INTERNAL_SERVER_ERROR',
-            httpStatus: 500,
-            originalError: error.message
-          }
-        });
-      }
-    },
-
+    
+      },
+      'Erreur lors de la récupération des rôles'
+    ),
+    
     /**
      * Récupère un rôle par son ID
      * 🔒 Route protégée (administrateur uniquement)
@@ -100,9 +90,8 @@ export default {
      * @throws {GraphQLError} Si l'utilisateur n'a pas les droits (401 ou 403)
      * @throws {GraphQLError} Si une erreur se produit lors de la récupération du rôle (500)
      */
-    getRole: async (_, { id_role }, context) => {
-      try {
-
+    getRole: withErrorHandling(
+      async (_, args, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
           userId: "uuid-of-user",
@@ -110,16 +99,18 @@ export default {
           role: "admin"
         }
         */
-       /*exemple de requête :
+        /*exemple de requête :
         query  getRole($id_role: ID!) {getRole(id_role: $id_role) {id_role, role_name, created_at, updated_at}}
 
         */
         /* Exemple variables :
         {"id_role": 1}
         */
-
+    
         // Vérification des droits d'accès
         requireAdmin(context);
+
+        const { id_role } = args; 
 
         // Validation de l'ID du rôle
         if (!id_role) {
@@ -136,18 +127,11 @@ export default {
 
         if (context?.res?.status) context.res.status(200);
         return role;
-      } catch (error) {
-        if (error instanceof GraphQLError) throw error;
-        throw new GraphQLError("Erreur lors de la récupération du rôle", {
-          extensions: {
-            code: 'INTERNAL_SERVER_ERROR',
-            httpStatus: 500,
-            originalError: error.message
-          }
-        });
-      }
-    },
-
+    
+      },
+      'Erreur lors de la récupération du rôle'
+    ),
+    
     /**
      * Recherche des rôles par nom
      * @param {string} role_name - Nom du rôle à rechercher
@@ -156,9 +140,8 @@ export default {
      * @returns {object} Résultats de la recherche
      * @throws {GraphQLError} Si une erreur se produit lors de la recherche (500)
      */
-    searchRoles: async (_, args, context) => {
-      try {
-
+    searchRoles: withErrorHandling(
+      async (_, args, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
           userId: "uuid-of-user",
@@ -166,15 +149,13 @@ export default {
           role: "admin"
         }
         */
-       /*exemple de requête :
+        /*exemple de requête :
         query  searchRoles($role_name: String!) {searchRoles(role_name: $role_name) {roles{ id_role, role_name, created_at, updated_at}}}
         */
         /* Exemple variables :
         {"role_name": "adm"}
         */
-
-
-
+    
         // Vérification des droits d'accès
         requireAdmin(context);
 
@@ -218,18 +199,11 @@ export default {
           hasNextPage: cleanOffset + cleanLimit < countResult.rows[0].count,
           httpStatus: 200
         };
-      } catch (error) {
-        if (error instanceof GraphQLError) throw error;
-        throw new GraphQLError('Erreur lors de la recherche des rôles', {
-          extensions: { 
-            code: 'INTERNAL_SERVER_ERROR',
-            httpStatus: 500,
-            originalError: error.message
-          },
-        });
-      }
-    },
-},
+    
+      },
+      'Erreur lors de la recherche des rôles'
+    ),
+  },
 
   Mutation: {
 
@@ -243,9 +217,8 @@ export default {
      * @throws {GraphQLError} Si les données d'entrée sont invalides (400)
      * @throws {GraphQLError} Si une erreur se produit lors de la création du rôle (500)
      */
-    addRole: async (_, { input }, context) => {
-      try {
-
+    addRole: withErrorHandling(
+      async (_, { input }, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
           userId: "uuid-of-user",
@@ -253,7 +226,7 @@ export default {
           role: "admin"
         }
         */
-       /*exemple de requête :
+        /*exemple de requête :
         mutation addRole($input: CreateRoleInput!) { addRole(input: $input) {id_role, role_name, created_at, updated_at} }
 
         */
@@ -263,7 +236,7 @@ export default {
         }
         }        
         */
-
+    
         // Vérification des droits d'accès
         requireAdmin(context);
 
@@ -299,18 +272,11 @@ export default {
 
         if (context?.res?.status) context.res.status(201);
         return result.rows[0];
-      } catch (error) {
-        if (error instanceof GraphQLError) throw error;
-        throw new GraphQLError("Erreur lors de l'ajout d'un rôle", {
-          extensions: { 
-            code: 'INTERNAL_SERVER_ERROR',
-            httpStatus: 500,
-            originalError: error.message
-          },
-        });
-      }
-    },
-
+    
+      },
+      "Erreur lors de l'ajout d'un rôle"
+    ),
+    
     /**
      * Met à jour un rôle existant
      * 🔒 Route protégée (utilisateur authentifié)
@@ -322,9 +288,8 @@ export default {
      * @throws {GraphQLError} Si les données d'entrée sont invalides (400)
      * @throws {GraphQLError} Si une erreur se produit lors de la mise à jour du rôle (500)
      */
-    updateRole: async (_, { input }, context) => {
-      try {
-
+    updateRole: withErrorHandling(
+      async (_, { input }, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
           userId: "uuid-of-user",
@@ -332,7 +297,7 @@ export default {
           role: "admin"
         }
         */
-       /*exemple de requête :
+        /*exemple de requête :
         mutation updateRole($input: UpdateRoleInput!) { updateRole(input: $input) {__typename }}
 
         */
@@ -343,7 +308,7 @@ export default {
         }
         }       
         */
-        
+    
         // Vérification des droits d'accès
         requireAdmin(context);
 
@@ -396,18 +361,10 @@ export default {
 
         if (context?.res?.status) context.res.status(200);
         return result.rows[0];
-      } catch (error) {
-        if (error instanceof GraphQLError) throw error;
-        throw new GraphQLError("Erreur lors de la mise à jour du rôle", {
-          extensions: { 
-            code: 'INTERNAL_SERVER_ERROR',
-            httpStatus: 500,
-            originalError: error.message
-          },
-        });
-      }
-    },
-
+      },
+      "Erreur lors de la mise à jour du rôle"
+    ),
+    
     /**
      * Supprime un rôle
      * 🔒 Route protégée (utilisateur authentifié)
@@ -418,24 +375,22 @@ export default {
      * @throws {GraphQLError} Si les données d'entrée sont invalides (400)
      * @throws {GraphQLError} Si une erreur se produit lors de la suppression du rôle (500)
      */
-    deleteRole: async (_, { input }, context) => {
-      try {
-
+    deleteRole: withErrorHandling(
+      async (_, { input }, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
-          userId: "uuid-of-user",
-          email: "user@example.com",
-          role: "admin"
+        userId: "uuid-of-user",
+        email: "user@example.com",
+        role: "admin"
         }
         */
-       /*exemple de requête :
-            mutation deleteRole($input: DeleteRoleInput!) { deleteRole(input: $input) }
+        /*exemple de requête :
+          mutation deleteRole($input: DeleteRoleInput!) { deleteRole(input: $input) }
         */
         /* Exemple variables :
         {"input": {"id_role":"95f96df5-820a-4001-be5d-89fa6921ef80"} }
         */
-
-
+   
         // Vérification des droits d'accès
         requireAdmin(context);
 
@@ -458,18 +413,10 @@ export default {
 
         if (context?.res?.status) context.res.status(200);
         return true ;
-      } catch (error) {
-        if (error instanceof GraphQLError) throw error;
-        throw new GraphQLError('Erreur lors de la suppression du rôle', {
-          extensions: { 
-            code: 'INTERNAL_SERVER_ERROR',
-            httpStatus: 500,
-            originalError: error.message
-          }
-        });
-      }
-    },
-
+      },
+      'Erreur lors de la suppression du rôle'
+    ),
+    
   },
 
   Role: {},

@@ -5,14 +5,13 @@ import { validateOrderParams, handleDbError } from '../utils/validators.js';
 import  fetchRoleById  from './utils/utils_roles.js';
 import  fetchStatusById  from './utils/utils_status.js';
 import { fetchUserById } from './utils/utils_users.js';
-import { flattenEdges, makePageInfo, makeEdgeFromBook } from '../utils/helpers_books.js';
 import sanitizeHtml from 'sanitize-html';
 import { GraphQLError } from 'graphql';
 import fetchBookById from './utils/utils_books.js';
 import fetchLibraryById from './utils/utils_librairies.js';
 import { validateWithJoi } from './utils/helpers/helpers_books.js';
 
-import { isAuthenticated, requireAuth, requireAdmin, requireOwnershipOrAdmin, sanitizeString, sanitizeInput } from './utils/helpers/helpers_general.js';
+import { isAuthenticated, requireAuth, requireAdmin, requireOwnershipOrAdmin, sanitizeString, sanitizeInput, flattenEdges, makePageInfo, makeEdgeFromBook, withErrorHandling, withRateLimit } from './utils/helpers/helpers_general.js';
 
 import { findUserOrThrow, validateUserInput, validatePasswordInput} from './utils/helpers/helpers_Users.js';
 import { clean } from "semver";
@@ -22,10 +21,11 @@ import { log } from "console";
 
 import {generateAccessToken, generateRefreshToken, verifyToken, decodeToken} from './utils/utils_authentification.js';
 
-
-
-
 // Revoir le resolver "changePassword",
+
+// ========================================
+// RESOLVERS POUR LES UTILISATEURS
+// ======================================== 
 
 const initializationUser = {
   defaultStatus: "active",
@@ -40,7 +40,6 @@ const initializationUser = {
 
 export default {
   Query: {
-
     /**
      * Récupère les utilisateurs avec pagination et tri
      * 🔒 Route protégée (administrateur uniquement)
@@ -52,9 +51,8 @@ export default {
        * @throws {GraphQLError} Si l'utilisateur n'a pas les droits (401 ou 403)  
        * @throws {GraphQLError} Si une erreur se produit lors de la récupération des utilisateurs (500)
      */
-    getUsers: async (_, args, context) => {
-      try {
-
+    getUsers: withErrorHandling(
+      async (_, args, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
           userId: "uuid-of-user",
@@ -69,9 +67,9 @@ export default {
         {
         }
         */
-
+    
         // Vérification des droits d'accès
-        //requireAdmin(context);
+        requireAdmin(context);
 
         // Extraction et validation des paramètres de pagination et de tri
         const { limit = 70, offset = 0, order = 'created_at', direction = 'DESC' } = args;
@@ -102,18 +100,10 @@ export default {
           hasNextPage: cleanOffset + cleanLimit < totalCount,
           httpStatus: 200
         };
-      } catch (error) {
-        if (error instanceof GraphQLError) throw error;
-        throw new GraphQLError('Erreur lors de la récupération des utilisateurs', {
-          extensions: { 
-            code: 'INTERNAL_SERVER_ERROR',
-            httpStatus: 500,
-            originalError: error.message
-          }
-        });
-      }
-    },
-
+      },
+      'Erreur lors de la récupération des utilisateurs'
+    ),
+    
     /**
      * Récupère un avis par son ID
      * 🔒 Route protégée (administrateur uniquement)
@@ -122,9 +112,8 @@ export default {
      * @throws {GraphQLError} Si l'utilisateur n'est pas authentifié (401)
      * @throws {GraphQLError} Si une erreur se produit lors de la récupération de l'avis (500)
      */
-    getUser: async (_, { id_user }, context) => {
-      try {
-
+    getUser: withErrorHandling(
+      async (_, args, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
           userId: "uuid-of-user",
@@ -132,18 +121,20 @@ export default {
           role: "admin"
         }
         */
-       /*exemple de requête :
-        query  getUser($id_user: ID!) {getUser(id_user: $id_user) {id_user,name,pseudo,email }}
-
+        /*exemple de requête :
+        query  getUser($id_user: ID!) {getUser(id_user: $id_user) {id_user,name,email }}
         */
         /* Exemple variables :
-        {"id_user": "2e3d4c5b-6a7f-8e9d-0c1b-2a3f4e5d6c7b"}
+        {
+          "id_user": "29e86cd8-4140-40d9-9814-e5aa62284b1d"
+        }
         */
-
-
+    
         // Vérification des droits d'accès (propriétaire ou admin)
         requireOwnershipOrAdmin(id_user, context);
 
+        const { id_user } = args;
+      
         // Sanitize input => 2ème couche - défense en profondeur
         const cleanIdUser = sanitizeString(id_user);
 
@@ -157,18 +148,10 @@ export default {
 
         if (context?.res?.status) context.res.status(200);
         return user;
-      } catch (error) {
-        if (error instanceof GraphQLError) throw error;
-        throw new GraphQLError("Erreur lors de la récupération de l'utilisateur", {
-          extensions: {
-            code: 'INTERNAL_SERVER_ERROR',
-            httpStatus: 500,
-            originalError: error.message
-          }
-        });
-      }
-    },
-
+      },
+      "Erreur lors de la récupération de l'utilisateur"
+    ),
+    
     /**
      * Recherche des utilisateurs par nom, email ou pseudo
      * 🔒 Route protégée (administrateur uniquement)
@@ -179,9 +162,8 @@ export default {
      * @throws {GraphQLError} Si l'utilisateur n'a pas les droits (401 ou 403)
      * @throws {GraphQLError} Si une erreur se produit lors de la recherche des utilisateurs (500)
      */
-    searchUsers: async (_, args, context) => {
-      try {
-
+    searchUsers: withErrorHandling(
+      async (_, args, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
           userId: "uuid-of-user",
@@ -189,14 +171,13 @@ export default {
           role: "admin"
         }
         */
-       /*exemple de requête :
+        /*exemple de requête :
         query  searchUsers($nameOrPseudo: String!) {searchUsers(nameOrPseudo: $nameOrPseudo) {id_user,name,pseudo,email }}
 
         */
         /* Exemple variables :
         {"nameOrPseudo": "ta"}
         */
-
 
         // Vérification des droits d'accès
         requireAdmin(context);
@@ -242,21 +223,13 @@ export default {
           hasNextPage: cleanOffset + cleanLimit < countResult.rows[0].count,
           httpStatus: 200
         };
-      } catch (error) {
-        if (error instanceof GraphQLError) throw error;
-        throw new GraphQLError('Erreur lors de la recherche des utilisateurs', {
-          extensions: { 
-            code: 'INTERNAL_SERVER_ERROR',
-            httpStatus: 500,
-            originalError: error.message
-          },
-        });
-      }
-    },
-
+    
+      },
+      'Erreur lors de la recherche des utilisateur'
+    ),
+    
   },
   Mutation: {
-
     /**
      * Crée un nouvel utilisateur
      * 🔓 Route publique (aucune authentification requise)
@@ -269,9 +242,8 @@ export default {
      * @throws {GraphQLError} Si l'utilisateur n'a pas les droits (401 ou 403)
      * @throws {GraphQLError} Si une erreur se produit lors de la création de l'utilisateur (500)
      */
-    createUser: async (_, { input }, context) => {
-      try {
-
+    createUser: withErrorHandling(
+      async (_, { input }, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
           userId: "uuid-of-user",
@@ -279,7 +251,7 @@ export default {
           role: "admin"
         }
         */
-       /*exemple de requête :
+        /*exemple de requête :
         mutation createUser($input: CreateUserInput!) { createUser(input: $input) {id_user,name,pseudo,email} }}
 
         */
@@ -292,7 +264,7 @@ export default {
         }
         }        
         */
-
+    
         // Vérification des droits d'accès
          // un visiteur peut créer un utilisateur, donc pas de requireAuth ici
 
@@ -445,19 +417,10 @@ export default {
           console.error('createUser transaction error:', txErr && txErr.message ? txErr.message : txErr);
           throw txErr;
         }
-         
-      } catch (error) {
-        if (error instanceof GraphQLError) throw error;
-        throw new GraphQLError('Erreur lors de la création de l\'utilisateur', {
-          extensions: { 
-            code: 'INTERNAL_SERVER_ERROR',
-            httpStatus: 500,
-            originalError: error.message
-          },
-        });
-      }
-    },  
-
+      },
+      "Erreur lors de la création de l'utilisateur"
+    ),
+    
     /**
      * Met à jour un utilisateur existant
      * 🔒 Route protégée (propriétaire ou administrateur)
@@ -470,9 +433,8 @@ export default {
      * @throws {GraphQLError} Si l'utilisateur n'a pas les droits (401 ou 403)
      * @throws {GraphQLError} Si une erreur se produit lors de la mise à jour de l'utilisateur (500)
      */
-    updateUser: async (_, { input }, context) => {
-      try {
-
+    updateUser: withErrorHandling(
+      async (_, { input }, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
           userId: "uuid-of-user",
@@ -480,7 +442,7 @@ export default {
           role: "admin"
         }
         */
-       /*exemple de requête :
+        /*exemple de requête :
         mutation updateUser($input: UpdateUserInput!) { updateUser(input: $input) {id_user,name,pseudo,email }}
 
         */
@@ -492,7 +454,7 @@ export default {
         }
         }       
         */
-        
+    
         // NOTE : on ne peut pas changer le mot de passe ici (pour des raisons de sécurité), il y a une mutation dédiée
 
         // Extraction des paramètres
@@ -576,18 +538,10 @@ export default {
 
         if (context?.res?.status) context.res.status(200);
         return result.rows[0];
-      } catch (error) {
-        if (error instanceof GraphQLError) throw error;
-        throw new GraphQLError("Erreur lors de la mise à jour de l'utilisateur", {
-          extensions: { 
-            code: 'INTERNAL_SERVER_ERROR',
-            httpStatus: 500,
-            originalError: error.message
-          },
-        });
-      }
-    },
-
+      },
+      "Erreur lors de la mise à jour de l'utilisateur"
+    ),
+    
     /**
      * Supprime un utilisateur par son ID
      * 🔒 Route protégée (son propre compte ou administrateur )
@@ -597,9 +551,8 @@ export default {
      * @throws {GraphQLError} Si l'utilisateur n'a pas les droits (401 ou 403)
      * @throws {GraphQLError} Si une erreur se produit lors de la suppression de l'utilisateur (500)
      */
-    deleteUser: async (_, { input }, context) => {
-      try {
-
+    deleteUser: withErrorHandling(
+      async (_, { input }, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
           userId: "uuid-of-user",
@@ -607,7 +560,7 @@ export default {
           role: "admin"
         }
         */
-       /*exemple de requête :
+        /*exemple de requête :
         mutation deleteUser($input: DeleteUserInput!) { deleteUser(input: $input) {id_user,name,pseudo,email }}
 
         */
@@ -618,7 +571,7 @@ export default {
         }
         }       
         */
-        
+    
         // Extraction des paramètres  
         const { id_user } = input;
 
@@ -687,18 +640,10 @@ export default {
         }
 
         return true;
-      } catch (error) {
-        if (error instanceof GraphQLError) throw error;
-        throw new GraphQLError("Erreur lors de la suppression de l'utilisateur", {
-          extensions: { 
-            code: 'INTERNAL_SERVER_ERROR',
-            httpStatus: 500,
-            originalError: error.message
-          },
-        });
-      }
-    },
-
+      },
+      "Erreur lors de la suppression de l'utilisateur"
+    ),
+    
     /**
      * Réinitialise le mot de passe d'un utilisateur sans ancien mot de passe(admin only)
      * 🔒 Route protégée (administrateur)
@@ -708,8 +653,8 @@ export default {
      * @throws {GraphQLError} Si l'utilisateur n'a pas les droits (401 ou 403)
      * @throws {GraphQLError} Si une erreur se produit lors de la suppression de l'utilisateur (500)
      */
-    adminResetPassword: async (_, { input }, context) => {
-      try {
+    adminResetPassword: withErrorHandling(
+      async (_, { input }, context) => {
         // Seul un administrateur peut appeler cette mutation
         requireAdmin(context);
 
@@ -737,14 +682,10 @@ export default {
 
         if (context?.res?.status) context.res.status(200);
         return true;
-      } catch (error) {
-        if (error instanceof GraphQLError) throw error;
-        throw new GraphQLError('Erreur lors de la réinitialisation du mot de passe', {
-          extensions: { code: 'INTERNAL_SERVER_ERROR', httpStatus: 500, originalError: error.message }
-        });
-      }
-    },
-
+      },
+      'Erreur lors de la réinitialisation du mot de passe'
+    ),
+    
     /** 
      * Réinitialise le mot de passe d'un utilisateur sans ancien mot de passe(admin only)
      * 🔒 Route protégée (utilisateur)
@@ -754,30 +695,28 @@ export default {
      * @throws {GraphQLError} Si l'utilisateur n'a pas les droits (401 ou 403)
      * @throws {GraphQLError} Si une erreur se produit lors de la suppression de l'utilisateur (500)
      */
-    changePassword: async (_, { input }, context) => {
-        try {
-
-          /* exemple context JWT décodé ( à revoir):
-          {
-            userId: "uuid-of-user",
-            email: "user@example.com",
-            role: "admin"
-          }
-          */
+    changePassword: withErrorHandling(
+      async (_, { input }, context) => {
+        /* exemple context JWT décodé ( à revoir):
+        {
+          userId: "uuid-of-user",
+          email: "user@example.com",
+          role: "admin"
+        }
+        */
         /*exemple de requête :
-          mutation changePassword($input: ChangePasswordInput!) { changePassword(input: $input) {id_user,name,pseudo,email }}
+        mutation changePassword($input: ChangePasswordInput!) { changePassword(input: $input) {id_user,name,pseudo,email }}
 
-          */
-          /* Exemple variables :
-          { "input": 
-          {
-            "id_user": "29e86cd8-4140-40d9-9814-e5aa62284b1d",
-            "oldPassword": "password123",
-            "newPassword": "password1234"
-          }
-          }       
-          */
-          
+        */
+        /* Exemple variables :
+        { "input": 
+        {
+          "id_user": "29e86cd8-4140-40d9-9814-e5aa62284b1d",
+          "oldPassword": "password123",
+          "newPassword": "password1234"
+        }
+        }       
+        */
           // Extraction des paramètres
           const { id_user, oldPassword, newPassword } = input || {};
 
@@ -788,7 +727,7 @@ export default {
           }
 
           // Vérification des droits d'accès
-          //requireOwnershipOrAdmin(id_user, context);
+          requireOwnershipOrAdmin(id_user, context);
 
           // Sanitize inputs
           const cleanIdUser = sanitizeString(id_user);
@@ -842,35 +781,23 @@ export default {
 
           if (context?.res?.status) context.res.status(200);
           return true;
-        } catch (error) {
-          if (error instanceof GraphQLError) throw error;
-          throw new GraphQLError("Erreur lors du changement de mot de passe", {
-            extensions: { 
-              code: 'INTERNAL_SERVER_ERROR',
-              httpStatus: 500,
-              originalError: error.message
-            },
-          });
-        }
-    },
-
-
-
-
-
-
-
-
-
+      },
+      "Erreur lors du changement de mot de passe"
+    ),
+    
+// ========================================
+    // CONNEXION & DECONNEXION
+// ========================================
 
     /**
      * 🔑 CONNEXION - Vérifier identifiants + générer token
      * @param {object} input - Email/pseudo + password + rememberMe
      * @returns {object} { user, accessToken, refreshToken }
      */
-    login: async (_, { input }) => {
-      try {
-        /*
+    login: withErrorHandling(
+      withRateLimit(
+      async (_, { input }, context) => {
+        /* exemple de requête :
         mutation Login($input: LoginInput!) {
           login(input: $input) {
             user {
@@ -883,7 +810,8 @@ export default {
             refreshToken
           }
         }
-        
+        */
+        /* Exemple de variables :
         Variables:
         {
           "input": {
@@ -893,7 +821,6 @@ export default {
           }
         }
         */
-        
         const { emailOrPseudo, password, rememberMe = false } = input;
         
         // Sanitize
@@ -970,39 +897,33 @@ export default {
           accessToken,
           refreshToken,
         };
-      } catch (error) {
-        if (error instanceof GraphQLError) throw error;
-        throw new GraphQLError('Erreur lors de la connexion', {
-          extensions: { 
-            code: 'INTERNAL_SERVER_ERROR',
-            httpStatus: 500,
-            originalError: error.message
-          },
-        });
-      }
-    },
-    
+      },
+      // Rate limiting pour éviter les attaques par force brute
+      { maxRequests: 60, windowMs: 60000 } // 60 tentatives toutes les 1 minute
+      ),
+      'Erreur lors de la connexion'
+    ),
+        
     /**
      * 🔄 REFRESH TOKEN - Renouveler l'access token
      * @param {string} refreshToken - Refresh token
      * @returns {object} { accessToken, refreshToken }
      */
-    refreshToken: async (_, { refreshToken }) => {
-      try {
-        /*
+    refreshToken: withErrorHandling(
+      async (_, { refreshToken }, context) => {
+        /* exemple de requête :
         mutation RefreshToken($refreshToken: String!) {
           refreshToken(refreshToken: $refreshToken) {
             accessToken
             refreshToken
           }
         }
-        
-        Variables:
+        */
+       /* Exemple de Variables:
         {
           "refreshToken": "eyJhbGc..."
         }
         */
-        
         if (!refreshToken) {
           throw new GraphQLError('Refresh token requis', {
             extensions: { code: 'BAD_USER_INPUT', httpStatus: 400 }
@@ -1054,25 +975,17 @@ export default {
           accessToken: newAccessToken,
           refreshToken: newRefreshToken,
         };
-      } catch (error) {
-        if (error instanceof GraphQLError) throw error;
-        throw new GraphQLError('Erreur lors du renouvellement du token', {
-          extensions: { 
-            code: 'INTERNAL_SERVER_ERROR',
-            httpStatus: 500,
-            originalError: error.message
-          },
-        });
-      }
-    },
+      },
+      'Erreur lors du renouvellement du token'
+    ),
     
     /**
      * 🚪 DÉCONNEXION - Invalider le refresh token
      * @param {object} context - Context avec user
      * @returns {boolean} true si déconnexion réussie
      */
-    logout: async (_, __, context) => {
-      try {
+    logout: withErrorHandling(
+      async (_, args, context) => {
         /*
         mutation Logout {
           logout
@@ -1083,7 +996,6 @@ export default {
           "Authorization": "Bearer eyJhbGc..."
         }
         */
-        
         if (!context.isAuthenticated) {
           throw new GraphQLError('Non authentifié', {
             extensions: { code: 'UNAUTHENTICATED', httpStatus: 401 }
@@ -1104,29 +1016,10 @@ export default {
         `, [userId]);
         
         return true;
-      } catch (error) {
-        if (error instanceof GraphQLError) throw error;
-        throw new GraphQLError('Erreur lors de la déconnexion', {
-          extensions: { 
-            code: 'INTERNAL_SERVER_ERROR',
-            httpStatus: 500,
-            originalError: error.message
-          },
-        });
-      }
-    },
-
-
-
-
-
-
-
-
-
-
-
-
+      },
+      'Erreur lors de la déconnexion'
+    ),
+    
   },
 
   User: {

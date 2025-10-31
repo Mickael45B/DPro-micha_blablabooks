@@ -4,13 +4,12 @@ import bcrypt from 'bcrypt';
 import { validateOrderParams, handleDbError } from '../utils/validators.js';
 import  fetchRoleById  from './utils/utils_roles.js';
 import { fetchUserById } from './utils/utils_users.js';
-import { flattenEdges, makePageInfo, makeEdgeFromBook } from '../utils/helpers_books.js';
 import sanitizeHtml from 'sanitize-html';
 import { GraphQLError } from 'graphql';
 import fetchBookById from './utils/utils_books.js';
 import fetchLibraryById from './utils/utils_librairies.js';
 
-import { isAuthenticated, requireAuth, requireAdmin, requireOwnershipOrAdmin, sanitizeString, sanitizeInput } from './utils/helpers/helpers_general.js';
+import { isAuthenticated, requireAuth, requireAdmin, requireOwnershipOrAdmin, sanitizeString, sanitizeInput, flattenEdges, makePageInfo, makeEdgeFromBook, withErrorHandling } from './utils/helpers/helpers_general.js';
 
 import { findStatusOrThrow, validateStatusInput, existingStatusInput} from './utils/helpers/helpers_status.js';
 import { clean } from "semver";
@@ -22,7 +21,6 @@ import { validateWithJoi } from './utils/helpers/helpers_books.js';
 
 export default {
     Query: {
-
         /**     
          * Récupère les statuts avec pagination et tri
          * 🔒 Route protégée (administrateur uniquement)
@@ -34,8 +32,9 @@ export default {
          * @throws {GraphQLError} Si l'utilisateur n'a pas les droits (401 ou 403)  
          * @throws {GraphQLError} Si une erreur se produit lors de la récupération des utilisateurs (500)
          */
-        getStatuses: async (_, args, context) => {
-        try {
+        getStatuses: withErrorHandling(
+        async (_, args, context) => {
+            
             /* exemple context JWT décodé ( à revoir):
             {
             userId: "uuid-of-user",
@@ -50,9 +49,9 @@ export default {
             {
             }
             */
-
+            
             // Vérification des droits d'accès
-            //requireAdmin(context);
+            requireAdmin(context);
 
             const { limit = 50, offset = 0, order = 'created_at', direction = 'ASC' } = args;
             
@@ -91,21 +90,10 @@ export default {
             hasNextPage: cleanOffset + cleanLimit < totalCount,
             httpStatus: 200
             };
-            
-        } catch (error) {
-            // Log the real error server-side to see the stack in console logs
-            
-            if (error instanceof GraphQLError) throw error;
-            throw new GraphQLError('Erreur lors de la récupération des statuts', {
-                extensions: {
-                    code: 'INTERNAL_SERVER_ERROR',
-                    httpStatus: 500,
-                    originalError: error.message
-                }
-            });
-        }
         },
-
+        'Erreur lors de la récupération des statuts'
+        ),
+        
         /**
          * Récupère les utilisateurs avec pagination et tri
          * 🔒 Route protégée (administrateur uniquement)
@@ -114,8 +102,8 @@ export default {
             * @throws {GraphQLError} Si le statut n'existe pas (404)
             * @throws {GraphQLError} Si une erreur se produit lors de la récupération du statut (500)
         */
-        getStatus: async (_, { id_status }, context) => {
-        try {
+        getStatus: withErrorHandling(
+        async (_, args, context) => {
             /* exemple context JWT décodé ( à revoir):
             {
             userId: "uuid-of-user",
@@ -123,17 +111,19 @@ export default {
             role: "admin"
             }
             */
-        /*exemple de requête :
+            /*exemple de requête :
             query  getStatus($id_status: ID!) {getStatus(id_status: $id_status) {id_status,status_name,created_at,updated_at }}
 
             */
             /* Exemple variables :
             {"id_status": 1}
             */
-
+            
             // Vérification des droits d'accès
             requireAdmin(context);
 
+            const { id_status } = args;
+            
             // Validation avec Joi => 1ere couche - défense en profondeur
             const validatedArgs = validateWithJoi(getStatusSchema, {
             id_status: id_status
@@ -152,36 +142,24 @@ export default {
             
             if (context?.res?.status) context.res.status(200);
             return status;
-
-        } catch (error) {
-            //handleDbError(error);
-            if (error instanceof GraphQLError) throw error;
-            throw new GraphQLError("Erreur lors de la récupération de l'utilisateur", {
-            extensions: {
-                code: 'INTERNAL_SERVER_ERROR',
-                httpStatus: 500,
-                originalError: error.message
-            }
-            });
-            
-        }
         },
-
+        "Erreur lors de la récupération de l'utilisateur"
+        ),
+        
         /**
-         * Recherche des statuts par nom avec pagination et tri
-         * 🔒 Route protégée (administrateur uniquement)
-         * @param {string} status_name - Terme de recherche dans le nom du statut
-         * @param {number} limit - Limite de résultats (max 100)
-         * @param {number} offset - Décalage pour pagination
-         * @param {string} order - Champ de tri
-         * @param {string} direction - Direction du tri (ASC/DESC)
-         * @returns {object} { statuses, totalCount, hasNextPage, httpStatus }
-         * @throws {GraphQLError} Si l'utilisateur n'a pas les droits (401 ou 403)
-         * @throws {GraphQLError} Si une erreur se produit lors de la récupération des statuts (500)
-         */
-        searchStatuses: async (_, args, context) => {
-        try {
-
+     * Recherche des statuts par nom avec pagination et tri
+     * 🔒 Route protégée (administrateur uniquement)
+     * @param {string} status_name - Terme de recherche dans le nom du statut
+     * @param {number} limit - Limite de résultats (max 100)
+     * @param {number} offset - Décalage pour pagination
+     * @param {string} order - Champ de tri
+     * @param {string} direction - Direction du tri (ASC/DESC)
+     * @returns {object} { statuses, totalCount, hasNextPage, httpStatus }
+     * @throws {GraphQLError} Si l'utilisateur n'a pas les droits (401 ou 403)
+     * @throws {GraphQLError} Si une erreur se produit lors de la récupération des statuts (500)
+     */
+        searchStatuses: withErrorHandling(
+        async (_, args, context) => {   
             /* exemple context JWT décodé ( à revoir):
             {
             userId: "uuid-of-user",
@@ -197,9 +175,8 @@ export default {
             {"status_name": "et"}
             */
 
-            
             // Vérification des droits d'accès
-            //requireAdmin(context);
+            requireAdmin(context);
 
             // Extraction et validation des paramètres de pagination et de tri
             const { limit = 50, offset = 0, order = 'created_at', direction = 'DESC', status_name } = args;
@@ -247,31 +224,19 @@ export default {
             WHERE LOWER(status_name) LIKE LOWER($1)
             `, [searchPattern]);
 
-
-
             return {
             status: result.rows,
             totalCount: countResult.rows[0].count,
             hasNextPage: cleanOffset + cleanLimit < countResult.rows[0].count,
             httpStatus: 200
             };
-        } catch (error) {
-            //handleDbError(error);
-            if (error instanceof GraphQLError) throw error;
-            throw new GraphQLError('Erreur lors de la recherche des utilisateurs', {
-            extensions: { 
-                code: 'INTERNAL_SERVER_ERROR',
-                httpStatus: 500,
-                originalError: error.message
-            },
-            });
-            
-        }
         },
+        'Erreur lors de la recherche des statut'
+        ),
+
     },
 
     Mutation: {
-
         /**
          * Crée un nouvel utilisateur
          * 🔒 Route protégée (administrateur uniquement)
@@ -281,8 +246,8 @@ export default {
          * @throws {GraphQLError} Si l'utilisateur n'a pas les droits (401 ou 403)
          * @throws {GraphQLError} Si une erreur se produit lors de la création de l'utilisateur (500)
          */
-        createStatus: async (_, { input }, context) => {
-            try {
+        createStatus: withErrorHandling(
+        async (_, { input }, context) => {
             /* exemple context JWT décodé ( à revoir):
             {
             userId: "uuid-of-user",
@@ -300,8 +265,7 @@ export default {
             }
             }        
             */
-
-
+            
             if (!input || !input.status_name) {
             throw new GraphQLError('Tous les champs sont requis', {
                 extensions: { code: 'BAD_USER_INPUT', httpStatus: 400 }
@@ -326,18 +290,9 @@ export default {
 
             if (context?.res?.status) context.res.status(201);
             return result.rows[0];
-
-            } catch (error) {
-            if (error instanceof GraphQLError) throw error;
-            throw new GraphQLError('Erreur lors de la création du statut', {
-            extensions: { 
-                code: 'INTERNAL_SERVER_ERROR',
-                httpStatus: 500,
-                originalError: error.message
-            },
-            });
-            }
         },
+        'Erreur lors de la création du statut'
+        ),
 
         /**
          * Met à jour un utilisateur existant
@@ -349,31 +304,31 @@ export default {
          * @throws {GraphQLError} Si l'utilisateur n'a pas les droits (401 ou 403)
          * @throws {GraphQLError} Si une erreur se produit lors de la mise à jour de l'utilisateur (500)
          */
-        updateStatus: async (_, { input}, context) => {
-            try {
-                /* exemple context JWT décodé ( à revoir):
-                {
-                userId: "uuid-of-user",
-                email: "user@example.com",
-                role: "admin"
-                }
-                */
-                /*exemple de requête :
-                mutation updateStatus($input: UpdateStatusInput!) { updateStatus(input: $input) {id_status,status_name }}
+        updateStatus: withErrorHandling(
+        async (_,  { input}, context) => {
+            /* exemple context JWT décodé ( à revoir):
+            {
+            userId: "uuid-of-user",
+            email: "user@example.com",
+            role: "admin"
+            }
+            */
+            /*exemple de requête :
+            mutation updateStatus($input: UpdateStatusInput!) { updateStatus(input: $input) {id_status,status_name }}
 
-                */
-                /* Exemple variables :
-                { "input": 
-                {
-                "id_status": "6",
-                "status_name" :"test update statut"
-                }
-                }       
-                */
+            */
+            /* Exemple variables :
+            { "input": 
+            {
+            "id_status": "6",
+            "status_name" :"test update statut"
+            }
+            }       
+            */
+            
+            const { id_status, status_name } = input;
 
-                const { id_status, status_name } = input;
-
-                // Validation avec Joi => 1ere couche - défense en profondeur
+            // Validation avec Joi => 1ere couche - défense en profondeur
             const validatedInput = validateWithJoi(updateStatusSchema, { 
                 id_status: id_status, 
                 status_name: status_name
@@ -392,19 +347,10 @@ export default {
 
             if (context?.res?.status) context.res.status(200);
             return result.rows[0];
-
-            } catch (error) {
-                if (error instanceof GraphQLError) throw error;
-                throw new GraphQLError("Erreur lors de la mise à jour du statut", {
-                extensions: { 
-                    code: 'INTERNAL_SERVER_ERROR',
-                    httpStatus: 500,
-                    originalError: error.message
-                },
-                });
-            }
         },
-
+        "Erreur lors de la mise à jour du statut"
+        ),
+        
         /**
          * Supprime un statut par son ID
          * 🔒 Route protégée (administrateur uniquement)
@@ -413,73 +359,65 @@ export default {
          * @throws {GraphQLError} Si l'utilisateur n'a pas les droits (401 ou 403)
          * @throws {GraphQLError} Si une erreur se produit lors de la suppression du statut (500)
          */
-        deleteStatus: async (_, { input }, context) => {
-            try {
-                /* exemple context JWT décodé ( à revoir):
-                {
-                userId: "uuid-of-user",
-                email: "user@example.com",
-                role: "admin"
-                }
-                */
-                /*exemple de requête :
-                mutation deleteStatus($input: DeleteStatusInput!) { deleteStatus(input: $input) {id_status,status_name }}
-
-                */
-                /* Exemple variables :
-                { "input": 
-                {
-                "id_status": "6"
-                }
-                }       
-                */
-
-                // Vérification des droits d'accès
-                //requireAdmin(context);
-
-                // Extraction des paramètres  
-                const { id_status } = input;
-
-                if (!id_status) {
-                throw new GraphQLError('ID statut manquant', {
-                    extensions: { code: 'BAD_USER_INPUT', httpStatus: 400 }
-                });
-                }
-
-
-                // Validation avec Joi => 1ere couche - défense en profondeur
-                const validatedInput = validateWithJoi(deleteStatusSchema, {
-                id_status
-                });
-
-                // Sanitize inputs => 2ème couche - défense en profondeur
-                const cleanIdStatus = sanitizeString(validatedInput.id_status);
-
-                // Vérification de l'existence du statut
-                await findStatusOrThrow(cleanIdStatus);
-
-                const result = await db.query(`
-                DELETE FROM status
-                WHERE id_status = $1
-                RETURNING id_status, status_name, created_at, updated_at
-                `, [cleanIdStatus]);
-
-            if (context && context.res && typeof context.res.status === 'function') {
-            context.res.status(200);
+        deleteStatus: withErrorHandling(
+        async (_, args, context) => {
+            /* exemple context JWT décodé ( à revoir):
+            {
+            userId: "uuid-of-user",
+            email: "user@example.com",
+            role: "admin"
             }
-            return true;
+            */
+            /*exemple de requête :
+            mutation deleteStatus($input: DeleteStatusInput!) { deleteStatus(input: $input) {id_status,status_name }}
 
-            } catch (error) {
-                if (error instanceof GraphQLError) throw error;
-                throw new GraphQLError("Erreur lors de la suppression du statut", {
-                    extensions: {
-                        code: 'INTERNAL_SERVER_ERROR',
-                        httpStatus: 500,
-                        originalError: error.message
-                    },
-                });
+            */
+            /* Exemple variables :
+            { "input": 
+            {
+            "id_status": "6"
             }
+            }       
+            */
+            
+                    // Vérification des droits d'accès
+                    requireAdmin(context);
+
+                    // Extraction des paramètres  
+                    const { id_status } = input;
+
+                    if (!id_status) {
+                    throw new GraphQLError('ID statut manquant', {
+                        extensions: { code: 'BAD_USER_INPUT', httpStatus: 400 }
+                    });
+                    }
+
+
+                    // Validation avec Joi => 1ere couche - défense en profondeur
+                    const validatedInput = validateWithJoi(deleteStatusSchema, {
+                    id_status
+                    });
+
+                    // Sanitize inputs => 2ème couche - défense en profondeur
+                    const cleanIdStatus = sanitizeString(validatedInput.id_status);
+
+                    // Vérification de l'existence du statut
+                    await findStatusOrThrow(cleanIdStatus);
+
+                    const result = await db.query(`
+                    DELETE FROM status
+                    WHERE id_status = $1
+                    RETURNING id_status, status_name, created_at, updated_at
+                    `, [cleanIdStatus]);
+
+                if (context && context.res && typeof context.res.status === 'function') {
+                context.res.status(200);
+                }
+                return true;
         },
+        "Erreur lors de la suppression du statut"
+        ),
+        
     },
 
     Status: {}

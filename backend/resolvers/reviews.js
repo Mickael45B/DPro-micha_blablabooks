@@ -3,12 +3,11 @@ import { v4 as uuidv4 } from "uuid";
 import { validateOrderParams, handleDbError } from '../utils/validators.js';
 import { fetchUserById } from './utils/utils_users.js';
 import fetchBookById from './utils/utils_books.js'; 
-import { flattenEdges, makePageInfo, makeEdgeFromBook } from '../utils/helpers_books.js';
 import sanitizeHtml from 'sanitize-html';
 import { GraphQLError } from 'graphql';
 import fetchLibraryById from './utils/utils_librairies.js';
 
-import { isAuthenticated, requireAuth, requireAdmin, requireOwnershipOrAdmin, sanitizeString, sanitizeInput } from './utils/helpers/helpers_general.js';
+import { isAuthenticated, requireAuth, requireAdmin, requireOwnershipOrAdmin, sanitizeString, sanitizeInput, flattenEdges, makePageInfo, makeEdgeFromBook, withErrorHandling } from './utils/helpers/helpers_general.js';
 
 import { findReviewOrThrow, validateReviewInput} from './utils/helpers/helpers_Reviews.js';
 import { console } from "node:inspector";
@@ -18,7 +17,6 @@ import {getReviewsSchema, getReviewSchema, searchReviewsSchema, addReviewSchema,
 
 export default {
   Query: {
-
     /**
      * Récupère les avis avec pagination et tri
      * 🔒 Route protégée (administrateur uniquement)
@@ -30,9 +28,8 @@ export default {
        * @throws {GraphQLError} Si l'utilisateur n'a pas les droits (401 ou 403)  
        * @throws {GraphQLError} Si une erreur se produit lors de la récupération des avis (500)
      */
-    getReviews: async (_, args, context) => {
-      try {
-
+    getReviews: withErrorHandling(
+      async (_, args, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
           userId: "uuid-of-user",
@@ -47,7 +44,7 @@ export default {
         {
         }
         */
-
+    
         // Vérification des droits d'accès
         requireAuth(context);
 
@@ -80,18 +77,11 @@ export default {
           hasNextPage: cleanOffset + cleanLimit < totalCount,
           httpStatus: 200
         };
-      } catch (error) {
-        if (error instanceof GraphQLError) throw error;
-        throw new GraphQLError('Erreur lors de la récupération des avis', {
-          extensions: { 
-            code: 'INTERNAL_SERVER_ERROR',
-            httpStatus: 500,
-            originalError: error.message
-          }
-        });
-      }
-    },
-
+    
+      },
+      'Erreur lors de la récupération des avis'
+    ),
+    
     /**
      * Récupère un avis par son ID
      * 🔒 Route protégée (utilisateur authentifié)
@@ -100,9 +90,8 @@ export default {
      * @throws {GraphQLError} Si l'utilisateur n'est pas authentifié (401)
      * @throws {GraphQLError} Si une erreur se produit lors de la récupération de l'avis (500)
      */
-    getReview: async (_, { id_review }, context) => {
-      try {
-
+    getReview: withErrorHandling(
+      async (_, { id_review }, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
           userId: "uuid-of-user",
@@ -110,16 +99,16 @@ export default {
           role: "admin"
         }
         */
-       /*exemple de requête :
+        /*exemple de requête :
         query  getReview($id_review: ID!) {getReview(id_review: $id_review) {id_review,id_user,book{title,author},title_rating,rating,comment,created_at,updated_at}}
 
         */
         /* Exemple variables :
         {"id_review": "1a2b3c4d-5e6f-7g8h-9i0j-1k2l3m4n1o6p"}
         */
-
+    
         // Vérification des droits d'accès
-        //requireAuth(context);
+        requireAuth(context);
 
         // Sanitize input
         const cleanIdReview = sanitizeString(id_review);
@@ -134,18 +123,10 @@ export default {
 
         if (context?.res?.status) context.res.status(200);
         return review;
-      } catch (error) {
-        if (error instanceof GraphQLError) throw error;
-        throw new GraphQLError("Erreur lors de la récupération de l'avis", {
-          extensions: {
-            code: 'INTERNAL_SERVER_ERROR',
-            httpStatus: 500,
-            originalError: error.message
-          }
-        });
-      }
-    },
-
+      },
+      "Erreur lors de la récupération de l'avis"
+    ),
+    
     /**
      * Recherche des avis par contenu avec pagination
      * 🔒 Route protégée (utilisateur authentifié)
@@ -156,9 +137,8 @@ export default {
      * @throws {GraphQLError} Si l'utilisateur n'est pas authentifié (401)
      * @throws {GraphQLError} Si une erreur se produit lors de la recherche des avis (500)
      */
-    searchReviews: async (_, args, context) => {      
-      try {
-
+    searchReviews: withErrorHandling(
+      async (_, args, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
           userId: "uuid-of-user",
@@ -166,16 +146,15 @@ export default {
           role: "admin"
         }
         */
-       /*exemple de requête :
+        /*exemple de requête :
         query searchReviews($content: String!) { searchReviews(content: $content) { totalCount, reviews{id_review,id_user,book{title,author},title_rating,rating,comment,created_at,updated_at} }}
         */
         /* Exemple variables :
         {"content": "bien"}
         */
 
-
         // Vérification des droits d'accès
-        //requireAuth(context);
+        requireAuth(context);
 
         // Extraction et validation des paramètres de pagination et de tri
         const { limit = 50, offset = 0, order = 'created_at', direction = 'DESC', content } = args;
@@ -217,22 +196,14 @@ export default {
           totalCount: countResult.rows[0].count,
           hasNextPage: cleanOffset + cleanLimit < countResult.rows[0].count,
           httpStatus: 200
-        };
-      } catch (error) {
-        if (error instanceof GraphQLError) throw error;
-        throw new GraphQLError('Erreur lors de la recherche des avis', {
-          extensions: { 
-            code: 'INTERNAL_SERVER_ERROR',
-            httpStatus: 500,
-            originalError: error.message
-          },
-        });
-      }
-    },  
+        };    
+      },
+      'Erreur lors de la recherche des avis'
+    ),
+    
   },
 
   Mutation: {
-
     /**
      * Ajoute un nouvel avis
      * 🔒 Route protégée (utilisateur authentifié)
@@ -247,9 +218,8 @@ export default {
      * @throws {GraphQLError} Si les données d'entrée sont invalides (400)
      * @throws {GraphQLError} Si une erreur se produit lors de la création de l'avis (500)
      */
-    addReview: async (_, { input }, context) => {
-      try {
-
+    addReview: withErrorHandling(
+      async (_, { input }, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
           userId: "uuid-of-user",
@@ -257,7 +227,7 @@ export default {
           role: "admin"
         }
         */
-       /*exemple de requête :
+        /*exemple de requête :
         mutation addReview($input: CreateReviewInput!) { addReview(input: $input) {id_review, id_user, id_book, title_rating, comment, rating} }
 
         */
@@ -271,9 +241,7 @@ export default {
         }
         }        
         */
-
-
-
+    
         // Vérification de l'authentification de l'utilisateur
         requireAuth(context);
 
@@ -316,19 +284,11 @@ export default {
 
         if (context?.res?.status) context.res.status(201);
         return result.rows[0];
-
-      } catch (error) {
-        if (error instanceof GraphQLError) throw error;
-        throw new GraphQLError("Erreur lors de l'ajout de l'avis", {
-          extensions: { 
-            code: 'INTERNAL_SERVER_ERROR',
-            httpStatus: 500,
-            originalError: error.message
-          },
-        });
-      }
-    },
-
+    
+      },
+      "Erreur lors de l'ajout de l'avis"
+    ),
+    
     /**
      * Met à jour un avis existant
      * 🔒 Route protégée (propriétaire de l'avis ou administrateur)
@@ -341,9 +301,8 @@ export default {
      * @throws {GraphQLError} Si l'utilisateur n'est pas authentifié (401)
      * @throws {GraphQLError} Si une erreur se produit lors de la mise à jour de l'avis (500)
      */
-    updateReview: async (_, { input }, context) => {
-      try {
-
+    updateReview: withErrorHandling(
+      async (_, { input }, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
           userId: "uuid-of-user",
@@ -351,7 +310,7 @@ export default {
           role: "admin"
         }
         */
-       /*exemple de requête :
+        /*exemple de requête :
         mutation updateReview($input: UpdateReviewInput!) { updateReview(input: $input) {review{id_review, id_user, id_book, title_rating, comment, rating, created_at, updated_at}, httpStatus} }
 
         */
@@ -362,11 +321,10 @@ export default {
           "title_rating": "toto au travail",
           "comment": "Mise à jour de mon avis",
           "rating": 5
-       }
+        }
         }       
         */
-        
-
+    
         // Sanitize input
         const cleanIdReview = sanitizeString(input.id_review);
 
@@ -375,7 +333,6 @@ export default {
             extensions: { code: 'BAD_USER_INPUT', httpStatus: 400 }
           });
         }
-
 
         // Vérification de l'existence de l'avis
         const existingReview = await findReviewOrThrow(cleanIdReview);
@@ -449,18 +406,20 @@ export default {
         if (context?.res?.status) context.res.status(200);
         // Return the Review object directly to match the GraphQL schema
         return result.rows[0];
-      } catch (error) {
-        if (error instanceof GraphQLError) throw error;
-        throw new GraphQLError("Erreur lors de la mise à jour de l'avis", {
-          extensions: { 
-            code: 'INTERNAL_SERVER_ERROR',
-            httpStatus: 500,
-            originalError: error.message
-          },
-        });
-      }
-    },
-
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+      },
+      "Erreur lors de la mise à jour de l'avis"
+    ),
+    
     /**     
      * Supprime un avis
      * 🔒 Route protégée (propriétaire de l'avis ou administrateur)
@@ -470,24 +429,24 @@ export default {
      * @throws {GraphQLError} Si l'utilisateur n'est pas authentifié (401)
      * @throws {GraphQLError} Si une erreur se produit lors de la suppression de l'avis (500)
      */
-    deleteReview: async (_, { input }, context) => {
-      try {
-
+    deleteReview: withErrorHandling(
+      async (_, args, context) => {
         /* exemple context JWT décodé ( à revoir):
-        {
-          userId: "uuid-of-user",
-          email: "user@example.com",
-          role: "admin"
-        }
+          {
+            userId: "uuid-of-user",
+            email: "user@example.com",
+            role: "admin"
+          }
         */
-       /*exemple de requête :
+        /*exemple de requête :
             mutation deleteReview($input: DeleteReviewInput!) { deleteReview(input: $input) }
         */
         /* Exemple variables :
-        {"input": {"id_review":"4bb6dccc-14fb-4e50-985d-e49405785e28"} }
+          {"input": {"id_review":"4bb6dccc-14fb-4e50-985d-e49405785e28"} }
         */
 
-
+        const { input } = args;
+        
         // Vérification de l'authentification de l'utilisateur
         requireOwnershipOrAdmin(existingReview.id_user, context);
 
@@ -513,17 +472,10 @@ export default {
         }
 
         return true;
-      } catch (error) {
-        if (error instanceof GraphQLError) throw error;
-        throw new GraphQLError('Erreur lors de la suppression de l\'avis', {
-          extensions: { 
-            code: 'INTERNAL_SERVER_ERROR',
-            httpStatus: 500,
-            originalError: error.message
-          }
-        });
-      }
-    },
+      },
+      "Erreur lors de la suppression de l'avis"
+    ),
+    
   },
 
   Review: {

@@ -728,6 +728,81 @@ $$ LANGUAGE plpgsql;
 
 
 
+
+
+-- Créer une fonction pour détecter les patterns dangereux
+CREATE OR REPLACE FUNCTION detect_malicious_content()
+RETURNS TRIGGER AS $$
+BEGIN
+  -- Sécurité : ne tester que les champs pertinents selon la table déclenchée
+  IF TG_TABLE_NAME = 'users' THEN
+    IF NEW.pseudo IS NOT NULL AND NEW.pseudo ~* '<script|<iframe|javascript:|onerror=|onload=' THEN
+      RAISE EXCEPTION 'Contenu suspect détecté dans le pseudo: %', NEW.pseudo;
+    END IF;
+
+    IF NEW.name IS NOT NULL AND NEW.name ~* '<script|<iframe|javascript:|onerror=|onload=' THEN
+      RAISE EXCEPTION 'Contenu suspect détecté dans le nom: %', NEW.name;
+    END IF;
+
+    IF NEW.email IS NOT NULL AND NEW.email ~* '<script|javascript:' THEN
+      RAISE EXCEPTION 'Contenu suspect détecté dans l''email: %', NEW.email;
+    END IF;
+
+    IF NEW.pseudo IS NOT NULL AND NEW.pseudo ~* '(union\s+select|drop\s+table|exec\s*\(|insert\s+into)' THEN
+      RAISE EXCEPTION 'Pattern SQL suspect dans le pseudo: %', NEW.pseudo;
+    END IF;
+
+  ELSIF TG_TABLE_NAME = 'messages' THEN
+    -- messages : vérifier subject et content
+    IF NEW.subject IS NOT NULL AND NEW.subject ~* '<script|<iframe|javascript:|onerror=|onload=' THEN
+      RAISE EXCEPTION 'Contenu suspect détecté dans le subject des messages: %', NEW.subject;
+    END IF;
+
+    IF NEW.content IS NOT NULL AND NEW.content ~* '<script|<iframe|javascript:|onerror=|onload=' THEN
+      RAISE EXCEPTION 'Contenu suspect détecté dans le content des messages';
+    END IF;
+
+  ELSIF TG_TABLE_NAME = 'reviews' THEN
+    -- reviews : vérifier title_rating et comment
+    IF NEW.title_rating IS NOT NULL AND NEW.title_rating ~* '<script|<iframe|javascript:|onerror=|onload=' THEN
+      RAISE EXCEPTION 'Contenu suspect détecté dans title_rating: %', NEW.title_rating;
+    END IF;
+
+    IF NEW.comment IS NOT NULL AND NEW.comment ~* '<script|<iframe|javascript:|onerror=|onload=' THEN
+      RAISE EXCEPTION 'Contenu suspect détecté dans le commentaire: %', NEW.comment;
+    END IF;
+  END IF;
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Appliquer le trigger sur INSERT et UPDATE
+CREATE TRIGGER trg_detect_malicious_users
+BEFORE INSERT OR UPDATE ON users
+FOR EACH ROW
+EXECUTE FUNCTION detect_malicious_content();
+
+-- Trigger pour la table messages
+CREATE TRIGGER trg_detect_malicious_messages
+BEFORE INSERT OR UPDATE ON messages
+FOR EACH ROW
+EXECUTE FUNCTION detect_malicious_content();
+
+-- Trigger pour la table reviews
+CREATE TRIGGER trg_detect_malicious_reviews
+BEFORE INSERT OR UPDATE ON reviews
+FOR EACH ROW
+EXECUTE FUNCTION detect_malicious_content();
+
+
+
+
+
+
+
+
+
 COMMIT;
 
 -- ============================

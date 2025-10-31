@@ -9,6 +9,7 @@ import path, { dirname } from "path";
 import { fileURLToPath } from "url";
 import jwt from 'jsonwebtoken';
 import db from './db/connect_DB.js';
+import { generalLimiter, authLimiter, mutationLimiter, registrationLimiter } from './config/rateLimiter.js';
 
 dotenv.config();
 
@@ -173,6 +174,40 @@ app.use(
     },
   })
 );
+
+// Appliquer le rate limiting général
+app.use('/graphql', generalLimiter);
+
+// Rate limiting spécifique pour l'authentification
+// Vous pouvez créer un middleware pour détecter les opérations d'auth
+app.use('/graphql', (req, res, next) => {
+  const operationName = req.body?.operationName || '';
+  const query = req.body?.query || '';
+  
+  // Détecter les opérations d'authentification
+  if (operationName === 'Login' || query.includes('mutation login')) {
+    return authLimiter(req, res, next);
+  }
+  
+  // Détecter les créations de compte
+  if (operationName === 'CreateUser' || query.includes('mutation createUser')) {
+    return registrationLimiter(req, res, next);
+  }
+  
+  // Détecter les mutations sensibles
+  if (query.includes('mutation')) {
+    return mutationLimiter(req, res, next);
+  }
+  
+  next();
+});
+
+
+
+
+
+
+
 
 // Route de santé
 app.get("/health", (req, res) => {

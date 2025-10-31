@@ -17,6 +17,34 @@ services:
       interval: 10s
       timeout: 5s
       retries: 15
+    networks:
+      - blablabooks-network
+
+ # Redis pour le rate limiting
+  redis:
+    image: redis:7-alpine
+    container_name: myapp_redis
+    # REDIS_PASSWORD a une valeur par défaut vide si non fournie (évite l'avertissement)
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-""}
+    command: >
+      sh -c 'if [ -n """${REDIS_PASSWORD}""" ]; then \
+        redis-server --requirepass "${REDIS_PASSWORD}" --maxmemory 256mb --maxmemory-policy allkeys-lru; \
+      else \
+        redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru; \
+      fi'
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - blablabooks-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
 
   backend:
     build:
@@ -39,6 +67,8 @@ services:
     working_dir: /app
     command: sh -c "until nc -z db 5432; do echo 'Waiting for DB...'; sleep 2; done; npm install && npm run start"
     restart: always
+    networks:
+      - blablabooks-network
 
   frontend:
     build:
@@ -52,9 +82,12 @@ services:
     environment:
       VITE_BACKEND_URL: http://backend:3000
     restart: always
+    networks:
+      - blablabooks-network
 
 volumes:
   postgres-data:
+  redis_data:
 
 networks:
   blablabooks-network:

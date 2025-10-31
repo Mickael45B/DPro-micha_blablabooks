@@ -108,6 +108,124 @@ export const sanitizeInput = (input) => {
 };
 
 // ========================================
+// HELPERS GÉNÉRAUX
+// ========================================
+
+/**
+ * Aplatis un tableau d'edges { node, cursor } en un tableau de nodes (Book)
+ * Retourne un tableau vide si input invalide
+ */
+export function flattenEdges(edges) {
+  if (!Array.isArray(edges)) return [];
+  return edges.map(e => (e && e.node ? e.node : null)).filter(Boolean);
+}
+
+/**
+ * Construit un objet pageInfo conforme au pattern utilisé dans le projet
+ * edges: tableau d'edges (peut être vide)
+ */
+export function makePageInfo({ offset = 0, limit = 0, totalCount = 0, edges = [] } = {}) {
+  const hasNextPage = offset + limit < totalCount;
+  const hasPreviousPage = offset > 0;
+  const startCursor = edges.length > 0 ? edges[0].cursor : null;
+  const endCursor = edges.length > 0 ? edges[edges.length - 1].cursor : null;
+  return { hasNextPage, hasPreviousPage, startCursor, endCursor };
+}
+
+/**
+ * Génère un edge { node, cursor } à partir d'un objet book (utile si le resolver renvoie rows)
+ */
+export function makeEdgeFromBook(book) {
+  const cursor = book && book.id_book ? Buffer.from(book.id_book).toString('base64') : null;
+  return { node: book, cursor };
+}
+
+/**
+ * Wrapper générique pour gérer les erreurs des resolvers
+ * @param {Function} resolverFn - Fonction resolver à wrapper
+ * @param {string} errorMessage - Message d'erreur personnalisé
+ * @returns {Function} Resolver wrappé avec gestion d'erreur
+ */
+export const withErrorHandling = (resolverFn, errorMessage) => {
+  return async (parent, args, context, info) => {
+    try {
+      return await resolverFn(parent, args, context, info);
+    } catch (error) {
+      // Si c'est déjà une GraphQLError, la relancer
+      if (error instanceof GraphQLError) {
+        throw error;
+      }
+      
+      // Sinon, créer une nouvelle GraphQLError avec le message personnalisé
+      throw new GraphQLError(errorMessage, {
+        extensions: {
+          code: 'INTERNAL_SERVER_ERROR',
+          httpStatus: 500,
+          originalError: error.message,
+        },
+      });
+    }
+  };
+};
+
+// Rate limiting simple en mémoire pour les resolvers GraphQL
+const rateLimitMap = new Map();
+
+export const withRateLimit = (fn, options = {}) => {
+  const { 
+    maxRequests = 10, 
+    windowMs = 60000, // 1 minute
+    keyFn = (context) => context.user?.id_user || context.ip 
+  } = options;
+  
+  return async (parent, args, context, info) => {
+    const key = keyFn(context);
+    
+    if (!key) {
+      throw new GraphQLError('Impossible de déterminer l\'identifiant pour le rate limiting', {
+        extensions: { code: 'INTERNAL_SERVER_ERROR', httpStatus: 500 }
+      });
+    }
+    
+    const now = Date.now();
+    const userLimits = rateLimitMap.get(key) || { requests: [], resetAt: now + windowMs };
+    
+    // Nettoyer les anciennes requêtes
+    userLimits.requests = userLimits.requests.filter(time => time > now - windowMs);
+    
+    if (userLimits.requests.length >= maxRequests) {
+      const resetIn = Math.ceil((userLimits.resetAt - now) / 1000);
+      throw new GraphQLError(`Trop de requêtes. Réessayez dans ${resetIn} secondes`, {
+        extensions: { 
+          code: 'RATE_LIMIT_EXCEEDED', 
+          httpStatus: 429,
+          retryAfter: resetIn 
+        }
+      });
+    }
+    
+    userLimits.requests.push(now);
+    rateLimitMap.set(key, userLimits);
+    
+    return fn(parent, args, context, info);
+  };
+};
+
+// ========================================
+// ========================================
+
+
+
+
+
+
+
+
+
+
+
+
+// ========================================
 // NOTES
 // ========================================
 /*

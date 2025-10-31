@@ -3,14 +3,13 @@ import { v4 as uuidv4 } from 'uuid';
 import { validateOrderParams, handleDbError } from '../utils/validators.js';
 import { fetchUserById } from './utils/utils_users.js';
 
-import { flattenEdges, makePageInfo, makeEdgeFromBook } from '../utils/helpers_books.js';
 import sanitizeHtml from 'sanitize-html';
 import { GraphQLError } from 'graphql';
 import fetchBookById from './utils/utils_books.js';
 import fetchLibraryById from './utils/utils_librairies.js';
 
 // Import des helpers généraux
-import { isAuthenticated, requireAuth, requireAdmin, requireOwnershipOrAdmin, sanitizeString, sanitizeInput } from './utils/helpers/helpers_general.js';
+import { isAuthenticated, requireAuth, requireAdmin, requireOwnershipOrAdmin, sanitizeString, sanitizeInput, flattenEdges, makePageInfo, makeEdgeFromBook, withErrorHandling } from './utils/helpers/helpers_general.js';
 // Import des helpers spécifiques aux messages
 import { findMessageOrThrow, requireMessageAccess, validateMessageInput} from './utils/helpers/helpers_messages.js';
 
@@ -18,7 +17,6 @@ import {getMessagesSchema, getMessageSchema, getUserMessagesSchema, searchMessag
 
 export default {
   Query: {
-
     /**
      * Récupère les commentaires avec pagination et tri
      * 🔒 Route protégée (administrateur uniquement)
@@ -30,9 +28,8 @@ export default {
        * @throws {GraphQLError} Si l'utilisateur n'a pas les droits (401 ou 403)  
        * @throws {GraphQLError} Si une erreur se produit lors de la récupération des messages (500)
      */
-    getMessages: async (_, args, context) => {
-      try {
-
+    getMessages: withErrorHandling(
+      async (_, args, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
           userId: "uuid-of-user",
@@ -47,7 +44,7 @@ export default {
         {
         }
         */
-
+    
         const { limit = 50, offset = 0, order = 'created_at', direction = 'DESC' } = args;
 
         // Vérification des droits admin
@@ -81,18 +78,10 @@ export default {
           hasNextPage: cleanOffset + cleanLimit < totalCount,
           httpStatus: 200
         };
-      } catch (error) {
-        if (error instanceof GraphQLError) throw error;
-        throw new GraphQLError('Erreur lors de la récupération des messages', {
-          extensions: { 
-            code: 'INTERNAL_SERVER_ERROR',
-            httpStatus: 500,
-            originalError: error.message
-          },
-        });
-      }
-    },
-
+      },
+      'Erreur lors de la récupération des messages'
+    ),
+    
     /**
      * Récupère les commentaires avec pagination et tri
      * * 🔓 Route publique
@@ -100,9 +89,8 @@ export default {
        * @throws {GraphQLError} Si l'utilisateur n'a pas les droits (401 ou 403)  
        * @throws {GraphQLError} Si une erreur se produit lors de la récupération des messages (500)
      */
-    getMessage: async (_, { id_message }, context) => {
-      try {
-
+    getMessage: withErrorHandling(
+      async (_, args, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
           userId: "uuid-of-user",
@@ -117,6 +105,8 @@ export default {
         /* Exemple variables :
         {"id_message": "3c4d5e6f-7g8h-9i0j-1k2l-3m4n5y6p7q8r"}
         */
+    
+        const { id_message } = args;
 
         // Sanitize input
         const cleanIdMessage = sanitizeString(id_message);
@@ -130,18 +120,11 @@ export default {
 
         if (context?.res?.status) context.res.status(200);
         return message;
-      } catch (error) {
-        if (error instanceof GraphQLError) throw error;
-        throw new GraphQLError('Erreur lors de la récupération du message', {
-          extensions: { 
-            code: 'INTERNAL_SERVER_ERROR',
-            httpStatus: 500,
-            originalError: error.message
-          },
-        });
-      }
-    },
-
+    
+      },
+      'Erreur lors de la récupération du message'
+    ),
+    
     /**
      * Récupère les messages d'un utilisateur (envoyés ou reçus)
      * 🔒 Route protégée - L'utilisateur ne peut voir que ses propres messages
@@ -153,92 +136,76 @@ export default {
      * @throws {GraphQLError} Si l'utilisateur n'a pas les droits (401 ou 403)  
      * @throws {GraphQLError} Si une erreur se produit lors de la récupération des messages (500)
      */
-    getUserMessages: async (_, args, context) => {
-      try {
-
-
-
-    /* Exemple de requête :
-    query GetUserMessages($userId: ID) {getUserMessages(userId: $userId) { messages { id_message subject sender { name } receiver { name } } } }
-    */
-    /* Exemple variables :
-    // Pour voir MES messages (userId optionnel)
-    { "type": "received" }
+    getUserMessages: withErrorHandling(
+      async (_, args, context) => {
+        /* Exemple de requête :
+        query GetUserMessages($userId: ID) {getUserMessages(userId: $userId) { messages { id_message subject sender { name } receiver { name } } } }
+        */
+        /* Exemple variables :
+        // Pour voir MES messages (userId optionnel)
+        { "type": "received" }
+        */
+        /* Exemple variables :
+        // Pour qu'un admin voie les messages d'un autre user
+        { "userId": "autre-user-id", "type": "sent" }
+        */
     
-    // Pour qu'un admin voie les messages d'un autre user
-    { "userId": "autre-user-id", "type": "sent" }
-    */
+        // ✅ Vérifier l'authentification
+        requireAuth(context);
 
+        const { userId, type = 'received', limit = 50, offset = 0 } = args;
 
-// ✅ Vérifier l'authentification
-    requireAuth(context);
+        // Déterminer l'ID cible
+        let targetUserId;
 
-    const { userId, type = 'received', limit = 50, offset = 0 } = args;
+        if (userId) {
+          // Un userId est fourni → vérifier les droits
+          requireOwnershipOrAdmin(userId, context);
+          targetUserId = userId;
+        } else {
+          // Pas de userId → utiliser l'utilisateur connecté
+          targetUserId = context.user?.id_user || context.user?.id;
 
-    // Déterminer l'ID cible
-    let targetUserId;
+          if (!targetUserId) {
+            throw new GraphQLError('ID utilisateur introuvable', {
+              extensions: { code: 'UNAUTHORIZED', httpStatus: 401 }
+            });
+          }
+        }
+
+        // Sanitize inputs
+        const cleanUserId = sanitizeString(targetUserId);
+        const cleanLimit = Math.min(Math.max(parseInt(limit) || 50, 1), 100);
+        const cleanOffset = Math.max(parseInt(offset) || 0, 0);
+
+        // Déterminer la colonne à filtrer
+        const column = type === 'sent' ? 'id_sender' : 'id_receiver';
+
+        const result = await db.query(`
+          SELECT *
+          FROM messages
+          WHERE ${column} = $1
+          ORDER BY created_at DESC
+          LIMIT $2 OFFSET $3
+          `, [cleanUserId, cleanLimit, cleanOffset]
+        );
+
+        const countResult = await db.query(`
+          SELECT COUNT(*)::int as count FROM messages
+          WHERE ${column} = $1
+          `, [cleanUserId]
+        );
+
+        return {
+          messages: result.rows,
+          totalCount: countResult.rows[0].count,
+          hasNextPage: cleanOffset + cleanLimit < countResult.rows[0].count,
+        };
     
-    if (userId) {
-      // Un userId est fourni → vérifier les droits
-      requireOwnershipOrAdmin(userId, context);
-      targetUserId = userId;
-    } else {
-      // Pas de userId → utiliser l'utilisateur connecté
-      targetUserId = context.user?.id_user || context.user?.id;
-      
-      if (!targetUserId) {
-        throw new GraphQLError('ID utilisateur introuvable', {
-          extensions: { code: 'UNAUTHORIZED', httpStatus: 401 }
-        });
-      }
-    }
-
-    // Sanitize inputs
-    const cleanUserId = sanitizeString(targetUserId);
-    const cleanLimit = Math.min(Math.max(parseInt(limit) || 50, 1), 100);
-    const cleanOffset = Math.max(parseInt(offset) || 0, 0);
-
-    // Déterminer la colonne à filtrer
-    const column = type === 'sent' ? 'id_sender' : 'id_receiver';
-
-    const result = await db.query(`
-      SELECT *
-      FROM messages
-      WHERE ${column} = $1
-      ORDER BY created_at DESC
-      LIMIT $2 OFFSET $3
-    `, [cleanUserId, cleanLimit, cleanOffset]);
-
-    const countResult = await db.query(`
-      SELECT COUNT(*)::int as count FROM messages
-      WHERE ${column} = $1
-    `, [cleanUserId]);
-
-    return {
-      messages: result.rows,
-      totalCount: countResult.rows[0].count,
-      hasNextPage: cleanOffset + cleanLimit < countResult.rows[0].count,
-    };
-  } catch (error) {
-    if (error instanceof GraphQLError) throw error;
-    throw new GraphQLError('Erreur lors de la récupération des messages', {
-      extensions: { 
-        code: 'INTERNAL_SERVER_ERROR',
-        httpStatus: 500,
-        originalError: error.message
       },
-    });
-  }
-},
-
-
-
-
-
-
-
-
-
+      'Erreur lors de la récupération des messages'
+    ),
+    
     /**
      * Recherche des messages
      * * 🔓 Route publique
@@ -249,9 +216,8 @@ export default {
        * @throws {GraphQLError} Si l'utilisateur n'a pas les droits (401 ou 403)  
        * @throws {GraphQLError} Si une erreur se produit lors de la récupération des messages (500)
      */
-    searchMessages: async (_, args, context) => {
-      try {
-
+    searchMessages: withErrorHandling(
+      async (_, args, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
           userId: "uuid-of-user",
@@ -266,9 +232,7 @@ export default {
         /* Exemple variables :
         {"content": "et"}
         */
-
-
-
+    
         const { content, limit = 50, offset = 0 } = args;
 
         // Vérifier les droits admin
@@ -309,21 +273,14 @@ export default {
           hasNextPage: cleanOffset + cleanLimit < countResult.rows[0].count,
           httpStatus: 200,
         };
-      } catch (error) {
-        if (error instanceof GraphQLError) throw error;
-        throw new GraphQLError('Erreur lors de la recherche des messages', {
-          extensions: { 
-            code: 'INTERNAL_SERVER_ERROR',
-            httpStatus: 500,
-            originalError: error.message
-          },
-        });
-      }
-    },
+        
+      },
+      'Erreur lors de la recherche des messages'
+    ),
+    
   },
 
   Mutation: {
-
     /**
      * Ajoute un message
      * * 🔓 Route publique
@@ -332,9 +289,8 @@ export default {
        * @throws {GraphQLError} Si l'utilisateur n'a pas les droits (401 ou 403)  
        * @throws {GraphQLError} Si une erreur se produit lors de la récupération des messages (500)
      */
-    addMessage: async (_, { input }, context) => {
-      try {
-
+    addMessage: withErrorHandling(
+      async (_, { input }, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
           userId: "uuid-of-user",
@@ -342,7 +298,7 @@ export default {
           role: "admin"
         }
         */
-       /*exemple de requête :
+        /*exemple de requête :
         mutation addMessage($input: CreateMessageInput!) { addMessage(input: $input) {id_message, subject, content }}
 
         */
@@ -354,10 +310,9 @@ export default {
           subject: "Salut"
         }
         }
-               
+                
         */
-
-
+    
         // Vérifier l'authentification
         requireAuth(context);
 
@@ -425,18 +380,11 @@ export default {
 
         if (context?.res?.status) context.res.status(201);
         return result.rows[0];
-      } catch (error) {
-        if (error instanceof GraphQLError) throw error;
-        throw new GraphQLError("Erreur lors de l'envoi du message", {
-          extensions: { 
-            code: 'INTERNAL_SERVER_ERROR',
-            httpStatus: 500,
-            originalError: error.message
-          },
-        });
-      }
-    },
-
+    
+      },
+      "Erreur lors de l'envoi du message"
+    ),
+    
     /**
      * Met à jour un message
      * * 🔒 Route protégée
@@ -445,9 +393,8 @@ export default {
        * @throws {GraphQLError} Si l'utilisateur n'a pas les droits (401 ou 403)  
        * @throws {GraphQLError} Si une erreur se produit lors de la récupération des messages (500)
      */
-    updateMessage: async (_, { input }, context) => {
-      try {
-
+    updateMessage: withErrorHandling(
+      async (_, { input }, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
           userId: "uuid-of-user",
@@ -455,7 +402,7 @@ export default {
           role: "admin"
         }
         */
-       /*exemple de requête :
+        /*exemple de requête :
         mutation updateMessage($input: UpdateMessageInput!) { updateMessage(input: $input) {__typename }}
 
         */
@@ -468,7 +415,7 @@ export default {
         }
         }       
         */
-
+    
         // Vérifier l'authentification
         requireAuth(context);
 
@@ -548,18 +495,11 @@ export default {
           data: result.rows[0],
           httpStatus: 200
         };
-      } catch (error) {
-        if (error instanceof GraphQLError) throw error;
-        throw new GraphQLError("Erreur lors de la modification du message", {
-          extensions: { 
-            code: 'INTERNAL_SERVER_ERROR',
-            httpStatus: 500,
-            originalError: error.message
-          },
-        });
-      }
-    },
-
+    
+      },
+      'Erreur lors de la modification du message'
+    ),
+    
     /**
      * Marque un message comme lu
      * * 🔒 Route protégée
@@ -568,9 +508,8 @@ export default {
        * @throws {GraphQLError} Si l'utilisateur n'a pas les droits (401 ou 403)  
        * @throws {GraphQLError} Si une erreur se produit lors de la récupération des messages (500)
      */
-    markMessageAsRead: async (_, { input }, context) => {
-      try {
-
+    markMessageAsRead: withErrorHandling(
+      async (_, { input }, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
           userId: "uuid-of-user",
@@ -578,14 +517,14 @@ export default {
           role: "admin"
         }
         */
-       /*exemple de requête :
+        /*exemple de requête :
         mutation markMessageAsRead($input: MarkMessageAsReadInput!) { markMessageAsRead(input: $input) { id_message is_read updated_at } }
 
         */
         /* Exemple variables :
           { "input": { "id_message": "3c4d5e6f-7g8h-9i0j-1k2l-3m4n5y6p7q8r" } }           
-         */
-
+          */
+    
         // Vérifier l'authentification
         requireAuth(context);
 
@@ -618,17 +557,10 @@ export default {
 
         if (context?.res?.status) context.res.status(200);
         return result.rows[0];
-      } catch (error) {
-        if (error instanceof GraphQLError) throw error;
-        throw new GraphQLError("Erreur lors de la mise à jour du message", {
-          extensions: { 
-            code: 'INTERNAL_SERVER_ERROR',
-            httpStatus: 500,
-            originalError: error.message
-          },
-        });
-      }
-    },
+    
+      },
+      'Erreur lors de la mise à jour du message'
+    ),
   
     /**
      * Supprime un message
@@ -638,9 +570,8 @@ export default {
        * @throws {GraphQLError} Si l'utilisateur n'a pas les droits (401 ou 403)  
        * @throws {GraphQLError} Si une erreur se produit lors de la récupération des messages (500)
      */
-    deleteMessage: async (_, { input }, context) => {
-      try {
-
+    deleteMessage: withErrorHandling(
+      async (_, { input }, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
           userId: "uuid-of-user",
@@ -648,13 +579,13 @@ export default {
           role: "admin"
         }
         */
-       /*exemple de requête :
+        /*exemple de requête :
             mutation deleteMessage($id_message: ID!) { deleteMessage(id_message: $id_message) }
         */
         /* Exemple variables :
         {"input": {"id_message":"a1b2c3d4-e5f6-7g8h-9i0j-1k2l3m4n5o6p"} }
         */
-
+    
         // Vérifier l'authentification
         requireAuth(context);
 
@@ -665,7 +596,7 @@ export default {
         const message = await findMessageOrThrow(cleanIdMessage);
 
         // Vérifier l'accès
-        //requireMessageAccess(message, context);
+        requireMessageAccess(message, context);
 
         // Supprimer le message
         await db.query(
@@ -675,17 +606,9 @@ export default {
 
         if (context?.res?.status) context.res.status(200);
         return true ;
-      } catch (error) {
-        if (error instanceof GraphQLError) throw error;
-        throw new GraphQLError("Erreur lors de la suppression du message", {
-          extensions: { 
-            code: 'INTERNAL_SERVER_ERROR',
-            httpStatus: 500,
-            originalError: error.message
-          },
-        });
-      }
-    },
+      },
+      'Erreur lors de la suppression du message'
+    ),
   },
   
     Message: {
