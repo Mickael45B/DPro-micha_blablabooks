@@ -8,6 +8,38 @@ import { validate as uuidValidate } from 'uuid';
 
 const { validate } = pkg;
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 /** * Valide les données avec un schéma Joi
  * @param {Joi.Schema} schema - Schéma de validation Joi
  * @param {object} data - Données à valider

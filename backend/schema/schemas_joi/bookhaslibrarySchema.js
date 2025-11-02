@@ -2,59 +2,51 @@ import e from "express";
 import Joi from "joi";
 
 //-----------------------------------------------------------
+// GENERAL SORTING SCHEMA
+//-----------------------------------------------------------
+
+export const generalBookHasLibrarySchema = Joi.object({
+    id: Joi.string().min(34).max(36), // UUIDv4
+    id_library: Joi.string().min(34).max(36), // UUIDv4
+    id_book: Joi.string().min(34).max(36), // UUIDv4
+    is_read: Joi.boolean().default(false),
+    is_favorite: Joi.boolean().default(false),
+    created_at: Joi.date(),// Date de création
+    updated_at: Joi.date(),// Date de mise à jour
+});
+export const generalOrderBookHasLibrarySchema = Joi.object({
+    order: Joi.string().valid('created_at', 'id_book', 'id_library', 'is_read', 'is_favorite', 'updated_at').default('created_at'),
+});
+
+//-----------------------------------------------------------
 //QUERIES 
 //-----------------------------------------------------------
 export const getBooksInLibrarySchema = Joi.object({
-    limit: Joi.number().integer().min(1).max(100).default(50),
-    offset: Joi.number().integer().min(0).default(0),
-    order: Joi.string().valid('created_at', 'id_book', 'id_library', 'is_read', 'is_favorite', 'updated_at').default('created_at'),
-    direction: Joi.string().valid('ASC', 'DESC').default('DESC'),
 });
 
 export const getBookInLibrarySchema = Joi.object({
-    id: Joi.string().min(34).max(36).required(), // UUIDv4
 });
 
 export const searchBooksInLibrarySchema = Joi.object({
     titleOrAuthor: Joi.string().min(1).max(255).required(),// Terme de recherche
-    limit: Joi.number().integer().min(1).max(100).default(50),// Nombre maximum de résultats à retourner
-    offset: Joi.number().integer().min(0).default(0),
 });
 
 //-----------------------------------------------------------
 //MUTATIONS
 //-----------------------------------------------------------
 export const addBookHasLibrarySchema = Joi.object({
-    id: Joi.string().min(34).max(36), // UUIDv4
-    id_library: Joi.string().min(34).max(36).required(), // UUIDv4
-    id_book: Joi.string().min(34).max(36).required(), // UUIDv4
-    is_read: Joi.boolean().default(false),
-    is_favorite: Joi.boolean().default(false),
-    created_at: Joi.date(),// Date de création
-    updated_at: Joi.date(),// Date de mise à jour
 });
 
 export const updateBookHasLibrarySchema = Joi.object({
-    id: Joi.string().min(34).max(36), // UUIDv4
-    id_library: Joi.string().min(34).max(36), // UUIDv4
-    id_book: Joi.string().min(34).max(36), // UUIDv4
-    is_read: Joi.boolean(),
-    is_favorite: Joi.boolean(),
-    series: Joi.string().max(42), // Description du tome
-    updated_at: Joi.date(),// Date de mise à jour
 });
 
 export const deleteBookHasLibrarySchema = Joi.object({
-    id: Joi.string().min(34).max(36).required(), // UUIDv4
 });
 
 export const removeBooksFromLibrarySchema = Joi.object({
-    id: Joi.string().min(34).max(36).required(), // UUIDv4
 });     
 
 export const addBooksToLibrarySchema = Joi.object({
-    id_library: Joi.string().min(34).max(36).required(), // UUIDv4
-    bookIds: Joi.array().items(Joi.string().min(34).max(36).required()).min(1).required(), // Liste des UUIDv4 des livres à ajouter
 });
 
 /*

@@ -19,6 +19,8 @@ import { clean } from "semver";
 import {getUsersSchema, getUserSchema, searchUsersSchema, createUserSchema, updateUserSchema, deleteUserSchema, adminResetPasswordSchema, changePasswordSchema } from '../schema/schemas_joi/userSchema.js';
 import { log } from "console";
 
+import {sanitizeStrict, validateAgainstInjection, withOutputSanitization} from './utils/helpers/helpers_securite.js';
+
 import {generateAccessToken, generateRefreshToken, verifyToken, decodeToken} from './utils/utils_authentification.js';
 
 // Revoir le resolver "changePassword",
@@ -52,6 +54,7 @@ export default {
        * @throws {GraphQLError} Si une erreur se produit lors de la récupération des utilisateurs (500)
      */
     getUsers: withErrorHandling(
+      withOutputSanitization(
       async (_, args, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
@@ -89,6 +92,7 @@ export default {
           FROM users
           ORDER BY ${safeOrder} ${safeDirection}
           LIMIT $1 OFFSET $2
+          RETURNING id_user, name, email, pseudo, id_role, id_status, created_at, updated_at
         `, [cleanLimit, cleanOffset]);
         
         const countResult = await db.query('SELECT COUNT(*)::int as count FROM users');
@@ -101,6 +105,7 @@ export default {
           httpStatus: 200
         };
       },
+    ),
       'Erreur lors de la récupération des utilisateurs'
     ),
     

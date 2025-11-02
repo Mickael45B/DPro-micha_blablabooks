@@ -4,7 +4,8 @@ import RedisStore from 'rate-limit-redis';
 import Redis from 'ioredis';
 
 // Configuration Redis avec gestion d'erreur
-const redis = new Redis({
+let redis;
+const redisConfig = {
   host: process.env.REDIS_HOST || 'localhost',
   port: parseInt(process.env.REDIS_PORT) || 6379,
   password: process.env.REDIS_PASSWORD,
@@ -13,7 +14,25 @@ const redis = new Redis({
     return delay;
   },
   maxRetriesPerRequest: 3,
-});
+};
+
+// Essayer d'instancier Redis avec la config fournie.
+// Si la résolution DNS échoue immédiatement (ex: host 'redis' en local),
+// retomber sur 127.0.0.1 pour permettre un démarrage en local sans Docker.
+try {
+  redis = new Redis(redisConfig);
+} catch (err) {
+  console.error('❌ Redis initialisation failed with host', redisConfig.host, err && err.message ? err.message : err);
+  // Fallback to localhost loopback
+  try {
+    redis = new Redis({ ...redisConfig, host: '127.0.0.1' });
+    console.warn('⚠️ Redis fallback to 127.0.0.1');
+  } catch (err2) {
+    console.error('❌ Redis fallback also failed', err2 && err2.message ? err2.message : err2);
+    // As last resort, create a Redis instance with default options to keep the app running
+    redis = new Redis();
+  }
+}
 
 // Gestion des erreurs Redis
 redis.on('error', (err) => {

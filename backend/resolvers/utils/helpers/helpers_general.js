@@ -1,74 +1,100 @@
 import { GraphQLError } from 'graphql';
 import sanitizeHtml from 'sanitize-html';
 
+import {withOutputSanitization, logSuspiciousActivity, validateAgainstInjection} from '../helpers/helpers_securite.js';
 
 // ========================================
 // HELPERS D'AUTHENTIFICATION
 // ========================================
+  // Défaut utilitaire pour savoir si l'utilisateur est authentifié
+  export const isAuthenticated = (context) => {
+    // Si utilisation d'un user (obtenu après vérif du token), prefère context.user
+    // Sinon fallback sur context.token
+    return Boolean(context && (context.user || context.token || context.isAuthenticated));
+  };
 
-// Défaut utilitaire pour savoir si l'utilisateur est authentifié
-export const isAuthenticated = (context) => {
-  // Si tu utilises un user (obtenu après vérif du token), prefère context.user
-  // Sinon fallback sur context.token
-  return Boolean(context && (context.user || context.token || context.isAuthenticated));
-};
+  /**
+   * Vérifie que l'utilisateur est authentifié
+   * @throws {GraphQLError} Si non authentifié
+   */
+  export const requireAuth = (context) => {
+    // Utiliser la fonction utilitaire isAuthenticated pour accepter
+    // context.token ou context.user (createContext fournit context.token)
+    if (!isAuthenticated(context)) {
+      throw new GraphQLError('Vous devez être connecté pour effectuer cette action', {
+        extensions: { 
+          code: 'UNAUTHENTICATED',
+          httpStatus: 401
+        },
+      });
+    }
+  };
 
+  /**
+   * Vérifie que l'utilisateur est administrateur
+   * @throws {GraphQLError} Si non admin
+   */
+  export const requireAdmin = (context) => {
+    requireAuth(context);
+    const isAdminFlag =
+      Boolean(context && (context.isAdmin || context.user?.isAdmin || context.user?.role === 'admin'));
+    if (!isAdminFlag) {
+      throw new GraphQLError('Accès refusé : droits administrateur requis', {
+        extensions: { 
+          code: 'FORBIDDEN',
+          httpStatus: 403
+        },
+      });
+    }
+  };
 
-/**
- * Vérifie que l'utilisateur est authentifié
- * @throws {GraphQLError} Si non authentifié
+  /**
+   * Vérifie que l'utilisateur peut accéder à une ressource
+   * @param {string} resourceUserId - ID du propriétaire de la ressource
+   * @param {object} context - Contexte GraphQL
+   * @throws {GraphQLError} Si accès refusé
+   */
+  export const requireOwnershipOrAdmin = (resourceUserId, context) => {
+    requireAuth(context);
+    const currentUserId = context?.user?.id ?? context?.user?.id_user ?? null;
+    const isAdminFlag =
+      Boolean(context && (context.isAdmin || context.user?.isAdmin || context.user?.role === 'admin'));
+
+    if (resourceUserId !== currentUserId && !isAdminFlag) {
+      throw new GraphQLError('Vous ne pouvez accéder qu\'à vos propres ressources', {
+        extensions: {
+          code: 'FORBIDDEN',
+          httpStatus: 403
+        }
+      });
+    }
+  };
+
+// ========================================
+// HELPERS DE JOI
+// ========================================
+/** * Valide les données avec un schéma Joi
+ * @param {Joi.Schema} schema - Schéma de validation Joi
+ * @param {object} data - Données à valider
  */
-export const requireAuth = (context) => {
-  // Utiliser la fonction utilitaire isAuthenticated pour accepter
-  // context.token ou context.user (createContext fournit context.token)
-  if (!isAuthenticated(context)) {
-    throw new GraphQLError('Vous devez être connecté pour effectuer cette action', {
+export const validateWithJoi = (schema, data) => {
+  const { error, value } = schema.validate(data, {
+    abortEarly: false, // Récupère toutes les erreurs
+    stripUnknown: true, // Supprime les champs non définis dans le schéma
+  });
+
+  if (error) {
+    const messages = error.details.map(detail => detail.message).join(', ');
+    throw new GraphQLError(messages, {
       extensions: { 
-        code: 'UNAUTHENTICATED',
-        httpStatus: 401
+        code: 'BAD_REQUEST',
+        httpStatus: 400,
+        originalError: error.message
       },
     });
   }
-};
 
-/**
- * Vérifie que l'utilisateur est administrateur
- * @throws {GraphQLError} Si non admin
- */
-export const requireAdmin = (context) => {
-  requireAuth(context);
-  const isAdminFlag =
-    Boolean(context && (context.isAdmin || context.user?.isAdmin || context.user?.role === 'admin'));
-  if (!isAdminFlag) {
-    throw new GraphQLError('Accès refusé : droits administrateur requis', {
-      extensions: { 
-        code: 'FORBIDDEN',
-        httpStatus: 403
-      },
-    });
-  }
-};
-
-/**
- * Vérifie que l'utilisateur peut accéder à une ressource
- * @param {string} resourceUserId - ID du propriétaire de la ressource
- * @param {object} context - Contexte GraphQL
- * @throws {GraphQLError} Si accès refusé
- */
-export const requireOwnershipOrAdmin = (resourceUserId, context) => {
-  requireAuth(context);
-  const currentUserId = context?.user?.id ?? context?.user?.id_user ?? null;
-  const isAdminFlag =
-    Boolean(context && (context.isAdmin || context.user?.isAdmin || context.user?.role === 'admin'));
-
-  if (resourceUserId !== currentUserId && !isAdminFlag) {
-    throw new GraphQLError('Vous ne pouvez accéder qu\'à vos propres ressources', {
-      extensions: {
-        code: 'FORBIDDEN',
-        httpStatus: 403
-      }
-    });
-  }
+  return value;
 };
 
 // ========================================
@@ -107,12 +133,64 @@ export const sanitizeInput = (input) => {
   return sanitized;
 };
 
+/**
+ * Sanitize strict : Supprime TOUT le HTML
+ * @param {string} input - Texte à nettoyer
+ * @returns {string} Texte sans HTML
+ */
+export const sanitizeStrict = (input) => {
+  if (!input || typeof input !== 'string') return input;
+  
+  // Supprimer TOUT le HTML (pas de balises autorisées)
+  const cleaned = sanitizeHtml(input.trim(), {
+    allowedTags: [],        // ✅ AUCUNE balise HTML autorisée
+    allowedAttributes: {},  // ✅ AUCUN attribut autorisé
+    disallowedTagsMode: 'discard', // Supprimer le contenu des balises interdites
+  });
+  
+  // Vérifier les patterns dangereux supplémentaires
+  const dangerousPatterns = [
+    /<script/gi,
+    /javascript:/gi,
+    /onerror=/gi,
+    /onload=/gi,
+    /<iframe/gi,
+    /eval\(/gi,
+    /expression\(/gi,
+  ];
+  
+  for (const pattern of dangerousPatterns) {
+    if (pattern.test(cleaned)) {
+      throw new GraphQLError('Contenu suspect détecté', {
+        extensions: { code: 'MALICIOUS_CONTENT', httpStatus: 400 }
+      });
+    }
+  }
+  
+  return cleaned;
+};
+
+/**
+ * Sanitize pour le contenu riche (reviews, descriptions)
+ * Autorise quelques balises sûres
+ */
+export const sanitizeRichText = (input) => {
+  if (!input || typeof input !== 'string') return input;
+  
+  return sanitizeHtml(input, {
+    allowedTags: ['b', 'i', 'em', 'strong', 'p', 'br'],
+    allowedAttributes: {},
+    disallowedTagsMode: 'discard',
+  });
+};
+
+
 // ========================================
 // HELPERS GÉNÉRAUX
 // ========================================
 
 /**
- * Aplatis un tableau d'edges { node, cursor } en un tableau de nodes (Book)
+ * Aplatis un tableau d'edges { node, cursor } en un tableau de nodes
  * Retourne un tableau vide si input invalide
  */
 export function flattenEdges(edges) {
@@ -133,7 +211,7 @@ export function makePageInfo({ offset = 0, limit = 0, totalCount = 0, edges = []
 }
 
 /**
- * Génère un edge { node, cursor } à partir d'un objet book (utile si le resolver renvoie rows)
+ * __A REVOIR__ Génère un edge { node, cursor } à partir d'un objet  (utile si le resolver renvoie rows)
  */
 export function makeEdgeFromBook(book) {
   const cursor = book && book.id_book ? Buffer.from(book.id_book).toString('base64') : null;
@@ -212,12 +290,87 @@ export const withRateLimit = (fn, options = {}) => {
 };
 
 // ========================================
+// STRUCTURE DES RESOLVERS
 // ========================================
 
+/**
+ * Wrapper générique pour sécuriser les resolvers
+ * - Valide les inputs avec Joi
+ * - Sanitize les données
+ * - Valide contre les injections
+ * - Log les activités suspectes
+ */
+export const withSecureResolver = (resolverFn, config = {}) => {
+  const {
+    inputSchema = null,
+    sortingSchema = null,
+    orderSchema = null,
+    logAction = 'UNKNOWN_ACTION',
+    requiresAuth = true,
+    requiresAdmin = false,
+  } = config;
 
+  return withErrorHandling(
+    withOutputSanitization(
+      async (parent, args, context, info) => {
+        // Vérification d'authentification
+        // if (requiresAdmin) {
+        //   requireAdmin(context);
+        // } else if (requiresAuth) {
+        //   requireAuth(context);
+        // }
 
+        // Validation Joi des inputs
+        let validatedData = {};
+        
+        if (inputSchema) {
+          validatedData = { ...validatedData, ...validateWithJoi(inputSchema, args) };
+        }
+        
+        if (sortingSchema) {
+          const sorting = validateWithJoi(sortingSchema, {
+            limit: args.limit,
+            offset: args.offset,
+            direction: args.direction
+          });
+          validatedData = { ...validatedData, ...sorting };
+        }
+        
+        if (orderSchema) {
+          const order = validateWithJoi(orderSchema, { order: args.order });
+          validatedData = { ...validatedData, ...order };
+        }
 
+        // Sanitization stricte
+        const sanitizedData = {};
+        for (const [key, value] of Object.entries(validatedData)) {
+          if (typeof value === 'string') {
+            sanitizedData[key] = sanitizeStrict(value);
+          } else {
+            sanitizedData[key] = value;
+          }
+        }
 
+        // Log des activités suspectes (INPUT)
+        await logSuspiciousActivity(`SEND__${logAction}`, sanitizedData, context);
+
+        // Exécuter le resolver avec les données validées
+        const result = await resolverFn(parent, { ...args, validated: sanitizedData }, context, info);
+
+        // Validation anti-injection des résultats
+        if (result && typeof result === 'object') {
+          validateAgainstInjection(result);
+        }
+
+        // Log des activités suspectes (OUTPUT)
+        await logSuspiciousActivity(`RECOVER__${logAction}`, result, context);
+
+        return result;
+      }
+    ),
+    config.errorMessage || 'Erreur lors de l\'opération'
+  );
+};
 
 
 

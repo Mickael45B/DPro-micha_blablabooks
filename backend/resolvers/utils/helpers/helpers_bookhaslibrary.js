@@ -94,3 +94,50 @@ export const verifyLibraryAccess = async (libraryId, context) => {
   //requireOwnershipOrAdmin(library.id_user, context);
   return library;
 };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/**
+ * Vérifie que l'utilisateur peut accéder à cette bibliothèque
+ */
+export const verifyUserOwnsLibrary = async (libraryId, context) => {
+  const library = await fetchLibraryById(libraryId);
+  
+  if (!library) {
+    throw new GraphQLError('Bibliothèque non trouvée', {
+      extensions: { code: 'NOT_FOUND', httpStatus: 404 }
+    });
+  }
+  
+  // Admin = accès total
+  if (context.user?.role === 'admin' || context.isAdmin) {
+    return library;
+  }
+  
+  // Utilisateur normal = uniquement ses bibliothèques
+  if (library.id_user !== context.user?.id_user) {
+    throw new GraphQLError('Vous ne pouvez accéder qu\'à vos propres bibliothèques', {
+      extensions: { code: 'FORBIDDEN', httpStatus: 403 }
+    });
+  }
+  
+  return library;
+};

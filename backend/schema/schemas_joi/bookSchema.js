@@ -1,6 +1,30 @@
 import e from "express";
 import Joi from "joi";
 
+//-----------------------------------------------------------
+// GENERAL SORTING SCHEMA
+//-----------------------------------------------------------
+
+export const generalBookSchema = Joi.object({
+	id: Joi.string().min(34).max(36), // UUIDv4
+	isbn: Joi.string().max(42), // ISBN du livre
+	title: Joi.string().min(1).max(255), // Titre du livre
+	author: Joi.string().min(1).max(255), // Auteur du livre
+	publication_date: Joi.date(), // Date de publication
+	genre: Joi.string().max(100), // Genre du livre
+	editor: Joi.string().max(255), // Éditeur du livre
+	bookimage: Joi.string().max(100), // URL de l'image
+	vignetteimage: Joi.string().max(100), // URL de l'image
+	age_limit: Joi.number().integer().positive(), // Limite d'âge
+	description: Joi.string().max(1000), // Description du livre
+	series: Joi.string().max(42), // Description du tome
+	created_at: Joi.date(),// Date de création
+	updated_at: Joi.date(),// Date de mise à jour
+});
+
+export const generalOrderBookSchema = Joi.object({
+	order: Joi.string().valid('created_at', 'id_book', 'id_library', 'is_read', 'is_favorite', 'updated_at').default('created_at'),
+});
 
 //-----------------------------------------------------------
 //QUERIES 
