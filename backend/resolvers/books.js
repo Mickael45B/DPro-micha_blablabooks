@@ -14,12 +14,18 @@ import { findBookOrThrow, validateBookInput, validateWithJoi} from './utils/help
 import {generalBookSchema, generalOrderBookSchema, getBooksSchema, getBookSchema, searchBooksSchema , createBookSchema, updateBookSchema, deleteBookSchema} from '../schema/schemas_joi/bookSchema.js';
 import { validate as uuidValidate } from 'uuid';
 
+// Importer les helpers généralistes
 import { withSecureResolver } from './utils/helpers/helpers_general.js';
+// Importer les helpers spécifiques
+import { findBookOrThrow, validateBookInput} from './utils/helpers/helpers_books.js';
+
+// Importer le schema Joi genéral
 import { generalSortingSchema } from '../schema/schemas_joi/generalSchema.js';
+// Importer les schemas Joi spécifiques
+import { generalBookSchema, generalOrderBookSchema, searchBooksSchema} from '../schema/schemas_joi/bookhaslibrarySchema.js';
+
+// Importer les wrappers et helpers de sécurité
 import { sanitizeStrict} from './utils/helpers/helpers_securite.js';
-
-
-
 
 
 
@@ -253,7 +259,7 @@ export default {
      * @throws {GraphQLError} Si l'utilisateur n'a pas les droits (401 ou 403)
      * @throws {GraphQLError} Si une erreur se produit lors de l'ajout du livre (500)
      */
-addBook: withSecureResolver(
+    addBook: withSecureResolver(
   async (_, { input, validated }, context) => {
         /* exemple context JWT décodé ( à revoir):
           {
@@ -286,90 +292,21 @@ addBook: withSecureResolver(
         // RECUPERER LES DONNEES NESSESAIRES
         // ======================================== 
 
+        const { isbn, title, author, publication_date, genre, editor, vignetteimage, bookimage, age_limit, description, series } = input;
 
-
-
-
-      },
-      {
-        sortingSchema: generalSortingSchema,
-        orderSchema: generalOrderBookSchema,
-        inputSchema: searchBooksSchema,
-        logAction: 'SEARCH_BOOKS',
-        requiresAuth: true,
-        errorMessage: 'Erreur lors de la création de livres'
-      }
-    ),
-
-
-    addBook: withErrorHandling(
-      async (_, { input }, context) => {
-        /* exemple context JWT décodé ( à revoir):
-          {
-            userId: "uuid-of-user",
-            email: "user@example.com",
-            role: "admin"
-          }
-        */
-        /*exemple de requête :
-        mutation addBook($input: CreateBookInput!) { addBook(input: $input) {isbn }}
-
-        */
-        /* Exemple variables :
-        { "input": {
-          "isbn": "978-2070301579",
-          "title": "toto à la plage",
-          "author": "toto",
-          "publication_date": "2022-04-10",
-          "genre": "blague",
-          "editor": "plon",
-          "age_limit": 10,
-          "description": "Cest lhistoire de toto",
-          "series":"1sur999999",
-          "bookimage": "tret",
-          "vignetteimage" : "test"
-        }
-        }        
-        */
-    
-        // Vérifier que l'utilisateur est un administrateur avec accès aux données
-        requireAdmin(context);
-    
-        // Validation Joi de l'input => 1ere couche - défense en profondeur
-        const validatedInput = validateWithJoi(createBookSchema, {        
-          title: input.title,
-          author: input.author,
-          publication_date: input.publicationDate,
-          genre: input.genre,
-          isbn: input.isbn,
-          editor: input.editor,
-          vignetteimage: input.vignetteImage,
-          bookimage: input.bookImage,
-          age_limit: input.ageLimit,
-          description: input.description,
-          series: input.series
-        });
-
-        // Générer un nouvel ID
-        const id = uuidv4();
-    
-        // Sanitize inputs => 2ème couche - défense en profondeur
         const cleanInput = {
-          title: sanitizeString(validatedInput.title),
-          author: validatedInput.author ? sanitizeString(validatedInput.author) : null,
-          publicationDate: validatedInput.publicationDate ? sanitizeString(validatedInput.publicationDate) : null,
-          genre: validatedInput.genre ? sanitizeString(validatedInput.genre) : null,
-          isbn: validatedInput.isbn ? sanitizeString(validatedInput.isbn) : null,
-          editor: validatedInput.editor ? sanitizeString(validatedInput.editor) : null,
-          vignetteImage: validatedInput.vignetteImage ? sanitizeString(validatedInput.vignetteImage) : null,
-          bookImage: validatedInput.bookImage ? sanitizeString(validatedInput.bookImage) : null,
-          ageLimit: validatedInput.ageLimit !== undefined ? parseInt(validatedInput.ageLimit) : null,
-          description: validatedInput.description ? sanitizeString(validatedInput.description) : null,
-          series: validatedInput.series ? sanitizeString(validatedInput.series) : null,
+          isbn: sanitizeStrict(isbn),
+          title: sanitizeStrict(title),
+          author: sanitizeStrict(author),
+          publicationDate: sanitizeStrict(publication_date),
+          genre: sanitizeStrict(genre),
+          editor: sanitizeStrict(editor),
+          vignetteImage: sanitizeStrict(vignetteimage),
+          bookImage: sanitizeStrict(bookimage),
+          ageLimit: sanitizeStrict(age_limit),
+          description: sanitizeStrict(description),
+          series: sanitizeStrict(series),
         };
-
-        // Valider les données
-        validateBookInput(cleanInput);
 
         // Vérifier que l'ISBN n'est pas déjà utilisé
         if (cleanInput.isbn) {
@@ -387,6 +324,14 @@ addBook: withSecureResolver(
             });
           }
         }
+
+        // ========================================
+        // REQUETES BASE DE DONNEES
+        // ========================================         
+        
+        // Générer un nouvel ID
+        const id = uuidv4();
+    
 
         // inserer created_at et updated_at = NOW()
         const now = new Date();
@@ -417,13 +362,22 @@ addBook: withSecureResolver(
           createdAt,
           updatedAt
         ]);
-
+        // ========================================
+        // DONNEES RECUPEREES
+        // ======================================== 
         if (context?.res?.status) context.res.status(201);
         return result.rows[0];
 
       },
-      "Erreur lors de l'ajout du livre"
-    ),    
+      {
+        sortingSchema: generalSortingSchema,
+        orderSchema: generalOrderBookSchema,
+        inputSchema: searchBooksSchema,
+        logAction: 'ADDING_BOOK',
+        requiresAdmin: true,
+        errorMessage: 'Erreur lors de la création de livres'
+      }
+    ),
     
     /**
     * Met à jour un livre
@@ -434,7 +388,7 @@ addBook: withSecureResolver(
     * @throws {GraphQLError} Si une erreur se produit lors de la mise à jour du livre (500)
     */
     updateBook: withErrorHandling(
-      async (_, { input }, context) => {
+  async (_, { input, validated }, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
           userId: "uuid-of-user",
@@ -453,32 +407,26 @@ addBook: withSecureResolver(
         }
         }       
         */
-    
-        // Vérifier que l'utilisateur est un administrateur avec accès aux données
-        requireAdmin(context);
-    
-        // Validation Joi de l'input => 1ere couche - défense en profondeur
-        const validatedInput = validateWithJoi(updateBookSchema, {   
-          id: input.id_book,     
-          title: input.title,
-          author: input.author,
-          publication_date: input.publicationDate,
-          genre: input.genre,
-          isbn: input.isbn,
-          editor: input.editor,
-          vignetteimage: input.vignetteImage,
-          bookimage: input.bookImage,
-          age_limit: input.ageLimit,
-          description: input.description,
-          series: input.series
-        });
+        // ========================================
+        // RECUPERER LES DONNEES NESSESAIRES
+        // ======================================== 
 
-        // Sanitize ID => 2ème couche - défense en profondeur
-        const cleanIdBook = sanitizeString(validatedInput);
+        const { id_book, title, author, publication_date, genre, isbn, editor, vignetteimage, bookimage, age_limit, description, series } = input;
 
-        // Vérifier que le livre existe
-        findBookOrThrow(cleanIdBook.id);
-
+        const cleanInput = {  
+          id_book: sanitizeStrict(id_book),
+          title: sanitizeStrict(title),
+          author: sanitizeStrict(author),
+          publication_date: sanitizeStrict(publication_date),
+          genre: sanitizeStrict(genre),
+          isbn: sanitizeStrict(isbn),
+          editor: sanitizeStrict(editor),
+          vignetteimage: sanitizeStrict(vignetteimage),
+          bookimage: sanitizeStrict(bookimage),
+          age_limit: sanitizeStrict(age_limit),
+          description: sanitizeStrict(description),
+          series: sanitizeStrict(series)
+        };
 
         const updates = [];
         const values = [];
@@ -564,7 +512,9 @@ addBook: withSecureResolver(
         }
         values.push(cleanIdBook.id);
 
-
+        // ========================================
+        // REQUETES BASE DE DONNEES
+        // ======================================== 
         const result = await db.query(`
           UPDATE books
           SET ${updates.join(', ')}
@@ -572,6 +522,9 @@ addBook: withSecureResolver(
           RETURNING *
         `, values);
 
+        // ========================================
+        // DONNEES RECUPEREES
+        // ========================================         
         if (result.rows.length === 0) {
           throw new Error('Book not found');
         }
@@ -579,10 +532,14 @@ addBook: withSecureResolver(
         // Return the Book object directly to match the schema (Book!)
         if (context?.res?.status) context.res.status(200);
         return result.rows[0];
-    
+
       },
-      "Erreur lors de l'ajout du livre"
-    ),    
+      {
+        logAction: 'UPDATE_BOOK',
+        requiresAuth: true,
+        errorMessage: 'Erreur lors de la mise à jour du livre'
+      }
+    ),
     
       /**
     * Supprime un livre
@@ -593,7 +550,7 @@ addBook: withSecureResolver(
     * @throws {GraphQLError} Si une erreur se produit lors de la suppression du livre (500)
     */
     deleteBook: withErrorHandling(
-      async (_, { input }, context) => {
+  async (_, { input, validated }, context) => {
     
       /* exemple context JWT décodé ( à revoir):
         {
@@ -608,21 +565,18 @@ addBook: withSecureResolver(
       /* Exemple variables :
         {"input": {"id_book":"a1b2c3d4-e5f6-7g8h-9i0j-1k2l3m4n5o6p"} }
         */
-    
-        // Vérifier que l'utilisateur est un administrateur avec accès aux données
-        requireAdmin(context);
+        // ========================================
+        // RECUPERER LES DONNEES NESSESAIRES
+        // ======================================== 
+        const { id_book } = input;  
 
-        // Validation Joi de l'input => 1ere couche - défense en profondeur
-        const validatedInput = validateWithJoi(deleteBookSchema, {
-          id: input.id_book
-        });
-
-        // Sanitize input => 2ème couche - défense en profondeur
-        const cleanIdBook = sanitizeString(validatedInput.id);
-
-        // Vérifier que le livre existe
-        await findBookOrThrow(cleanIdBook);
-
+        const cleanIdBook = sanitizeStrict(id_book);
+        const existingBook = await findBookOrThrow(cleanIdBook);
+        if (!existingBook) {
+          throw new GraphQLError('Livre non trouvé', {
+            extensions: { code: 'NOT_FOUND', httpStatus: 404 },
+          });
+        }
         // Vérifier que le livre n'est pas dans des bibliothèques (table bookhaslibrary)
         const inLibraries = await db.query(
           'SELECT COUNT(*)::int as count FROM bookhaslibrary WHERE id_book = $1',
@@ -641,20 +595,32 @@ addBook: withSecureResolver(
           );
         }
 
+
+        // ========================================
+        // REQUETES BASE DE DONNEES
+        // ========================================         
         const result = await db.query(
           'DELETE FROM books WHERE id_book = $1 RETURNING id_book',
           [cleanIdBook]
         );
 
+
+        // ========================================
+        // DONNEES RECUPEREES
+        // ======================================== 
         if (context && context.res && typeof context.res.status === 'function') {
           context.res.status(200);
         }
 
         return true;
-        
       },
-      "Erreur lors de la suppression du livre"
-    ),    
+      {
+        logAction: 'DELETE_BOOK',
+        requiresAdmin : true,
+        errorMessage: 'Erreur lors de la suppression du livre'
+      }
+    ),
+
   },
 
   Book: {},
