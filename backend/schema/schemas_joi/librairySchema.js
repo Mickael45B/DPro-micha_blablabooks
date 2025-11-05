@@ -1,55 +1,49 @@
+import e from "express";
 import Joi from "joi";
+
+//-----------------------------------------------------------
+// GENERAL SORTING SCHEMA
+//-----------------------------------------------------------
+
+export const generalLibrarySchema = Joi.object({
+	id_library: Joi.string().min(34).max(36).required(), // UUIDv4
+	name: Joi.string().min(1).max(255).required(), // Nom de la bibliothèque
+	is_editable: Joi.boolean().default(false),
+	id_user: Joi.string().min(34).max(36).required(), // UUIDv4
+});
+export const generalOrderLibrarySchema = Joi.object({
+	order: Joi.string().valid('name', 'created_at', 'id_library', 'is_editable', 'id_user').default('created_at'),
+});
 
 //-----------------------------------------------------------
 //QUERIES 
 //-----------------------------------------------------------
 export const getLibrariesSchema = Joi.object({
-	limit: Joi.number().integer().min(1).max(100).default(50),	
-	offset: Joi.number().integer().min(0).default(0),
-	order: Joi.string().valid( 'id_library', 'name', 'id_user', 'created_at', 'updated_at').default('created_at'),
-	direction: Joi.string().valid('ASC', 'DESC').default('DESC'),
 });
 
 export const getUserLibrariesSchema = Joi.object({
-	id_user: Joi.string().min(14).max(36).required(), // ID must be a string of 14 to 36 characters
 });
 
 export const getLibrarySchema = Joi.object({
-	id_library: Joi.string().min(14).max(36).required(), // ID must be a string of 14 to 36 characters
 });
 
 export const searchLibrariesSchema = Joi.object({
-	name: Joi.string().min(2).max(100).required(), // Search query must be a string of 2 to 100 characters
-	limit: Joi.number().integer().min(1).max(100).default(50),
-	offset: Joi.number().integer().min(0).default(0),
-	order: Joi.string().valid( 'id_library', 'name', 'id_user', 'created_at', 'updated_at').default('created_at'),
-	direction: Joi.string().valid('ASC', 'DESC').default('DESC'),
+	query: Joi.string().min(2).max(100).required(), // Search query must be a string of 2 to 100 characters
 });
 
 //-----------------------------------------------------------
 //MUTATIONS
 //-----------------------------------------------------------
 export const addLibrarySchema = Joi.object({
-	name: Joi.string().min(1).max(255).required(), // Name must be a string of 1 to 255 characters
-	is_editable: Joi.boolean().default(true),
-	id_user: Joi.string().min(14).max(36).required(), // ID must be a string of 14 to 36 characters
-	created_at: Joi.date(),// Creation date
-	updated_at: Joi.date(),// Update date
 });
 
 export const updateLibrarySchema = Joi.object({
-	id: Joi.string().min(14).max(36).required(), // ID must be a string of 14 to 36 characters
-	name: Joi.string().min(1).max(255), // Name must be a string of 1 to 255 characters
-	is_editable: Joi.boolean(),
-	updated_at: Joi.date(),// Update date
 });
 
 export const deleteAllLibrariesFromUserSchema = Joi.object({
-	id_user: Joi.string().min(14).max(36).required(), // ID must be a string of 14 to 36 characters
 });
 
 export const deleteLibrarySchema = Joi.object({
-	id_library: Joi.string().min(14).max(36).required(), // ID must be a string of 14 to 36 characters
 });
 
 

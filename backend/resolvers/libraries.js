@@ -6,10 +6,25 @@ import { validateOrderParams, handleDbError } from '../utils/validators.js';
 import { fetchUserById } from './utils/utils_users.js';
 import fetchUserRoleNameById from './utils/utils_roles.js';
 import { isAuthenticated, requireAuth, requireAdmin, requireOwnershipOrAdmin, sanitizeString, sanitizeInput, flattenEdges, makePageInfo, makeEdgeFromBook, withErrorHandling } from './utils/helpers/helpers_general.js';
-import {findLibraryOrThrow, requireEditableLibrary} from './utils/helpers/helpers_library.js';
 
 import { getLibrariesSchema, getUserLibrariesSchema, getLibrarySchema, searchLibrariesSchema, addLibrarySchema, updateLibrarySchema, deleteAllLibrariesFromUserSchema, deleteLibrarySchema } from '../schema/schemas_joi/librairySchema.js';
 import { validateWithJoi } from './utils/helpers/helpers_books.js';
+
+// Importer les helpers généralistes
+import { withSecureResolver } from './utils/helpers/helpers_general.js';
+// Importer les helpers spécifiques
+import { findLibraryOrThrow, requireEditableLibrary, findUserOrThrow} from './utils/helpers/helpers_library.js';
+
+// Importer le schema Joi genéral
+import { generalSortingSchema } from '../schema/schemas_joi/generalSchema.js';
+// Importer les schemas Joi spécifiques
+import { generalOrderLibrarySchema, generalOrderLibrarySchema, searchLibrariesSchema} from '../schema/schemas_joi/bookhaslibrarySchema.js';
+
+// Importer les wrappers et helpers de sécurité
+import { sanitizeStrict} from './utils/helpers/helpers_securite.js';
+
+
+
 
 
 // ========================================
@@ -24,8 +39,8 @@ export default {
      * 🔓 Route publique
      * @returns {object} { libraries, totalCount, hasNextPage }
      */
-    getLibraries: withErrorHandling(
-      async (_, args, context) => {
+    getLibraries: withSecureResolver(
+      async (_, { validated }, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
           userId: "uuid-of-user",
@@ -40,26 +55,20 @@ export default {
         {
         }
         */
-    
-        const { limit = 50, offset = 0, order = 'created_at', direction = 'ASC' } = args;
+        // ========================================
+        // RECUPERER LES DONNEES NESSESAIRES
+        // ======================================== 
         
-        // Vérifier les droits d'accès
-        requireAdmin(context);
-
-        // Validation avec Joi => 1ere couche - défense en profondeur
-        const validatedArgs = validateWithJoi(getLibrariesSchema, args);
-
-        // Sanitize inputs => 2ème couche - défense en profondeur
-        const cleanLimit = Math.min(Math.max(parseInt(validatedArgs.limit) || 50, 1), 100);
-        const cleanOffset = Math.max(parseInt(validatedArgs.offset) || 0, 0);
-
-        const validOrders = ['created_at', 'name'];
+        const { limit = 50, offset = 0, order = 'created_at', direction = 'ASC' } = validated;
+        const validOrders = ['name', 'created_at', 'id_library', 'is_editable', 'id_user'];
         const { order: safeOrder, direction: safeDirection } = validateOrderParams(
-          sanitizeString(order), 
-          sanitizeString(direction), 
+          order,
+          direction,
           validOrders
         );
-        
+        // ========================================
+        // REQUETES BASE DE DONNEES
+        // ======================================== 
         const result = await db.query(`
           SELECT *
           FROM libraries
@@ -69,15 +78,24 @@ export default {
         
         const countResult = await db.query('SELECT COUNT(*)::int as count FROM libraries');
         const totalCount = countResult.rows[0].count;
-        
+        // ========================================
+        // DONNEES RECUPEREES
+        // ======================================== 
         return {
           libraries: result.rows,
           totalCount,
           hasNextPage: cleanOffset + cleanLimit < totalCount,
           httpStatus: 200,
         };    
+        
       },
-      'Erreur lors de la récupération des bibliothèques'
+      {
+        sortingSchema: generalSortingSchema,
+        orderSchema: generalOrderLibrarySchema,
+        logAction: 'GET_ALL_LIBRARY',
+        requiresAuth: true,
+        errorMessage: 'Erreur lors de la récupération des bibliothèques'
+      }
     ),
     
     /**
@@ -86,8 +104,8 @@ export default {
      * @param {string} id_user - ID de l'utilisateur
      * @returns {array} Liste des bibliothèques
      */
-    getUserLibraries: withErrorHandling(
-      async (_, args, context) => {
+    getUserLibraries: withSecureResolver(
+      async (_, { id_user, validated }, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
           userId: "uuid-of-user",
@@ -102,30 +120,29 @@ export default {
         /* Exemple variables :
         {"id_user": "55530935-6301-4320-9ec9-85e8db741583"}
         */
-    
-        const { id_user } = args;
+        // ========================================
+        // RECUPERER LES DONNEES NESSESAIRES
+        // ======================================== 
+        const cleanId = sanitizeStrict(id_user);
 
-        // Valider avec Joi => 1ere couche - défense en profondeur
-        const validatedArgs = validateWithJoi(getUserLibrariesSchema, { id_user });
-
-        // Sanitize input => 2ème couche - défense en profondeur
-        const cleanUserId = sanitizeString(validatedArgs.id_user);
-
-        // Vérifier les droits d'accès
-        //requireOwnershipOrAdmin(cleanUserId, context);
-        
-        const result = await db.query(
-          'SELECT id_library, name, is_editable, id_user, created_at, updated_at FROM libraries WHERE id_user = $1',
-          [cleanUserId]
-        );
-        
-        // Pas d'erreur 404 si vide, on retourne un tableau (conforme au schéma GraphQL qui attend une liste)
-        // On renvoie directement les rows (array) : [Library]
+        // ========================================
+        // REQUETES BASE DE DONNEES
+        // ======================================== 
+          const result = await db.query(
+              'SELECT id_library, name, is_editable, id_user, created_at, updated_at FROM libraries WHERE id_user = $1',
+              [cleanId]
+            );
+        // ========================================
+        // DONNEES RECUPEREES
+        // ========================================        
         if (context?.res?.status) context.res.status(200);
-        return result.rows;
-        
+        return bookLibrary;        
       },
-      'Erreur lors de la récupération des bibliothèques utilisateur'
+      {
+        logAction: 'GET_ONE_LIBRARY_OF_USER',
+        requiresAuth: true,
+        errorMessage: "Erreur lors de la récupération de la bibliothèque de l'utilisateur"
+      }
     ),
     
     /**
@@ -134,8 +151,8 @@ export default {
      * @param {string} id_library - ID de la bibliothèque
      * @returns {object} Bibliothèque trouvée
      */
-    getLibrary: withErrorHandling(
-      async (_, args, context) => {
+    getLibrary: withSecureResolver(
+      async (_, { id_library, validated }, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
           userId: "uuid-of-user",
@@ -150,22 +167,29 @@ export default {
         /* Exemple variables :
         {"id_library": "2b3c4d5e-6f7g-8h9i-0j1k-2l3m4n5o6p7q"}
         */
+        // ========================================
+        // RECUPERER LES DONNEES NESSESAIRES
+        // ======================================== 
+        const cleanId = sanitizeStrict(id_library);
 
-        const { id_library } = args;
-    
-        //Validation avec Joi => 1ere couche - défense en profondeur
-        const validatedArgs = validateWithJoi(getLibrarySchema, { id_library });
-
-        // Sanitize input => 2ème couche - défense en profondeur
-        const cleanLibraryId = sanitizeString(validatedArgs.id_library);
-
-        // Trouver la bibliothèque (throw 404 si non trouvée)
+        // ========================================
+        // REQUETES BASE DE DONNEES
+        // ======================================== 
         const library = await findLibraryOrThrow(cleanLibraryId);
+
+        // ========================================
+        // DONNEES RECUPEREES
+        // ========================================        
+
         
         if (context?.res?.status) context.res.status(200);
         return library;
       },
-      'Erreur lors de la récupération de la bibliothèque'
+      {
+        logAction: 'GET_ONE_LIBRARY',
+        requiresAuth: true,
+        errorMessage: 'Erreur lors de la récupération du livre en bibliothèque'
+      }
     ),
     
     /**
@@ -174,8 +198,8 @@ export default {
      * @param {string} name - Terme de recherche
      * @returns {object} { libraries, totalCount, hasNextPage }
      */
-    searchLibraries: withErrorHandling(
-      async (_, args, context) => {
+    searchLibraries: withSecureResolver(
+      async (_, { validated }, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
           userId: "uuid-of-user",
@@ -190,55 +214,48 @@ export default {
         /* Exemple variables :
         {"name": "bob"}
         */
-    
-        const { name, limit = 50, offset = 0 } = args;
-        
-        // Vérifier les droits d'accès
-        requireAuth(context);
+        // ========================================
+        // RECUPERER LES DONNEES NESSESAIRES
+        // ======================================== 
+        const { query, limit = 50, offset = 0, direction = 'ASC', order = 'created_at' } = validated;
 
-        // Validation avec Joi => 1ere couche - défense en profondeur
-        const validatedArgs = validateWithJoi(searchLibrariesSchema, { name, limit, offset });
-        // Vérifier les erreurs de validation Joi
-        const { error } = validatedArgs;
-        if (error) {
-          throw new GraphQLError('Paramètres de recherche invalides', {
-            extensions: {
-              code: 'BAD_REQUEST',
-              httpStatus: 400,
-              originalError: error.message
-            },
-          });
-        }
+        const cleanQuery = sanitizeStrict(query);
 
-        // Sanitize inputs => 2eme couche - défense en profondeur
-        const cleanName = sanitizeString(name);
-        const cleanLimit = Math.min(Math.max(parseInt(limit) || 50, 1), 100);
-        const cleanOffset = Math.max(parseInt(offset) || 0, 0);
-        
-        if (!cleanName || cleanName.length < 2) {
+        if (!cleanQuery || cleanQuery.length < 2) {
           throw new GraphQLError('Le terme de recherche doit contenir au moins 2 caractères', {
-            extensions: { 
-              code: 'BAD_REQUEST',
-              httpStatus: 400
-            },
+            extensions: { code: 'BAD_REQUEST', httpStatus: 400 }
           });
         }
-        
+
+        const validOrders = ['name', 'created_at', 'id_library', 'is_editable', 'id_user'];
+        const { order: safeOrder, direction: safeDirection } = validateOrderParams(
+          order,
+          direction,
+          validOrders
+        );
+
         const searchPattern = `%${cleanName}%`;
+
+        // ========================================
+        // REQUETES BASE DE DONNEES
+        // ======================================== 
 
         const result = await db.query(`
           SELECT id_library, name, is_editable, id_user, created_at, updated_at 
           FROM libraries
           WHERE LOWER(name) LIKE LOWER($1)
-          ORDER BY created_at DESC
+          ORDER BY ${safeOrder} ${safeDirection}
           LIMIT $2 OFFSET $3
-        `, [searchPattern, cleanLimit, cleanOffset]);
+        `, [searchPattern, limit, offset]);
         
         const countResult = await db.query(`
           SELECT COUNT(*)::int as count FROM libraries
           WHERE LOWER(name) LIKE LOWER($1)
         `, [searchPattern]);
-        
+
+        // ========================================
+        // DONNEES RECUPEREES
+        // ========================================        
         return {
           libraries: result.rows,
           totalCount: countResult.rows[0].count,
@@ -246,7 +263,14 @@ export default {
           httpStatus: 200,
         };
       },
-      'Erreur lors de la recherche des bibliothèques'
+      {
+        sortingSchema: generalSortingSchema,
+        orderSchema: generalOrderLibrarySchema,
+        inputSchema: searchLibrariesSchema,
+        logAction: 'SEARCH_LIBRARIES',
+        requiresAuth: true,
+        errorMessage: 'Erreur lors de la recherche de la bibliothèque'
+      }
     ),
   },
   
@@ -257,8 +281,8 @@ export default {
      * @param {object} input - { name, isEditable, idUser }
      * @returns {object} Bibliothèque créée
      */
-    addLibrary: withErrorHandling(
-      async (_, { input }, context) => {
+    addLibrary: withSecureResolver(
+      async (_, { input, validated }, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
           userId: "uuid-of-user",
@@ -277,37 +301,29 @@ export default {
         }
         }        
         */
-    
-        //Validation avec Joi => 1ere couche - défense en profondeur
-        const validatedArgs = validateWithJoi(addLibrarySchema, input);
+        // ========================================
+        // RECUPERER LES DONNEES NESSESAIRES
+        // ======================================== 
+        const { name, idUser } = input;
+        const cleanName = sanitizeStrict(name);
+        const cleanIdUser = sanitizeStrict(idUser);
 
-        const { error } = validatedArgs;
-        if (error) {
-          throw new GraphQLError('Paramètres de création de bibliothèque invalides', {
-            extensions: {
-              code: 'BAD_REQUEST',
-              httpStatus: 400,
-              originalError: error.message
-            },
-          });
-        }
-
-        // Sanitize input
-        const cleanInput = sanitizeInput(validatedArgs);
-        
-        // Vérifier les droits
-        //requireOwnershipOrAdmin(cleanInput.id_user, context);
-        
-        // Validation
-        if (!cleanInput.name || cleanInput.name.length < 3) {
+        if (!cleanName || cleanName.length < 3) {
           throw new GraphQLError('Le nom de la bibliothèque doit contenir au moins 3 caractères', {
-            extensions: { 
-              code: 'BAD_REQUEST',
-              httpStatus: 400
-            },
+            extensions: { code: 'BAD_REQUEST', httpStatus: 400 }
           });
         }
-        
+
+        if (!cleanIdUser) {
+          throw new GraphQLError('L\'ID de l\'utilisateur est requis', {
+            extensions: { code: 'BAD_REQUEST', httpStatus: 400 }
+          });
+        }
+
+        const user = await findUserOrThrow(cleanIdUser);
+        // ========================================
+        // REQUETES BASE DE DONNEES
+        // ========================================         
         const id = uuidv4();
         
         // inserer les created-at et updated-at en base
@@ -327,12 +343,19 @@ export default {
           createdAt,
           updatedAt
         ]);
-        
+
+        // ========================================
+        // DONNEES RECUPEREES
+        // ========================================         
         if (context?.res?.status) context.res.status(201);
         return result.rows[0];
     
       },
-      'Erreur lors de la création de la bibliothèque'
+      {
+        logAction: 'ADD_BOOK_TO_LIBRARY',
+        requiresAuth: true,
+        errorMessage: 'Erreur lors de l\'ajout du livre'
+      }
     ),
     
     /**
@@ -341,8 +364,8 @@ export default {
      * @param {object} input - { id_library, name?, isEditable? }
      * @returns {object} Bibliothèque mise à jour
      */
-    updateLibrary: withErrorHandling(
-      async (_, { input }, context) => {
+    updateLibrary: withSecureResolver(
+      async (_, { input, validated }, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
           userId: "uuid-of-user",
@@ -361,71 +384,45 @@ export default {
         }
         }       
         */
-    
-        //Validation avec Joi => 1ere couche - défense en profondeur
-        const validatedArgs = validateWithJoi(updateLibrarySchema, input);
         
-        // Sanitize input => 2ème couche - défense en profondeur
-        const cleanInput = sanitizeInput(input);
-        const cleanLibraryId = sanitizeString(cleanInput.id_library);
-        
-        // Vérifier l'existence
-        const library = await findLibraryOrThrow(cleanLibraryId);
-        
-        // Vérifier les droits
-        requireOwnershipOrAdmin(library.id_user, context);
-        
-        // Vérifier si modifiable
-        requireEditableLibrary(library);
-        
-        // Construire la requête dynamique
-        const updates = [];
-        const values = [];
-        let paramIndex = 1;
+        // ========================================
+        // RECUPERER LES DONNEES NESSESAIRES
+        // ======================================== 
+        const { name, idUser } = input;
 
-        if (cleanInput.name !== undefined) {
-          if (cleanInput.name.length < 3) {
-            throw new GraphQLError('Le nom doit contenir au moins 3 caractères', {
-              extensions: { 
-                code: 'BAD_REQUEST',
-                httpStatus: 400
-              },
-            });
-          }
-          updates.push(`name = $${paramIndex++}`);
-          values.push(cleanInput.name);
-        }
-        
-        if (cleanInput.isEditable !== undefined) {
-          updates.push(`is_editable = $${paramIndex++}`);
-          values.push(cleanInput.isEditable);
-        }
+        const cleanName = sanitizeStrict(name);
+        const cleanLibraryId = sanitizeStrict(input.id_library);
 
-        if (updates.length === 0) {
-          throw new GraphQLError('Aucun champ à mettre à jour', {
-            extensions: { 
-              code: 'BAD_REQUEST',
-              httpStatus: 400
-            },
+        if (cleanName !== undefined && cleanName.length < 3) {  
+          throw new GraphQLError('Le nom de la bibliothèque doit contenir au moins 3 caractères', {
+            extensions: { code: 'BAD_REQUEST', httpStatus: 400 }
           });
-        }
+        } 
 
-        values.push(cleanLibraryId);
-
+        // ========================================
+        // REQUETES BASE DE DONNEES
+        // ======================================== 
         const result = await db.query(`
           UPDATE libraries
-          SET ${updates.join(', ')}, updated_at = NOW()
-          WHERE id_library = $${paramIndex}
+          SET name = $1, updated_at = NOW()
+          WHERE id_library = $2
           RETURNING id_library, name, is_editable, id_user, created_at, updated_at
-        `, values);
+        `, [cleanName, cleanLibraryId]);
 
+        // ========================================
+        // DONNEES RECUPEREES
+        // ========================================         
         return {
           data: result.rows[0],
           httpStatus: 200,
         };
     
       },
-      'Erreur lors de la mise à jour de la bibliothèque'
+      {
+        logAction: 'UPDATE_LIBRARY',
+        requiresAuth: true,
+        errorMessage: 'Erreur lors de la mise à jour de la bibliothèque'
+      }
     ),
     
     /**
@@ -434,8 +431,8 @@ export default {
      * @param {string} id_user - ID de l'utilisateur
      * @returns {array} IDs des bibliothèques supprimées
      */
-    deleteAllLibrariesFromUser: withErrorHandling(
-      async (_, args, context) => {
+    deleteAllLibrariesFromUser: withSecureResolver(
+      async (_, { input, validated }, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
           userId: "uuid-of-user",
@@ -449,27 +446,40 @@ export default {
         /* Exemple variables :
         {"id_user":"a1b2c3d4-e5f6-7g8h-9i0j-1k2l3m4n5o6p"}
         */
+        
+        // ========================================
+        // RECUPERER LES DONNEES NESSESAIRES
+        // ======================================== 
+        const { id_user } = input;
 
-        // Vérifier les droits
-        requireAdmin(context);
-        
-        const { id_user } = args;
-        // Sanitize input
-        const cleanUserId = sanitizeString(id_user);
-        
-        // supprimer toutes les bibliothèques de l'utilisateur sauf ceux non modifiables
+        const cleanUserId = sanitizeStrict(id_user);
+
+        if (!cleanUserId) {
+          throw new GraphQLError('L\'ID de l\'utilisateur est requis', {
+            extensions: { code: 'BAD_REQUEST', httpStatus: 400 }
+          });
+        }
+        // ========================================
+        // REQUETES BASE DE DONNEES
+        // ======================================== 
 
         const result = await db.query(
           'DELETE FROM libraries WHERE id_user = $1 AND is_editable = true RETURNING id_library',
           [cleanUserId]
         );
-
+        // ========================================
+        // DONNEES RECUPEREES
+        // ======================================== 
         
         if (context?.res?.status) context.res.status(200);
         return true;
     
       },
-      'Erreur lors de la suppression des bibliothèques'
+      {
+        logAction: 'DELETE_LIBRARY_FROM_USER',
+        requiresAuth: true,
+        errorMessage: 'Erreur lors de la suppression de la bibliothèques de l\'utilisateur'
+      }
     ),
     
     /**
@@ -478,8 +488,8 @@ export default {
      * @param {object} input - { id_library }
      * @returns {boolean} true si supprimée
      */
-    deleteLibrary: withErrorHandling(
-      async (_, { input }, context) => {
+    deleteLibrary: withSecureResolver(
+      async (_, { input, validated }, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
           userId: "uuid-of-user",
@@ -493,29 +503,39 @@ export default {
         /* Exemple variables :
         {"input": {"id_library":"2b3c4d5e-6f7g-8h9i-0j1k-2l3m4n5o6p7d"} }
         */
+        // ========================================
+        // RECUPERER LES DONNEES NESSESAIRES
+        // ======================================== 
+        const { id_library } = input;
 
-        // Sanitize input
-        const cleanLibraryId = sanitizeString(input.id_library);
-        
-        // Vérifier l'existence
-        const library = await findLibraryOrThrow(cleanLibraryId);
-        
-        // Vérifier les droits
-        requireOwnershipOrAdmin(library.id_user, context);
-        
-        // Vérifier si modifiable
-        requireEditableLibrary(library);
-        
+        const cleanLibraryId = sanitizeStrict(id_library);
+        if (!cleanLibraryId) {
+          throw new GraphQLError('L\'ID de la bibliothèque est requis', {
+            extensions: { code: 'BAD_REQUEST', httpStatus: 400 }
+          });
+        }
+
+        // ========================================
+        // REQUETES BASE DE DONNEES
+        // ======================================== 
         await db.query(
           'DELETE FROM libraries WHERE id_library = $1',
           [cleanLibraryId]
         );
 
+        // ========================================
+        // DONNEES RECUPEREES
+        // ======================================== 
+
         if (context?.res?.status) context.res.status(200);
         return true;
     
       },
-      'Erreur lors de la suppression de la bibliothèque'
+      {
+        logAction: 'DELETE_LIBRARY',
+        requiresAuth: true,
+        errorMessage: 'Erreur lors de la suppression de la bibliothèque'
+      }
     ),
     
   },

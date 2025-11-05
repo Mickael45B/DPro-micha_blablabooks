@@ -45,3 +45,26 @@ export const requireEditableLibrary = (library) => {
     });
   }
 };
+
+
+/** * Vérifie la propriété d'une bibliothèque et les droits d'accès
+ * @param {string} libraryId - ID de la bibliothèque
+ * @param {object} context - Contexte GraphQL 
+ * @returns {Promise<object>} La bibliothèque si accessible
+ */
+export const findUserOrThrow = async (user) => {
+  // Cherche de l'utilisateur dans la base de données
+  const result = await db.query(
+    'SELECT id_user, username, email, role FROM users WHERE id_user = $1',
+    [user.id_user]
+  );
+  if (!result.rows[0]) {
+    throw new GraphQLError('Utilisateur non trouvé', {
+      extensions: {
+        code: 'NOT_FOUND',
+        httpStatus: 404
+      },
+    });
+  }
+  return result.rows[0];
+};

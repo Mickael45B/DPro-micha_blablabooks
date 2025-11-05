@@ -13,6 +13,24 @@ import { findReportOrThrow, validateReportInput} from './utils/helpers/helpers_R
 
 import {getReportsSchema, getReportSchema, searchReportsByUserSchema, searchReportsByStatusSchema, searchReportsByDetailsOrReasonSchema, searchReportsSchema, addReportSchema, updateReportSchema, deleteReportSchema } from '../schema/schemas_joi/reportSchema.js';
 
+
+// Importer les helpers généralistes
+import { withSecureResolver } from './utils/helpers/helpers_general.js';
+// Importer les helpers spécifiques
+import { findBookLibraryOrThrow, requireEditableLibrary, verifyUserOwnsLibrary} from './utils/helpers/helpers_bookhaslibrary.js';
+
+// Importer le schema Joi genéral
+import { generalSortingSchema } from '../schema/schemas_joi/generalSchema.js';
+// Importer les schemas Joi spécifiques
+import { generalOrderBookHasLibrarySchema, generalOrderBookHasLibrarySchema, searchBooksInLibrarySchema} from '../schema/schemas_joi/bookhaslibrarySchema.js';
+
+// Importer les wrappers et helpers de sécurité
+import { sanitizeStrict} from './utils/helpers/helpers_securite.js';
+
+
+
+
+
 export default {
   Query: {
     /**
@@ -27,7 +45,7 @@ export default {
        * @throws {GraphQLError} Si une erreur se produit lors de la récupération des permissions (500)
      */
     getReports: withErrorHandling(
-      async (_, args, context) => {
+      async (_, { validated }, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
           userId: "uuid-of-user",
@@ -42,23 +60,25 @@ export default {
         {
         }
         */
-    
-        // Vérification des droits d'accès
-        requireAdmin(context);
+        // ========================================
+        // RECUPERER LES DONNEES NESSESAIRES
+        // ======================================== 
 
         // Extraction et validation des paramètres de pagination et de tri
-        const { limit = 50, offset = 0, order = 'created_at', direction = 'DESC' } = args;
+        const { limit = 50, offset = 0, order = 'created_at', direction = 'DESC' } = validated;
 
         // Sanitize inputs
-        const cleanLimit = Math.min(Math.max(parseInt(limit) || 50, 1), 100);
-        const cleanOffset = Math.max(parseInt(offset) || 0, 0);
-        const validOrders = ['created_at', 'reason', 'details', 'updated_at'];
+        // const cleanLimit = Math.min(Math.max(parseInt(limit) || 50, 1), 100);
+        // const cleanOffset = Math.max(parseInt(offset) || 0, 0);
+        const validOrders = ['id_report', 'id_user', 'report_type', 'reported_id', 'reason', 'status', 'created_at', 'updated_at'];
         const { order: safeOrder, direction: safeDirection } = validateOrderParams(
-          sanitizeString(order), 
-          sanitizeString(direction), 
+          sanitizeStrict(order), 
+          sanitizeStrict(direction), 
           validOrders
         );
-        
+        // ========================================
+        // REQUETES BASE DE DONNEES
+        // ======================================== 
         const result = await db.query(`
           SELECT id_report, id_user, report_type, reported_id, reason, status, details, created_at, updated_at
           FROM reports
@@ -68,7 +88,9 @@ export default {
         
         const countResult = await db.query('SELECT COUNT(*)::int as count FROM reports');
         const totalCount = countResult.rows[0].count;
-        
+        // ========================================
+        // DONNEES RECUPEREES
+        // ======================================== 
         return {
           reports: result.rows,
           totalCount,
@@ -77,7 +99,13 @@ export default {
         };
     
       },
-      'Erreur lors de la récupération des messages'
+      {
+        sortingSchema: generalSortingSchema,
+        orderSchema: generalOrderReportsSchema,
+        logAction: 'GET_ALL_REPORTS',
+        requiresAuth: true,
+        errorMessage: 'Erreur lors de la récupération des rapports'
+      }
     ),
     
     /**
@@ -89,7 +117,7 @@ export default {
      * @throws {GraphQLError} Si une erreur se produit lors de la récupération de la permission (500)
      */
     getReport: withErrorHandling(
-      async (_, args, context) => {
+      async (_, { id_report, validated }, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
           userId: "uuid-of-user",
@@ -105,26 +133,32 @@ export default {
         {"id_report": "4f9a1c2e-7b5d-4a9f-8c2e-0b3a1d2c5e6f"}
         */
 
-        // Vérification des droits d'accès
-        requireAuth(context);
-
-        const { id_report } = args;
-
+        // ========================================
+        // RECUPERER LES DONNEES NESSESAIRES
+        // ======================================== 
         // Sanitize input
-        const sanitizedId = sanitizeString(id_report);
+        const sanitizedId = sanitizeStrict(id_report);
 
         if (!sanitizedId) {
           throw new GraphQLError('ID du rapport manquant', {
             extensions: { code: 'BAD_USER_INPUT', httpStatus: 400 }
           });
         }
-
-        const report = await findReportOrThrow(sanitizedId);
-
+        // ========================================
+        // REQUETES BASE DE DONNEES
+        // ======================================== 
+            const report = await findReportOrThrow(sanitizedId);
+        // ========================================
+        // DONNEES RECUPEREES
+        // ========================================        
         if (context?.res?.status) context.res.status(200);
         return report;
       },
-      'Erreur lors de la récupération du rapport'
+      {
+        logAction: 'GET_ONE_REPORT',
+        requiresAuth: true,
+        errorMessage: 'Erreur lors de la récupération du rapport'
+      }
     ),
     
     /**
@@ -138,7 +172,7 @@ export default {
      * @throws {GraphQLError} Si une erreur se produit lors de la recherche des rapports (500)
      */
     searchReportsByUser: withErrorHandling(
-      async (_, args, context) => {
+      async (_, { validated }, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
           userId: "uuid-of-user",
@@ -153,7 +187,12 @@ export default {
         /* Exemple variables :
         {"id_user": "1e2d3c4b-5a6f-7e8d-9c0b-1a2f3e4d5c6b"}
         */
-
+        // ========================================
+        // RECUPERER LES DONNEES NESSESAIRES
+        // ======================================== 
+        const { id_user, limit = 50, offset = 0, direction = 'ASC', order = 'created_at' } = validated;
+        const cleanUserId = sanitizeStrict(id_user || '');
+        
         const currentUserId = context?.user?.id ?? context?.user?.id_user ?? null;
         const isAdminFlag =
           Boolean(context && (context.isAdmin || context.user?.isAdmin || context.user?.role === 'admin'));
@@ -167,23 +206,20 @@ export default {
           report.hidden = true;
         }
 
-        // Extraction et validation des paramètres de pagination et de tri
-        const { limit = 50, offset = 0, order = 'created_at', direction = 'DESC', id_user } = args;
 
         // Sanitize inputs
-        const cleanLimit = Math.min(Math.max(parseInt(limit) || 50, 1), 100);
-        const cleanOffset = Math.max(parseInt(offset) || 0, 0);
-        const validOrders = ['created_at', 'reason', 'details', 'updated_at'];
+        // const cleanLimit = Math.min(Math.max(parseInt(limit) || 50, 1), 100);
+        // const cleanOffset = Math.max(parseInt(offset) || 0, 0);
+        const validOrders = ['id_report', 'id_user', 'report_type', 'reported_id', 'reason', 'status', 'created_at', 'updated_at'];
         const { order: safeOrder, direction: safeDirection } = validateOrderParams(
-          sanitizeString(order),
-          sanitizeString(direction),
+          sanitizeStrict(order),
+          sanitizeStrict(direction),
           validOrders
         );
-        const cleanUserId = sanitizeString(id_user || '');
-    
-        // Vérification des droits d'accès
-        requireOwnershipOrAdmin(cleanUserId, context);
 
+        // ========================================
+        // REQUETES BASE DE DONNEES
+        // ======================================== 
         const result = await db.query(`
           SELECT id_report, id_user, report_type, reported_id, reason, status, details, created_at, updated_at
           FROM reports
@@ -191,11 +227,13 @@ export default {
           OR reported_id = $1
           ORDER BY ${safeOrder} ${safeDirection}
           LIMIT $2 OFFSET $3
-        `, [cleanUserId, cleanLimit, cleanOffset]);
+        `, [cleanUserId, limit, offset]);
 
         const countResult = await db.query('SELECT COUNT(*)::int as count FROM reports WHERE id_user = $1 OR reported_id = $1', [cleanUserId]);
         const totalCount = countResult.rows[0].count;
-
+        // ========================================
+        // DONNEES RECUPEREES
+        // ========================================                
         return {
           reports: result.rows,
           totalCount,
@@ -203,7 +241,14 @@ export default {
           httpStatus: 200
         };
       },
-      "Erreur lors de la recherche des rapports de l'utilisateur"
+      {
+        sortingSchema: generalSortingSchema,
+        orderSchema: generalOrderReportSchema,
+        inputSchema: searchReportsSchema,
+        logAction: 'SEARCH_REPORTS',
+        requiresAuth: true,
+        errorMessage: 'Erreur lors de la recherche de rapports'
+      }
     ),
     
     /**
@@ -217,7 +262,7 @@ export default {
      * @throws {GraphQLError} Si une erreur se produit lors de la recherche des rapports (500)
      */
     searchReportsByStatus: withErrorHandling(
-      async (_, args, context) => {
+      async (_, { validated }, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
           userId: "uuid-of-user",
@@ -232,13 +277,15 @@ export default {
         /* Exemple variables :
         {"status": "pending"}
         */
-    
+        // ========================================
+        // RECUPERER LES DONNEES NESSESAIRES
+        // ======================================== 
         // Vérification des droits d'accès
          requireOwnershipOrAdmin(cleanUserId, context);
 
         // Extraction et validation des paramètres de pagination et de tri
-        const { limit = 50, offset = 0, order = 'created_at', direction = 'DESC', status } = args;
-        const validStatuses = ['pending', 'reviewed', 'resolved'];
+        const { limit = 50, offset = 0, order = 'created_at', direction = 'DESC', status } = validated;
+        const validStatuses = ['id_report', 'id_user', 'report_type', 'reported_id', 'reason', 'status', 'created_at', 'updated_at'];
 
         if (status && !validStatuses.includes(status)) {
           throw new GraphQLError('Statut invalide', {
@@ -246,8 +293,8 @@ export default {
           });
         }
         // Sanitize inputs
-        const cleanLimit = Math.min(Math.max(parseInt(limit) || 50, 1), 100);
-        const cleanOffset = Math.max(parseInt(offset) || 0, 0);
+        // const cleanLimit = Math.min(Math.max(parseInt(limit) || 50, 1), 100);
+        // const cleanOffset = Math.max(parseInt(offset) || 0, 0);
         const validOrders = ['created_at', 'status', 'updated_at'];
         const { order: safeOrder, direction: safeDirection } = validateOrderParams(
           sanitizeString(order),
@@ -261,6 +308,10 @@ export default {
         if (cleanStatus) {
           // status provided -> bind status as $1, limit as $2, offset as $3
           const params = [cleanStatus, cleanLimit, cleanOffset];
+
+        // ========================================
+        // REQUETES BASE DE DONNEES
+        // ======================================== 
           result = await db.query(`
             SELECT * FROM reports
             WHERE status = $1
@@ -278,8 +329,12 @@ export default {
             LIMIT $1 OFFSET $2
           `, [cleanLimit, cleanOffset]);
 
-          countResult = await db.query('SELECT COUNT(*)::int as count FROM reports');
+          countResultTotal = await db.query('SELECT COUNT(*)::int as count FROM reports');
         }
+        // ========================================
+        // DONNEES RECUPEREES
+        // ========================================                
+        
         if (context?.res?.status) context.res.status(200);
         return {
           reports: result.rows,
@@ -288,7 +343,14 @@ export default {
           httpStatus: 200
         };
       },
-      'Erreur lors de la recherche des rapports par statut'
+      {
+        sortingSchema: generalSortingSchema,
+        orderSchema: generalOrderReportSchema,
+        inputSchema: searchReportsSchema,
+        logAction: 'SEARCH_REPORTS',
+        requiresAuth: true,
+        errorMessage: 'Erreur lors de la recherche de rapports'
+      }
     ),
     
     /**
@@ -302,7 +364,7 @@ export default {
      * @throws {GraphQLError} Si une erreur se produit lors de la recherche des rapports (500)
      */
     searchReportsByDetailsOrReason: withErrorHandling(
-      async (_, args, context) => {
+      async (_, { validated }, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
           userId: "uuid-of-user",
@@ -317,24 +379,22 @@ export default {
         /* Exemple variables :
         {"content": "et"}
         */
-    
-        // Vérification des droits d'accès
-         requireOwnershipOrAdmin(cleanUserId, context);
-
+        // ========================================
+        // RECUPERER LES DONNEES NESSESAIRES
+        // ======================================== 
         // Extraction et validation des paramètres de pagination et de tri
         const { limit = 50, offset = 0, order = 'created_at', direction = 'DESC', content } = args;
 
-        
         // Sanitize input
-        const cleanLimit = Math.min(Math.max(parseInt(limit) || 50, 1), 100);
-        const cleanOffset = Math.max(parseInt(offset) || 0, 0);
+        // const cleanLimit = Math.min(Math.max(parseInt(limit) || 50, 1), 100);
+        // const cleanOffset = Math.max(parseInt(offset) || 0, 0);
         const validOrders = ['created_at', 'reason', 'status', 'updated_at'];
         const { order: safeOrder, direction: safeDirection } = validateOrderParams(
-          sanitizeString(order), 
-          sanitizeString(direction), 
+          sanitizeStrict(order), 
+          sanitizeStrict(direction), 
           validOrders
         );
-        const cleanContent = sanitizeString(content || '');
+        const cleanContent = sanitizeStrict(content || '');
 
         if (!cleanContent) {
           throw new GraphQLError('Contenu de recherche manquant', {
@@ -343,7 +403,9 @@ export default {
         }
 
         const searchPattern = `%${cleanContent}%`;
-        
+        // ========================================
+        // REQUETES BASE DE DONNEES
+        // ======================================== 
         const result = await db.query(`
           SELECT id_report, id_user, report_type, reported_id, reason, status, details, created_at, updated_at 
           FROM reports
@@ -356,7 +418,9 @@ export default {
           SELECT COUNT(*)::int as count FROM reports
           WHERE LOWER(reason) LIKE LOWER($1) OR LOWER(details) LIKE LOWER($1)
         `, [searchPattern]);
-        
+        // ========================================
+        // DONNEES RECUPEREES
+        // ========================================                
         return {
           reports: result.rows,
           totalCount: countResult.rows[0].count,
@@ -365,7 +429,14 @@ export default {
         };
     
       },
-      'Erreur lors de la recherche des rapports'
+      {
+        sortingSchema: generalSortingSchema,
+        orderSchema: generalOrderReportSchema,
+        inputSchema: searchReportsSchema,
+        logAction: 'SEARCH_REPORTS',
+        requiresAuth: true,
+        errorMessage: 'Erreur lors de la recherche de rapports'
+      }
     ),
     
     /**
@@ -379,7 +450,7 @@ export default {
      * @throws {GraphQLError} Si une erreur se produit lors de la recherche des rapports (500)
      */
     searchReports: withErrorHandling(
-      async (_, args, context) => {
+      async (_, { validated }, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
           userId: "uuid-of-user",
@@ -398,24 +469,26 @@ export default {
         "offset": 0        
         }        
         */
-    
+        // ========================================
+        // RECUPERER LES DONNEES NESSESAIRES
+        // ======================================== 
         // Exemples de filtres acceptés : id_report, id_user, status, content
-        const { limit = 50, offset = 0, order = 'created_at', direction = 'DESC', id_report, id_user, status, content } = args;
+        const { limit = 50, offset = 0, order = 'created_at', direction = 'DESC', id_report, id_user, status, content } = validated;
 
         // Sanitize & validate
         const cleanLimit = Math.min(Math.max(parseInt(limit) || 50, 1), 100);
         const cleanOffset = Math.max(parseInt(offset) || 0, 0);
-        const validOrders = ['created_at', 'reason', 'status', 'updated_at'];
+        const validOrders = ['id_report', 'id_user', 'report_type', 'reported_id', 'reason', 'status', 'created_at', 'updated_at'];
         const { order: safeOrder, direction: safeDirection } = validateOrderParams(
-          sanitizeString(order),
-          sanitizeString(direction),
+          sanitizeStrict(order),
+          sanitizeStrict(direction),
           validOrders
         );
 
-        const cleanIdReport = sanitizeString(args.id_report || '');
-        const cleanUserId = sanitizeString(args.id_user || '');
-        const cleanStatus = sanitizeString(args.status || '');
-        const cleanContent = sanitizeString(args.content || '');
+        const cleanIdReport = sanitizeStrict(args.id_report || '');
+        const cleanUserId = sanitizeStrict(args.id_user || '');
+        const cleanStatus = sanitizeStrict(args.status || '');
+        const cleanContent = sanitizeStrict(args.content || '');
 
         // Validate status if provided
         const validStatuses = ['pending', 'reviewed', 'resolved'];
@@ -455,7 +528,9 @@ export default {
         // Add limit/offset as last parameters
         params.push(cleanLimit);
         params.push(cleanOffset);
-
+        // ========================================
+        // REQUETES BASE DE DONNEES
+        // ======================================== 
         const query = `
           SELECT id_report, id_user, report_type, reported_id, reason, status, details, created_at, updated_at
           FROM reports
@@ -470,7 +545,9 @@ export default {
         const countParams = params.slice(0, params.length - 2);
         const countQuery = `SELECT COUNT(*)::int as count FROM reports ${whereSQL}`;
         const countResult = countParams.length > 0 ? await db.query(countQuery, countParams) : await db.query(countQuery);
-
+        // ========================================
+        // DONNEES RECUPEREES
+        // ========================================                
         if (context?.res?.status) context.res.status(200);
         const totalCount = countResult.rows[0].count;
         return {
@@ -481,7 +558,14 @@ export default {
         };
     
       },
-      'Erreur lors de la recherche des rapports'
+      {
+        sortingSchema: generalSortingSchema,
+        orderSchema: generalOrderReportSchema,
+        inputSchema: searchReportsSchema,
+        logAction: 'SEARCH_REPORTS',
+        requiresAuth: true,
+        errorMessage: 'Erreur lors de la recherche de rapports'
+      }
     ),
   
   },
@@ -501,7 +585,7 @@ export default {
      * @throws {GraphQLError} Si une erreur se produit lors de la création du rapport (500)
      */
     addReport: withErrorHandling(
-      async (_, { input }, context) => {
+      async (_, { input, validated }, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
           userId: "uuid-of-user",
@@ -524,9 +608,9 @@ export default {
         }
         }
         */
-    
-        // Vérification des droits d'accès
-        requireAuth(context);
+        // ========================================
+        // RECUPERER LES DONNEES NESSESAIRES
+        // ======================================== 
 
         const currentUserId = context?.user?.id ?? context?.user?.id_user ?? null;
         if (!currentUserId) {
@@ -545,14 +629,16 @@ export default {
         validateReportInput(input);
 
         // Sanitize inputs
-        input.id_user = sanitizeString(input.id_user);
-        input.report_type = sanitizeString(input.report_type);
-        input.reported_id = sanitizeString(input.reported_id);
-        input.reason = sanitizeString(input.reason);
-        input.details = input.details ? sanitizeInput(input.details) : null;
-        input.status = sanitizeHtml(input.status || 'pending');
+        input.id_user = sanitizeStrict(input.id_user);
+        input.report_type = sanitizeStrict(input.report_type);
+        input.reported_id = sanitizeStrict(input.reported_id);
+        input.reason = sanitizeStrict(input.reason);
+        input.details = input.details ? sanitizeStrict(input.details) : null;
+        input.status = sanitizeStrict(input.status || 'pending');
 
-
+        // ========================================
+        // REQUETES BASE DE DONNEES
+        // ========================================         
         const id = uuidv4();
         const result = await db.query(`
           INSERT INTO reports (id_report, id_user, report_type, reported_id, reason, details, status)
@@ -567,11 +653,19 @@ export default {
           input.details || null,
           input.status,
         ]);
+        // ========================================
+        // DONNEES RECUPEREES
+        // ======================================== 
+        
         if (context?.res?.status) context.res.status(201);
         return result.rows[0];
     
       },
-      'Erreur lors de la création du rapport'
+      {
+        logAction: 'ADD_BOOK_TO_LIBRARY',
+        requiresAuth: true,
+        errorMessage: 'Erreur lors de l\'ajout du livre'
+      }
     ),
     
     /**
@@ -590,7 +684,7 @@ export default {
      * @throws {GraphQLError} Si une erreur se produit lors de la création du rapport (500)
      */
     updateReport: withErrorHandling(
-      async (_, { input }, context) => {
+      async (_, { input, validated }, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
           userId: "uuid-of-user",
@@ -610,10 +704,9 @@ export default {
         }
         }       
         */
-    
-        // Vérification des droits d'accès
-        requireAdmin(context);
-
+        // ========================================
+        // RECUPERER LES DONNEES NESSESAIRES
+        // ======================================== 
         // Sanitize inputs
         const cleanIdReport = sanitizeString(input.id_report);
 
@@ -676,6 +769,9 @@ export default {
 
         // Ajouter l'ID du rapport comme dernier paramètre
         values.push(cleanIdReport);
+        // ========================================
+        // REQUETES BASE DE DONNEES
+        // ======================================== 
 
         const result = await db.query(`
           UPDATE reports
@@ -683,7 +779,9 @@ export default {
           WHERE id_report = $${paramIndex}
           RETURNING id_report, id_user, report_type, reported_id, reason, status, details, created_at, updated_at
         `, values);
-
+        // ========================================
+        // DONNEES RECUPEREES
+        // ========================================         
         if (result.rows.length === 0) {
           throw new GraphQLError('Rapport non trouvé', {
             extensions: { code: 'NOT_FOUND', httpStatus: 404 }
@@ -693,7 +791,11 @@ export default {
         if (context?.res?.status) context.res.status(201);
         return result.rows[0];
       },
-      'Erreur lors de la modification du rapport'
+      {
+        logAction: 'UPDATE_BOOK_IN_LIBRARY',
+        requiresAuth: true,
+        errorMessage: 'Erreur lors de la mise à jour'
+      }
     ),
     
     /**
@@ -710,7 +812,7 @@ export default {
      * @throws {GraphQLError} Si une erreur se produit lors de la suppression du rapport (500)
      */
     deleteReport: withErrorHandling(
-      async (_, { input }, context) => {
+      async (_, { input, validated }, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
           userId: "uuid-of-user",
@@ -725,11 +827,11 @@ export default {
         {"input": {"id_report":"4f9a1c2e-7b5d-4a9f-8c2e-0b3a1d2c5e6f"} }
         */
     
-        // Vérification des droits d'accès (admin uniquement pour supprimer)
-        requireOwnershipOrAdmin(context);
-
+        // ========================================
+        // RECUPERER LES DONNEES NESSESAIRES
+        // ======================================== 
         // Sanitize input
-        const cleanIdReport = sanitizeString(input.id_report);
+        const cleanIdReport = sanitizeStrict(input.id_report);
 
         if (!cleanIdReport) {
           throw new GraphQLError('ID de rapport invalide', {
@@ -739,18 +841,26 @@ export default {
 
         // Vérification de l'existence du rapport
         await findReportOrThrow(cleanIdReport);
-
+        // ========================================
+        // REQUETES BASE DE DONNEES
+        // ======================================== 
         // Suppression du rapport
         const result = await db.query(
           'DELETE FROM reports WHERE id_report = $1 RETURNING id_report',
           [cleanIdReport]
         );
-        
+        // ========================================
+        // DONNEES RECUPEREES
+        // ======================================== 
         if (context?.res?.status) context.res.status(200);
         return true ;
     
       },
-      'Erreur lors de la suppression du rapport"'
+      {
+        logAction: 'DELETE_REPORT',
+        requiresAuth: true,
+        errorMessage: 'Erreur lors de la suppression du rapport'
+      }
     ),
     
   },

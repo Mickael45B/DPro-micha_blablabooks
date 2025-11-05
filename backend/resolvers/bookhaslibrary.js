@@ -15,7 +15,7 @@ import { findBookLibraryOrThrow, requireEditableLibrary, verifyUserOwnsLibrary} 
 // Importer le schema Joi genéral
 import { generalSortingSchema } from '../schema/schemas_joi/generalSchema.js';
 // Importer les schemas Joi spécifiques
-import { generalOrderBookHasLibrarySchema, sgeneralOrderBookHasLibrarySchema, earchBooksInLibrarySchema} from '../schema/schemas_joi/bookhaslibrarySchema.js';
+import { generalOrderBookHasLibrarySchema, generalOrderBookHasLibrarySchema, searchBooksInLibrarySchema} from '../schema/schemas_joi/bookhaslibrarySchema.js';
 
 // Importer les wrappers et helpers de sécurité
 import { sanitizeStrict} from './utils/helpers/helpers_securite.js';
@@ -64,6 +64,8 @@ export default {
         // ======================================== 
         const { limit = 50, offset = 0, direction = 'ASC', order = 'created_at' } = validated;
 
+        // const cleanLimit = Math.min(Math.max(parseInt(limit) || 50, 1), 100);
+        // const cleanOffset = Math.max(parseInt(offset) || 0, 0);
         const validOrders = ['id_book', 'created_at', 'updated_at'];
         const { order: safeOrder, direction: safeDirection } = validateOrderParams(
           order,

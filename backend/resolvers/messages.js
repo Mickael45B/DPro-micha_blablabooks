@@ -10,10 +10,21 @@ import fetchLibraryById from './utils/utils_librairies.js';
 
 // Import des helpers généraux
 import { isAuthenticated, requireAuth, requireAdmin, requireOwnershipOrAdmin, sanitizeString, sanitizeInput, flattenEdges, makePageInfo, makeEdgeFromBook, withErrorHandling } from './utils/helpers/helpers_general.js';
-// Import des helpers spécifiques aux messages
+
+
+
+// Importer les helpers généralistes
+import { withSecureResolver } from './utils/helpers/helpers_general.js';
+// Importer les helpers spécifiques
 import { findMessageOrThrow, requireMessageAccess, validateMessageInput} from './utils/helpers/helpers_messages.js';
 
-import {getMessagesSchema, getMessageSchema, getUserMessagesSchema, searchMessagesSchema, addMessageSchema, updateMessageSchema, markMessageAsReadSchema, deleteMessageSchema } from '../schema/schemas_joi/messagesSchema.js';
+// Importer le schema Joi genéral
+import { generalSortingSchema } from '../schema/schemas_joi/generalSchema.js';
+// Importer les schemas Joi spécifiques
+import { generalMessagesSchema, generalOrderMessagesSchema, searchMessagesSchema} from '../schema/schemas_joi/bookhaslibrarySchema.js';
+
+// Importer les wrappers et helpers de sécurité
+import { sanitizeStrict} from './utils/helpers/helpers_securite.js';
 
 export default {
   Query: {
@@ -28,8 +39,8 @@ export default {
        * @throws {GraphQLError} Si l'utilisateur n'a pas les droits (401 ou 403)  
        * @throws {GraphQLError} Si une erreur se produit lors de la récupération des messages (500)
      */
-    getMessages: withErrorHandling(
-      async (_, args, context) => {
+    getMessages: withSecureResolver(
+      async (_, { validated }, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
           userId: "uuid-of-user",
@@ -44,24 +55,20 @@ export default {
         {
         }
         */
-    
-        const { limit = 50, offset = 0, order = 'created_at', direction = 'DESC' } = args;
-
-        // Vérification des droits admin
-        requireAdmin(context);
-
-        // Sanitize inputs
-        const cleanLimit = Math.min(Math.max(parseInt(limit) || 50, 1), 100);
-        const cleanOffset = Math.max(parseInt(offset) || 0, 0);
-
-        // Valider les paramètres de tri
-        const validOrders = ['created_at', 'id_sender', 'id_receiver', 'subject', 'is_read', 'updated_at'];
+        // ========================================
+        // RECUPERER LES DONNEES NESSESAIRES
+        // ======================================== 
+        const { limit = 50, offset = 0, order = 'created_at', direction = 'DESC' } = validated;
+        const validOrders = ['created_at', 'id_message', 'id_sender', 'id_receiver', 'is_read', 'updated_at'];
         const { order: safeOrder, direction: safeDirection } = validateOrderParams(
-          sanitizeString(order), 
-          sanitizeString(direction), 
+          order,
+          direction,
           validOrders
         );
-        
+
+        // ========================================
+        // REQUETES BASE DE DONNEES
+        // ======================================== 
         const result = await db.query(`
           SELECT *
           FROM messages
@@ -71,7 +78,11 @@ export default {
         
         const countResult = await db.query('SELECT COUNT(*)::int as count FROM messages');
         const totalCount = countResult.rows[0].count;
-        
+
+        // ========================================
+        // DONNEES RECUPEREES
+        // ======================================== 
+             
         return {
           messages: result.rows,
           totalCount,
@@ -79,7 +90,13 @@ export default {
           httpStatus: 200
         };
       },
-      'Erreur lors de la récupération des messages'
+      {
+        sortingSchema: generalSortingSchema,
+        orderSchema: generalOrderMessagesSchema,
+        logAction: 'GET_ALL_MESSAGES',
+        requiresAuth: true,
+        errorMessage: 'Erreur lors de la récupération des messages'
+      }
     ),
     
     /**
@@ -89,8 +106,8 @@ export default {
        * @throws {GraphQLError} Si l'utilisateur n'a pas les droits (401 ou 403)  
        * @throws {GraphQLError} Si une erreur se produit lors de la récupération des messages (500)
      */
-    getMessage: withErrorHandling(
-      async (_, args, context) => {
+    getMessage: withSecureResolver(
+      async (_, { id_message, validated }, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
           userId: "uuid-of-user",
@@ -106,23 +123,29 @@ export default {
         {"id_message": "3c4d5e6f-7g8h-9i0j-1k2l-3m4n5y6p7q8r"}
         */
     
-        const { id_message } = args;
-
-        // Sanitize input
-        const cleanIdMessage = sanitizeString(id_message);
+        // ========================================
+        // RECUPERER LES DONNEES NESSESAIRES
+        // ======================================== 
+        const cleanIdMessage = sanitizeStrict(id_message);
         
-        // Vérifier que le message existe
+        // ========================================
+        // REQUETES BASE DE DONNEES
+        // ======================================== 
         const message = await findMessageOrThrow(cleanIdMessage);
 
-         // Vérifier l'accès
-        requireMessageAccess(message, context);
-       
+        // ========================================
+        // DONNEES RECUPEREES
+        // ========================================        
 
         if (context?.res?.status) context.res.status(200);
         return message;
     
       },
-      'Erreur lors de la récupération du message'
+      {
+        logAction: 'GET_ONE_BOOK_IN_LIBRARY',
+        requiresAuth: true,
+        errorMessage: 'Erreur lors de la récupération du livre en bibliothèque'
+      }
     ),
     
     /**
@@ -136,8 +159,8 @@ export default {
      * @throws {GraphQLError} Si l'utilisateur n'a pas les droits (401 ou 403)  
      * @throws {GraphQLError} Si une erreur se produit lors de la récupération des messages (500)
      */
-    getUserMessages: withErrorHandling(
-      async (_, args, context) => {
+    getUserMessages: withSecureResolver(
+      async (_, { userId, validated }, context) => {
         /* Exemple de requête :
         query GetUserMessages($userId: ID) {getUserMessages(userId: $userId) { messages { id_message subject sender { name } receiver { name } } } }
         */
@@ -149,50 +172,35 @@ export default {
         // Pour qu'un admin voie les messages d'un autre user
         { "userId": "autre-user-id", "type": "sent" }
         */
-    
-        // ✅ Vérifier l'authentification
-        requireAuth(context);
-
+        // ========================================
+        // RECUPERER LES DONNEES NESSESAIRES
+        // ======================================== 
         const { userId, type = 'received', limit = 50, offset = 0 } = args;
 
-        // Déterminer l'ID cible
-        let targetUserId;
+        const cleanUserId = sanitizeStrict(userId);
 
-        if (userId) {
-          // Un userId est fourni → vérifier les droits
-          requireOwnershipOrAdmin(userId, context);
-          targetUserId = userId;
-        } else {
-          // Pas de userId → utiliser l'utilisateur connecté
-          targetUserId = context.user?.id_user || context.user?.id;
+        const validOrders = ['created_at', 'id_message', 'id_sender', 'id_receiver', 'is_read', 'updated_at'];
+        const { order: safeOrder, direction: safeDirection } = validateOrderParams(
+          order,
+          direction,
+          validOrders
+        );
 
-          if (!targetUserId) {
-            throw new GraphQLError('ID utilisateur introuvable', {
-              extensions: { code: 'UNAUTHORIZED', httpStatus: 401 }
-            });
-          }
-        }
-
-        // Sanitize inputs
-        const cleanUserId = sanitizeString(targetUserId);
-        const cleanLimit = Math.min(Math.max(parseInt(limit) || 50, 1), 100);
-        const cleanOffset = Math.max(parseInt(offset) || 0, 0);
-
-        // Déterminer la colonne à filtrer
-        const column = type === 'sent' ? 'id_sender' : 'id_receiver';
-
+        // ========================================
+        // REQUETES BASE DE DONNEES
+        // ======================================== 
         const result = await db.query(`
           SELECT *
           FROM messages
-          WHERE ${column} = $1
-          ORDER BY created_at DESC
+          WHERE id_sender = $1 OR id_receiver =$1
+          ORDER BY ${safeOrder} ${safeDirection}
           LIMIT $2 OFFSET $3
           `, [cleanUserId, cleanLimit, cleanOffset]
         );
 
         const countResult = await db.query(`
           SELECT COUNT(*)::int as count FROM messages
-          WHERE ${column} = $1
+          WHERE id_sender = $1 OR id_receiver =$1
           `, [cleanUserId]
         );
 
@@ -203,7 +211,11 @@ export default {
         };
     
       },
-      'Erreur lors de la récupération des messages'
+      {
+        logAction: 'GET_MESSAGES_OF_USER',
+        requiresAuth: true,
+        errorMessage: 'Erreur lors de la récupération des messages de l\'utilisateur'
+      }
     ),
     
     /**
@@ -216,8 +228,8 @@ export default {
        * @throws {GraphQLError} Si l'utilisateur n'a pas les droits (401 ou 403)  
        * @throws {GraphQLError} Si une erreur se produit lors de la récupération des messages (500)
      */
-    searchMessages: withErrorHandling(
-      async (_, args, context) => {
+    searchMessages: withSecureResolver(
+      async (_, { validated }, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
           userId: "uuid-of-user",
@@ -232,28 +244,33 @@ export default {
         /* Exemple variables :
         {"content": "et"}
         */
-    
-        const { content, limit = 50, offset = 0 } = args;
-
-        // Vérifier les droits admin
-        //requireAdmin(context);
-
-        // Sanitize inputs
-        const cleanContent = sanitizeString(content);
-        const cleanLimit = Math.min(Math.max(parseInt(limit) || 50, 1), 100);
-        const cleanOffset = Math.max(parseInt(offset) || 0, 0);
+        // ========================================
+        // RECUPERER LES DONNEES NESSESAIRES
+        // ======================================== 
+        const { subjectOrContent, limit = 50, offset = 0, direction = 'ASC', order = 'created_at' } = validated;
+        const cleanContent = sanitizeStrict(subjectOrContent);
 
         if (!cleanContent || cleanContent.length < 2) {
           throw new GraphQLError('Le terme de recherche doit contenir au moins 2 caractères', {
-            extensions: { 
+            extensions: {
               code: 'BAD_REQUEST',
               httpStatus: 400
             },
           });
         }
 
-        const searchPattern = `%${cleanContent}%`;
-        
+        const searchPattern = `%${cleanQuery}%`;
+
+        const validOrders = ['id_book', 'created_at', 'updated_at'];
+        const { order: safeOrder, direction: safeDirection } = validateOrderParams(
+          order,
+          direction,
+          validOrders
+        );
+
+        // ========================================
+        // REQUETES BASE DE DONNEES
+        // ======================================== 
         const result = await db.query(`
           SELECT id_message, id_sender, id_receiver, subject, content, is_read, created_at, updated_at
           FROM messages
@@ -266,7 +283,10 @@ export default {
           SELECT COUNT(*)::int as count FROM messages
           WHERE LOWER(subject) LIKE LOWER($1) OR LOWER(content) LIKE LOWER($1)
         `, [searchPattern]);
-        
+
+        // ========================================
+        // DONNEES RECUPEREES
+        // ========================================                
         return {
           messages: result.rows,
           totalCount: countResult.rows[0].count,
@@ -275,7 +295,14 @@ export default {
         };
         
       },
-      'Erreur lors de la recherche des messages'
+      {
+        sortingSchema: generalSortingSchema,
+        orderSchema: generalMessageSchema,
+        inputSchema: searchMessageSchema,
+        logAction: 'SEARCH_MESSAGES',
+        requiresAuth: true,
+        errorMessage: 'Erreur lors de la recherche de messages'
+      }
     ),
     
   },
@@ -289,8 +316,8 @@ export default {
        * @throws {GraphQLError} Si l'utilisateur n'a pas les droits (401 ou 403)  
        * @throws {GraphQLError} Si une erreur se produit lors de la récupération des messages (500)
      */
-    addMessage: withErrorHandling(
-      async (_, { input }, context) => {
+    addMessage: withSecureResolver(
+      async (_, { input, validated }, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
           userId: "uuid-of-user",
@@ -312,18 +339,15 @@ export default {
         }
                 
         */
-    
-        // Vérifier l'authentification
-        requireAuth(context);
-
-        // Sanitize input
+        // ========================================
+        // RECUPERER LES DONNEES NESSESAIRES
+        // ======================================== 
         const cleanInput = {
-          idSender: sanitizeString(input.id_sender),
-          idReceiver: sanitizeString(input.id_receiver),
-          subject: sanitizeString(input.subject),
-          content: sanitizeString(input.content),
+          idSender: sanitizeStrict(input.id_sender),
+          idReceiver: sanitizeStrict(input.id_receiver),
+          subject: sanitizeStrict(input.subject),
+          content: sanitizeStrict(input.content),
         };
-
         // Vérifier que l'expéditeur est bien l'utilisateur connecté
         const userId = context?.user?.id || context?.user?.id_user;
         if (cleanInput.idSender !== userId && !context.isAdmin) {
@@ -334,10 +358,6 @@ export default {
             },
           });
         }
-
-        // Validation
-        validateMessageInput(cleanInput);
-
         // Vérifier que le destinataire existe
         const receiverExists = await db.query(
           'SELECT id_user FROM users WHERE id_user = $1',
@@ -362,7 +382,11 @@ export default {
             },
           });
         }
+        validateMessageInput(cleanInput);
 
+        // ========================================
+        // REQUETES BASE DE DONNEES
+        // ========================================         
         const id = uuidv4();
 
         const result = await db.query(`
@@ -378,11 +402,18 @@ export default {
           false
         ]);
 
+        // ========================================
+        // DONNEES RECUPEREES
+        // ======================================== 
         if (context?.res?.status) context.res.status(201);
         return result.rows[0];
     
       },
-      "Erreur lors de l'envoi du message"
+      {
+        logAction: 'ADD_MESSAGE',
+        requiresAuth: true,
+        errorMessage: 'Erreur lors de l\'ajout du message'
+      }
     ),
     
     /**
@@ -394,7 +425,7 @@ export default {
        * @throws {GraphQLError} Si une erreur se produit lors de la récupération des messages (500)
      */
     updateMessage: withErrorHandling(
-      async (_, { input }, context) => {
+      async (_, { input, validated }, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
           userId: "uuid-of-user",
@@ -415,13 +446,10 @@ export default {
         }
         }       
         */
-    
-        // Vérifier l'authentification
-        requireAuth(context);
-
-        // Sanitize ID
-        const cleanIdMessage = sanitizeString(input.id_message);
-
+        // ========================================
+        // RECUPERER LES DONNEES NESSESAIRES
+        // ======================================== 
+        const cleanIdMessage = sanitizeStrict(input.id_message);
         // Vérifier que le message existe
         const message = await findMessageOrThrow(cleanIdMessage);
 
@@ -445,7 +473,6 @@ export default {
             },
           });
         }
-
         // Construire la requête dynamique
         const updates = [];
         const values = [];
@@ -484,6 +511,9 @@ export default {
 
         values.push(cleanIdMessage);
 
+        // ========================================
+        // REQUETES BASE DE DONNEES
+        // ========================================         
         const result = await db.query(`
           UPDATE messages
           SET ${updates.join(', ')}, updated_at = NOW()
@@ -491,13 +521,21 @@ export default {
           RETURNING *
         `, values);
 
+        // ========================================
+        // DONNEES RECUPEREES
+        // ======================================== 
+
         return {
           data: result.rows[0],
           httpStatus: 200
         };
     
       },
-      'Erreur lors de la modification du message'
+      {
+        logAction: 'UPDATE_MESSAGE',
+        requiresAuth: true,
+        errorMessage: 'Erreur lors de la mise à jour du message'
+      }
     ),
     
     /**
@@ -509,7 +547,7 @@ export default {
        * @throws {GraphQLError} Si une erreur se produit lors de la récupération des messages (500)
      */
     markMessageAsRead: withErrorHandling(
-      async (_, { input }, context) => {
+      async (_, { input, validated }, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
           userId: "uuid-of-user",
@@ -524,14 +562,10 @@ export default {
         /* Exemple variables :
           { "input": { "id_message": "3c4d5e6f-7g8h-9i0j-1k2l-3m4n5y6p7q8r" } }           
           */
-    
-        // Vérifier l'authentification
-        requireAuth(context);
-
-        // Support both { input: { id_message } } and legacy { id_message }
-        const rawId = input?.id_message ?? input?.idMessage ?? input ?? null;
-        // Sanitize input
-        const cleanIdMessage = sanitizeString(rawId);
+        // ========================================
+        // RECUPERER LES DONNEES NESSESAIRES
+        // ======================================== 
+        const cleanIdMessage = sanitizeStrict(rawId);
 
         // Vérifier que le message existe
         const message = await findMessageOrThrow(cleanIdMessage);
@@ -546,7 +580,9 @@ export default {
             },
           });
         }
-
+        // ========================================
+        // REQUETES BASE DE DONNEES
+        // ========================================         
         // Mettre à jour le message
         const result = await db.query(`
           UPDATE messages
@@ -554,12 +590,18 @@ export default {
           WHERE id_message = $1
           RETURNING *
         `, [cleanIdMessage]);
-
+        // ========================================
+        // DONNEES RECUPEREES
+        // ======================================== 
         if (context?.res?.status) context.res.status(200);
         return result.rows[0];
     
       },
-      'Erreur lors de la mise à jour du message'
+      {
+        logAction: 'MARK_MESSAGE_AS_READ',
+        requiresAuth: true,
+        errorMessage: 'Erreur lors du marquage du message comme lu'
+      }
     ),
   
     /**
@@ -571,7 +613,7 @@ export default {
        * @throws {GraphQLError} Si une erreur se produit lors de la récupération des messages (500)
      */
     deleteMessage: withErrorHandling(
-      async (_, { input }, context) => {
+      async (_, { input, validated }, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
           userId: "uuid-of-user",
@@ -585,29 +627,36 @@ export default {
         /* Exemple variables :
         {"input": {"id_message":"a1b2c3d4-e5f6-7g8h-9i0j-1k2l3m4n5o6p"} }
         */
-    
-        // Vérifier l'authentification
-        requireAuth(context);
-
+        // ========================================
+        // RECUPERER LES DONNEES NESSESAIRES
+        // ======================================== 
         // Sanitize input
-        const cleanIdMessage = sanitizeString(input.id_message);
+        const cleanIdMessage = sanitizeStrict(input.id_message);
 
         // Vérifier que le message existe
         const message = await findMessageOrThrow(cleanIdMessage);
 
         // Vérifier l'accès
         requireMessageAccess(message, context);
-
+        // ========================================
+        // REQUETES BASE DE DONNEES
+        // ======================================== 
         // Supprimer le message
         await db.query(
           'DELETE FROM messages WHERE id_message = $1',
           [cleanIdMessage]
         );
-
+        // ========================================
+        // DONNEES RECUPEREES
+        // ======================================== 
         if (context?.res?.status) context.res.status(200);
         return true ;
       },
-      'Erreur lors de la suppression du message'
+      {
+        logAction: 'DELETE_MESSAGE',
+        requiresAuth: true,
+        errorMessage: 'Erreur lors de la suppression du message'
+      }
     ),
   },
   

@@ -1,4 +1,24 @@
+import e from "express";
 import Joi from "joi";
+
+//-----------------------------------------------------------
+// GENERAL SORTING SCHEMA
+//-----------------------------------------------------------
+
+export const generalReportSchema = Joi.object({
+    id_report: Joi.string().min(34).max(36), // UUIDv4
+    id_user: Joi.string().min(34).max(36), // UUIDv4
+    report_type: Joi.string().valid('user', 'review', 'message', 'other'),
+    reported_id: Joi.string().min(34).max(36), // UUIDv4
+    reason: Joi.string().min(3).max(255),
+    details: Joi.string().max(1000),
+    status: Joi.string().valid('pending', 'in_review', 'resolved', 'dismissed'),
+    created_at: Joi.date(),// Date de création
+    updated_at: Joi.date(),// Date de mise à jour
+});
+export const generalOrderReportSchema = Joi.object({
+    order: Joi.string().valid('id_report', 'id_user', 'report_type', 'reported_id', 'reason', 'status', 'created_at', 'updated_at').default('created_at'),
+});
 
 //-----------------------------------------------------------
 //QUERIES 

@@ -1,39 +1,44 @@
+import e from "express";
 import Joi from "joi";
+
+//-----------------------------------------------------------
+// GENERAL SORTING SCHEMA
+//-----------------------------------------------------------
+
+export const generalPermissionSchema = Joi.object({
+    id_permission: Joi.string().min(34).max(36), // UUIDv4
+    permission_name: Joi.string().min(1).max(50), // Name must be a string of 1 to 50 characters
+    created_at: Joi.date(),// Date de création
+    updated_at: Joi.date(),// Date de mise à jour
+});
+
+export const generalOrderPermissionSchema = Joi.object({
+    order: Joi.string().valid('id_permission', 'permission_name', 'created_at', 'updated_at').default('created_at'),
+});
 
 //-----------------------------------------------------------
 //QUERIES 
 //-----------------------------------------------------------
 export const getPermissionsSchema = Joi.object({
-    limit: Joi.number().integer().min(1).max(100).default(50),
-    offset: Joi.number().integer().min(0).default(0),
-    order: Joi.string().valid('id_permission', 'permission_name', 'created_at', 'updated_at').default('created_at'),
-    direction: Joi.string().valid('ASC', 'DESC').default('DESC'),
 });
 
 export const getPermissionSchema = Joi.object({
-    id_permission: Joi.string().min(34).max(36).required(), // UUIDv4
 });
 
 export const searchPermissionsSchema = Joi.object({
-    name: Joi.string().min(1).max(100).required(),// Terme de recherche
-    limit: Joi.number().integer().min(1).max(100).default(50),// Nombre maximum de résultats à retourner
-    offset: Joi.number().integer().min(0).default(0),
+    query: Joi.string().min(1).max(100).required(),// Terme de recherche
 });
 
 //-----------------------------------------------------------
 //MUTATIONS
 //-----------------------------------------------------------
 export const addPermissionSchema = Joi.object({
-    permission_name: Joi.string().min(1).max(50).required(), // Name must be a string of 1 to 50 characters
 }); 
 
 export const updatePermissionSchema = Joi.object({
-    id_permission: Joi.string().min(34).max(36).required(), // UUIDv4
-    permission_name: Joi.string().min(1).max(50).required(), // Name must be a string of 1 to 50 characters
 });
 
 export const deletePermissionSchema = Joi.object({
-    id_permission: Joi.string().min(34).max(36).required(), // UUIDv4
 });
 
 /*
