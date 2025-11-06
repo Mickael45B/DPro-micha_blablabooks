@@ -9,9 +9,19 @@ import fetchLibraryById from './utils/utils_librairies.js';
 
 import { isAuthenticated, requireAuth, requireAdmin, requireOwnershipOrAdmin, sanitizeString, sanitizeInput, flattenEdges, makePageInfo, makeEdgeFromBook, withErrorHandling } from './utils/helpers/helpers_general.js';
 
+// Importer les helpers généralistes
+import { withSecureResolver } from './utils/helpers/helpers_general.js';
+// Importer les helpers spécifiques
 import { findRolesOrThrow, validateRolesInput} from './utils/helpers/helpers_Roles.js';
 
-import {getRolesSchema, getRoleSchema, searchRolesSchema, addRoleSchema, updateRoleSchema, deleteRoleSchema } from '../schema/schemas_joi/roleSchema.js';
+// Importer le schema Joi genéral
+import { generalSortingSchema } from '../schema/schemas_joi/generalSchema.js';
+// Importer les schemas Joi spécifiques
+import { generalOrderRoleSchema, generalOrderRoleSchema, searchRolesSchema} from '../schema/schemas_joi/bookhaslibrarySchema.js';
+
+// Importer les wrappers et helpers de sécurité
+import { sanitizeStrict} from './utils/helpers/helpers_securite.js';
+
 
 
 export default {
@@ -28,8 +38,8 @@ export default {
        * @throws {GraphQLError} Si l'utilisateur n'a pas les droits (401 ou 403)  
        * @throws {GraphQLError} Si une erreur se produit lors de la récupération des rôles (500)
      */
-    getRoles: withErrorHandling(
-      async (_, args, context) => {
+    getRoles: withSecureResolver(
+      async (_, { validated }, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
           userId: "uuid-of-user",
@@ -44,23 +54,25 @@ export default {
         {
         }
         */
-    
-        // Vérification des droits d'accès
-        requireAdmin(context);
+        // ========================================
+        // RECUPERER LES DONNEES NESSESAIRES
+        // ======================================== 
 
         // Extraction et validation des paramètres de pagination et de tri
-        const { limit = 50, offset = 0, order = 'created_at', direction = 'ASC' } = args;
+        const { limit = 50, offset = 0, order = 'created_at', direction = 'ASC' } = validated;
 
         // Sanitize inputs
-        const cleanLimit = Math.min(Math.max(parseInt(limit) || 50, 1), 100);
-        const cleanOffset = Math.max(parseInt(offset) || 0, 0);
+        // const cleanLimit = Math.min(Math.max(parseInt(limit) || 50, 1), 100);
+        // const cleanOffset = Math.max(parseInt(offset) || 0, 0);
         const validOrders = ['created_at', 'role_name', 'updated_at'];
         const { order: safeOrder, direction: safeDirection } = validateOrderParams(
-          sanitizeString(order), 
-          sanitizeString(direction), 
+          sanitizeStrict(order), 
+          sanitizeStrict(direction), 
           validOrders
         );
-        
+        // ========================================
+        // REQUETES BASE DE DONNEES
+        // ======================================== 
         const result = await db.query(`
           SELECT id_role, role_name, created_at, updated_at
           FROM roles
@@ -70,7 +82,9 @@ export default {
         
         const countResult = await db.query('SELECT COUNT(*)::int as count FROM roles');
         const totalCount = countResult.rows[0].count;
-        
+        // ========================================
+        // DONNEES RECUPEREES
+        // ======================================== 
         return {
           roles: result.rows,
           totalCount,
@@ -79,7 +93,13 @@ export default {
         };
     
       },
-      'Erreur lors de la récupération des rôles'
+      {
+        sortingSchema: generalSortingSchema,
+        orderSchema: generalOrderRoleSchema,
+        logAction: 'GET_ALL_ROLES',
+        requiresAuth: true,
+        errorMessage: 'Erreur lors de la récupération des rôles'
+      }
     ),
     
     /**
@@ -90,8 +110,8 @@ export default {
      * @throws {GraphQLError} Si l'utilisateur n'a pas les droits (401 ou 403)
      * @throws {GraphQLError} Si une erreur se produit lors de la récupération du rôle (500)
      */
-    getRole: withErrorHandling(
-      async (_, args, context) => {
+    getRole: withSecureResolver(
+      async (_, { id_role, validated }, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
           userId: "uuid-of-user",
@@ -106,12 +126,9 @@ export default {
         /* Exemple variables :
         {"id_role": 1}
         */
-    
-        // Vérification des droits d'accès
-        requireAdmin(context);
-
-        const { id_role } = args; 
-
+        // ========================================
+        // RECUPERER LES DONNEES NESSESAIRES
+        // ======================================== 
         // Validation de l'ID du rôle
         if (!id_role) {
           throw new GraphQLError('ID du rôle requis', {
@@ -120,16 +137,24 @@ export default {
         }
 
         // Sanitize input
-        const cleanIdRole = sanitizeString(id_role);
-
+        const cleanIdRole = sanitizeStrict(id_role);
+        // ========================================
+        // REQUETES BASE DE DONNEES
+        // ======================================== 
         // Vérifie si le rôle existe et le retourne
         const role = await findRolesOrThrow(cleanIdRole);
-
+        // ========================================
+        // DONNEES RECUPEREES
+        // ========================================        
         if (context?.res?.status) context.res.status(200);
         return role;
     
       },
-      'Erreur lors de la récupération du rôle'
+      {
+        logAction: 'GET_ONE_ROLE',
+        requiresAuth: true,
+        errorMessage: 'Erreur lors de la récupération du rôle'
+      }
     ),
     
     /**
@@ -140,8 +165,8 @@ export default {
      * @returns {object} Résultats de la recherche
      * @throws {GraphQLError} Si une erreur se produit lors de la recherche (500)
      */
-    searchRoles: withErrorHandling(
-      async (_, args, context) => {
+    searchRoles: withSecureResolver(
+      async (_, { validated }, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
           userId: "uuid-of-user",
@@ -155,23 +180,23 @@ export default {
         /* Exemple variables :
         {"role_name": "adm"}
         */
-    
-        // Vérification des droits d'accès
-        requireAdmin(context);
+        // ========================================
+        // RECUPERER LES DONNEES NESSESAIRES
+        // ======================================== 
 
         // Extraction et validation des paramètres de pagination et de tri
-        const { limit = 50, offset = 0, order = 'created_at', direction = 'DESC', role_name } = args;
+        const { limit = 50, offset = 0, order = 'created_at', direction = 'DESC', query } = validated;
 
         // Sanitize inputs
-        const cleanLimit = Math.min(Math.max(parseInt(limit) || 50, 1), 100);
-        const cleanOffset = Math.max(parseInt(offset) || 0, 0);
+        // const cleanLimit = Math.min(Math.max(parseInt(limit) || 50, 1), 100);
+        // const cleanOffset = Math.max(parseInt(offset) || 0, 0);
         const validOrders = ['created_at', 'role_name', 'updated_at'];
         const { order: safeOrder, direction: safeDirection } = validateOrderParams(
-          sanitizeString(order), 
-          sanitizeString(direction), 
+          sanitizeStrict(order), 
+          sanitizeStrict(direction), 
           validOrders
         );
-        const cleanRoleName = sanitizeString(role_name || '');
+        const cleanRoleName = sanitizeStrict(query || '');
 
         if (!cleanRoleName) {
           throw new GraphQLError('Nom du rôle requis', {
@@ -180,7 +205,9 @@ export default {
         }
 
         const searchPattern = `%${cleanRoleName}%`;
-
+        // ========================================
+        // REQUETES BASE DE DONNEES
+        // ======================================== 
         const result = await db.query(`
           SELECT id_role, role_name, created_at, updated_at FROM roles
           WHERE LOWER(role_name) LIKE LOWER($1)
@@ -192,7 +219,9 @@ export default {
           SELECT COUNT(*)::int as count FROM roles
           WHERE LOWER(role_name) LIKE LOWER($1)
         `, [searchPattern]);
-        
+        // ========================================
+        // DONNEES RECUPEREES
+        // ========================================                
         return {
           roles: result.rows,
           totalCount: countResult.rows[0].count,
@@ -201,7 +230,14 @@ export default {
         };
     
       },
-      'Erreur lors de la recherche des rôles'
+      {
+        sortingSchema: generalSortingSchema,
+        orderSchema: generalOrderRoleSchema,
+        inputSchema: searchRolesSchema,
+        logAction: 'SEARCH_ROLES',
+        requiresAuth: true,
+        errorMessage: 'Erreur lors de la recherche de rôles'
+      }
     ),
   },
 
@@ -217,8 +253,8 @@ export default {
      * @throws {GraphQLError} Si les données d'entrée sont invalides (400)
      * @throws {GraphQLError} Si une erreur se produit lors de la création du rôle (500)
      */
-    addRole: withErrorHandling(
-      async (_, { input }, context) => {
+    addRole: withSecureResolver(
+      async (_, { input, validated }, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
           userId: "uuid-of-user",
@@ -236,12 +272,12 @@ export default {
         }
         }        
         */
-    
-        // Vérification des droits d'accès
-        requireAdmin(context);
+        // ========================================
+        // RECUPERER LES DONNEES NESSESAIRES
+        // ======================================== 
 
         // Sanitize input AVANT validation
-        const cleanRoleName = sanitizeString(input.role_name || '');
+        const cleanRoleName = sanitizeStrict(input.role_name || '');
 
         if (!cleanRoleName) {
           throw new GraphQLError('Nom du rôle requis', {
@@ -264,17 +300,26 @@ export default {
         }
 
         const id = uuidv4();
+        // ========================================
+        // REQUETES BASE DE DONNEES
+        // ========================================         
         const result = await db.query(`
           INSERT INTO roles (id_role, role_name)
           VALUES ($1, $2)
           RETURNING id_role, role_name, created_at, updated_at
         `, [id, cleanRoleName]);
-
+        // ========================================
+        // DONNEES RECUPEREES
+        // ======================================== 
         if (context?.res?.status) context.res.status(201);
         return result.rows[0];
     
       },
-      "Erreur lors de l'ajout d'un rôle"
+      {
+        logAction: 'ADD_ROLE',
+        requiresAuth: true,
+        errorMessage: 'Erreur lors de l\'ajout du rôle'
+      }
     ),
     
     /**
@@ -288,8 +333,8 @@ export default {
      * @throws {GraphQLError} Si les données d'entrée sont invalides (400)
      * @throws {GraphQLError} Si une erreur se produit lors de la mise à jour du rôle (500)
      */
-    updateRole: withErrorHandling(
-      async (_, { input }, context) => {
+    updateRole: withSecureResolver(
+      async (_, { input, validated }, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
           userId: "uuid-of-user",
@@ -309,12 +354,13 @@ export default {
         }       
         */
     
-        // Vérification des droits d'accès
-        requireAdmin(context);
+        // ========================================
+        // RECUPERER LES DONNEES NESSESAIRES
+        // ======================================== 
 
         // Sanitize inputs
-        const cleanRoleName = sanitizeString(input.role_name || '');
-        const cleanIdRole = sanitizeString(input.id_role || '');
+        const cleanRoleName = sanitizeStrict(input.role_name || '');
+        const cleanIdRole = sanitizeStrict(input.id_role || '');
 
         if (!cleanIdRole) {
           throw new GraphQLError('ID du rôle requis', {
@@ -345,14 +391,18 @@ export default {
             extensions: { code: 'CONFLICT', httpStatus: 409 }
           });
         }
-
+        // ========================================
+        // REQUETES BASE DE DONNEES
+        // ======================================== 
         const result = await db.query(`
           UPDATE roles
           SET role_name = $1, updated_at = CURRENT_TIMESTAMP
           WHERE id_role = $2
           RETURNING id_role, role_name, created_at, updated_at
         `, [cleanRoleName, cleanIdRole]);
-
+        // ========================================
+        // DONNEES RECUPEREES
+        // ========================================         
         if (result.rows.length === 0) {
           throw new GraphQLError('Rôle non trouvé', {
             extensions: { code: 'NOT_FOUND', httpStatus: 404 }
@@ -362,7 +412,11 @@ export default {
         if (context?.res?.status) context.res.status(200);
         return result.rows[0];
       },
-      "Erreur lors de la mise à jour du rôle"
+      {
+        logAction: 'UPDATE_ROLE',
+        requiresAuth: true,
+        errorMessage: 'Erreur lors de la mise à jour du rôle'
+      }
     ),
     
     /**
@@ -375,8 +429,8 @@ export default {
      * @throws {GraphQLError} Si les données d'entrée sont invalides (400)
      * @throws {GraphQLError} Si une erreur se produit lors de la suppression du rôle (500)
      */
-    deleteRole: withErrorHandling(
-      async (_, { input }, context) => {
+    deleteRole: withSecureResolver(
+      async (_, { input, validated }, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
         userId: "uuid-of-user",
@@ -414,7 +468,11 @@ export default {
         if (context?.res?.status) context.res.status(200);
         return true ;
       },
-      'Erreur lors de la suppression du rôle'
+      {
+        logAction: 'DELETE_ROLE',
+        requiresAuth: true,
+        errorMessage: 'Erreur lors de la suppression du rôle'
+      }
     ),
     
   },

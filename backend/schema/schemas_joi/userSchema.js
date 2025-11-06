@@ -1,26 +1,37 @@
+import e from "express";
 import Joi from "joi";
+
+//-----------------------------------------------------------
+// GENERAL SORTING SCHEMA
+//-----------------------------------------------------------
+
+export const generalUserSchema = Joi.object({
+    id_user: Joi.string().uuid(), // UUIDv4
+    name: Joi.string().min(2).max(255).allow(null, ''), // nom optionnel
+    email: Joi.string().email().max(255),
+    password: Joi.string().min(8).max(255),
+    pseudo: Joi.string().pattern(new RegExp('^[A-Za-z0-9](?:[A-Za-z0-9_\' ]*[A-Za-z0-9])?$')).min(3).max(30),
+    id_role: Joi.string().uuid(),
+    status: Joi.number().integer().valid(1, 2, 3, 4, 5), // 1=actif, 2=bloqué par admin, 3=bloqué par l'utilisateur lui-même 4=bloqué par les 2 parties 5=supprimé
+    created_at: Joi.date(),// Date de création
+    updated_at: Joi.date(),// Date de mise à jour
+});
+export const generalOrderUserSchema = Joi.object({
+    order: Joi.string().valid('created_at', 'id_user', 'name', 'email', 'pseudo', 'id_role', 'status', 'updated_at').default('created_at'),
+});
 
 //-----------------------------------------------------------
 //QUERIES 
 //-----------------------------------------------------------
 
 export const getUsersSchema = Joi.object({
-    limit: Joi.number().integer().min(1).max(100).default(50),
-    offset: Joi.number().integer().min(0).default(0),
-    order: Joi.string().valid('created_at', 'id_user', 'name', 'email', 'pseudo', 'id_role', 'status', 'updated_at').default('created_at'),
-    direction: Joi.string().valid('ASC', 'DESC').default('DESC'),
 });
 
 export const getUserSchema = Joi.object({
-    id_user: Joi.string().uuid().required(),
 });
 
 export const searchUsersSchema = Joi.object({
-    nameOrPseudo: Joi.string().min(2).max(100).required(),
-    limit: Joi.number().integer().min(1).max(100).default(50),
-    offset: Joi.number().integer().min(0).default(0),
-    order: Joi.string().valid('created_at', 'id_user', 'name', 'email', 'pseudo', 'id_role', 'status', 'updated_at').default('created_at'),
-    direction: Joi.string().valid('ASC', 'DESC').default('DESC'),
+    query: Joi.string().min(2).max(100).required(),
 });
 
 
@@ -30,33 +41,19 @@ export const searchUsersSchema = Joi.object({
 //-----------------------------------------------------------
 
 export const createUserSchema = Joi.object({
-    name: Joi.string().min(2).max(255).allow(null, ''),
-    email: Joi.string().email().max(255).required(),
-    password: Joi.string().min(8).max(255).required(),
-    pseudo: Joi.string().pattern(new RegExp('^[A-Za-z0-9](?:[A-Za-z0-9_\' ]*[A-Za-z0-9])?$')).min(3).max(30).required(),
-    id_role: Joi.number().integer().valid(1, 2, 3, 4, 5).default(1), // par défaut rôle "utilisateur" (id_role = 1)
 });
 
 export const updateUserSchema = Joi.object({
-    id_user: Joi.string().uuid().required(),
-    name: Joi.string().min(2).max(255).allow(null, ''),
-    email: Joi.string().email().max(255).required(),
-    password: Joi.string().min(8).max(255).optional(),
-    pseudo: Joi.string().pattern(new RegExp('^[A-Za-z0-9](?:[A-Za-z0-9_\' ]*[A-Za-z0-9])?$')).min(3).max(30).required(),
-    id_role: Joi.string().uuid().optional(),
 });
 
 export const deleteUserSchema = Joi.object({
-    id_user: Joi.string().uuid().required(),
 });
 
 export const adminResetPasswordSchema = Joi.object({
-    id_user: Joi.string().uuid().required(),
     new_password: Joi.string().min(8).max(255).required(),
 });
 
 export const changePasswordSchema = Joi.object({
-    id_user: Joi.string().uuid().required(),
     old_password: Joi.string().min(8).max(255).required(),
     new_password: Joi.string().min(8).max(255).required(),
 });

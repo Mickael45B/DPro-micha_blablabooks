@@ -1,44 +1,45 @@
+import e from "express";
 import Joi from "joi";
+
+//-----------------------------------------------------------
+// GENERAL SORTING SCHEMA
+//-----------------------------------------------------------
+
+export const generalRolesHasPermissionsSchema = Joi.object({
+    id_rolehaspermission: Joi.string().min(34).max(36), // UUIDv4
+    id_role: Joi.string().min(34).max(36), // UUIDv4
+    id_permission: Joi.string().min(34).max(36), // UUIDv4
+    created_at: Joi.date(),// Date de création
+    updated_at: Joi.date(),// Date de mise à jour
+});
+export const generalOrderRolesHasPermissionsSchema = Joi.object({
+    order: Joi.string().valid('created_at', 'id_role', 'id_permission', 'updated_at').default('created_at'),
+});
 
 //-----------------------------------------------------------
 //QUERIES 
 //-----------------------------------------------------------
 
 export const getPermissionsRolesSchema = Joi.object({
-    limit: Joi.number().integer().min(1).max(100).default(50),
-    offset: Joi.number().integer().min(0).default(0),
-    order: Joi.string().valid('created_at', 'id_role', 'id_permission', 'updated_at').default('created_at'),
-    direction: Joi.string().valid('ASC', 'DESC').default('DESC'),
 });
 
 export const getPermissionRoleSchema = Joi.object({
-    id_rolehaspermission: Joi.string().uuid().required(),
 });
 
 export const searchPermissionsRolesSchema = Joi.object({
-    id_permission: Joi.string().uuid().required(),
-    limit: Joi.number().integer().min(1).max(100).default(50),
-    offset: Joi.number().integer().min(0).default(0),
-    order: Joi.string().valid('created_at', 'id_role', 'id_permission', 'updated_at').default('created_at'),
-    direction: Joi.string().valid('ASC', 'DESC').default('DESC'),
+    query: Joi.string().uuid().required(),
 });
 
 //-----------------------------------------------------------
 //MUTATIONS
 //-----------------------------------------------------------
 export const addPermissionRoleSchema = Joi.object({
-    id_role: Joi.string().uuid().required(),
-    id_permission: Joi.string().uuid().required(),
 });
 
 export const updatePermissionRoleSchema = Joi.object({
-    id_rolehaspermission: Joi.string().uuid().required(),
-    id_role: Joi.string().uuid().required(),
-    id_permission: Joi.string().uuid().required(),
 });
 
 export const deletePermissionRoleSchema = Joi.object({
-    id_rolehaspermission: Joi.string().uuid().required(),
 });
 
 /*

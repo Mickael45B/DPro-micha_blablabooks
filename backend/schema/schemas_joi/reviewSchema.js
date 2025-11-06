@@ -1,4 +1,23 @@
+import e from "express";
 import Joi from "joi";
+
+//-----------------------------------------------------------
+// GENERAL SORTING SCHEMA
+//-----------------------------------------------------------
+
+export const generalReviewSchema = Joi.object({
+    id: Joi.string().min(34).max(36), // UUIDv4
+    id_user: Joi.string().min(34).max(36), // UUIDv4
+    id_book: Joi.string().min(34).max(36), // UUIDv4
+    title_rating: Joi.string().min(3).max(100),
+    comment: Joi.string().min(10).max(2000),
+    rating: Joi.number().integer().min(1).max(5),
+    created_at: Joi.date(),// Date de création
+    updated_at: Joi.date(),// Date de mise à jour
+});
+export const generalOrderReviewSchema = Joi.object({
+    order: Joi.string().valid('created_at', 'id_review', 'id_user', 'id_book', 'rating', 'updated_at').default('created_at'),
+});
 
 //-----------------------------------------------------------
 //QUERIES 

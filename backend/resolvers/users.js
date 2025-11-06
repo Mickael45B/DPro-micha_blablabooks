@@ -53,9 +53,8 @@ export default {
        * @throws {GraphQLError} Si l'utilisateur n'a pas les droits (401 ou 403)  
        * @throws {GraphQLError} Si une erreur se produit lors de la récupération des utilisateurs (500)
      */
-    getUsers: withErrorHandling(
-      withOutputSanitization(
-      async (_, args, context) => {
+    getUsers: withSecureResolver(
+      async (_, { validated }, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
           userId: "uuid-of-user",
@@ -71,22 +70,25 @@ export default {
         }
         */
     
-        // Vérification des droits d'accès
-        requireAdmin(context);
+        // ========================================
+        // RECUPERER LES DONNEES NESSESAIRES
+        // ======================================== 
 
         // Extraction et validation des paramètres de pagination et de tri
         const { limit = 70, offset = 0, order = 'created_at', direction = 'DESC' } = args;
 
         // Sanitize inputs
-        const cleanLimit = Math.min(Math.max(parseInt(limit) || 50, 1), 100);
-        const cleanOffset = Math.max(parseInt(offset) || 0, 0);
+        // const cleanLimit = Math.min(Math.max(parseInt(limit) || 50, 1), 100);
+        // const cleanOffset = Math.max(parseInt(offset) || 0, 0);
         const validOrders = ['created_at', 'name', 'email', 'pseudo', 'id_role', 'id_user'];
         const { order: safeOrder, direction: safeDirection } = validateOrderParams(
           sanitizeString(order), 
           sanitizeString(direction), 
           validOrders
         );
-        
+        // ========================================
+        // REQUETES BASE DE DONNEES
+        // ======================================== 
         const result = await db.query(`
           SELECT id_user, name, email, pseudo, id_role, id_status, created_at, updated_at
           FROM users
@@ -97,7 +99,9 @@ export default {
         
         const countResult = await db.query('SELECT COUNT(*)::int as count FROM users');
         const totalCount = countResult.rows[0].count;
-
+        // ========================================
+        // DONNEES RECUPEREES
+        // ======================================== 
         return {
           users: result.rows,
           totalCount,
@@ -105,8 +109,13 @@ export default {
           httpStatus: 200
         };
       },
-    ),
-      'Erreur lors de la récupération des utilisateurs'
+      {
+        sortingSchema: generalSortingSchema,
+        orderSchema: generalOrderUserSchema,
+        logAction: 'GET_ALL_USERS',
+        requiresAuth: true,
+        errorMessage: 'Erreur lors de la récupération des utilisateurs'
+      }
     ),
     
     /**
@@ -117,8 +126,8 @@ export default {
      * @throws {GraphQLError} Si l'utilisateur n'est pas authentifié (401)
      * @throws {GraphQLError} Si une erreur se produit lors de la récupération de l'avis (500)
      */
-    getUser: withErrorHandling(
-      async (_, args, context) => {
+    getUser: withSecureResolver(
+      async (_, { id_user, validated }, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
           userId: "uuid-of-user",
@@ -135,26 +144,33 @@ export default {
         }
         */
     
-        // Vérification des droits d'accès (propriétaire ou admin)
-        requireOwnershipOrAdmin(id_user, context);
-
-        const { id_user } = args;
+        // ========================================
+        // RECUPERER LES DONNEES NESSESAIRES
+        // ======================================== 
       
         // Sanitize input => 2ème couche - défense en profondeur
-        const cleanIdUser = sanitizeString(id_user);
+        const cleanIdUser = sanitizeStrict(id_user);
 
         if (!cleanIdUser) {
           throw new GraphQLError('ID utilisateur manquant', {
             extensions: { code: 'BAD_USER_INPUT', httpStatus: 400 }
           });
         }
-
+        // ========================================
+        // REQUETES BASE DE DONNEES
+        // ======================================== 
         const user = await findUserOrThrow(cleanIdUser);
-
+        // ========================================
+        // DONNEES RECUPEREES
+        // ========================================        
         if (context?.res?.status) context.res.status(200);
         return user;
       },
-      "Erreur lors de la récupération de l'utilisateur"
+      {
+        logAction: 'GET_ONE_USER',
+        requiresAuth: true,
+        errorMessage: 'Erreur lors de la récupération de l\'utilisateur'
+      }
     ),
     
     /**
@@ -167,8 +183,8 @@ export default {
      * @throws {GraphQLError} Si l'utilisateur n'a pas les droits (401 ou 403)
      * @throws {GraphQLError} Si une erreur se produit lors de la recherche des utilisateurs (500)
      */
-    searchUsers: withErrorHandling(
-      async (_, args, context) => {
+    searchUsers: withSecureResolver(
+      async (_, { validated }, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
           userId: "uuid-of-user",
@@ -184,22 +200,23 @@ export default {
         {"nameOrPseudo": "ta"}
         */
 
-        // Vérification des droits d'accès
-        requireAdmin(context);
+        // ========================================
+        // RECUPERER LES DONNEES NESSESAIRES
+        // ======================================== 
 
         // Extraction et validation des paramètres de pagination et de tri
-        const { limit = 50, offset = 0, order = 'created_at', direction = 'DESC', nameOrPseudo } = args;
+        const { limit = 50, offset = 0, order = 'created_at', direction = 'DESC', query } = validated;
 
         // Sanitize inputs
         const cleanLimit = Math.min(Math.max(parseInt(limit) || 50, 1), 100);
         const cleanOffset = Math.max(parseInt(offset) || 0, 0);
         const validOrders = ['created_at', 'name', 'email', 'pseudo', 'id_role', 'id_user'];
         const { order: safeOrder, direction: safeDirection } = validateOrderParams(
-          sanitizeString(order), 
-          sanitizeString(direction), 
+          sanitizeStrict(order), 
+          sanitizeStrict(direction), 
           validOrders
         );
-        const cleanNameOrPseudo = sanitizeString(nameOrPseudo || '');
+        const cleanNameOrPseudo = sanitizeStrict(query || '');
 
         if (!cleanNameOrPseudo || typeof cleanNameOrPseudo !== 'string' || cleanNameOrPseudo.trim().length === 0) {
           throw new GraphQLError('Terme de recherche invalide', {
@@ -208,7 +225,9 @@ export default {
         }
 
         const searchPattern = `%${cleanNameOrPseudo}%`;
-
+        // ========================================
+        // REQUETES BASE DE DONNEES
+        // ======================================== 
         const result = await db.query(`
           SELECT id_user, name, email, pseudo, id_role, id_status, created_at, updated_at
           FROM users
@@ -221,16 +240,24 @@ export default {
           SELECT COUNT(*)::int as count FROM users
           WHERE LOWER(name) LIKE LOWER($1) OR LOWER(email) LIKE LOWER($1) OR LOWER(pseudo) LIKE LOWER($1)
         `, [searchPattern]);
-
+        // ========================================
+        // DONNEES RECUPEREES
+        // ========================================                
         return {
           users: result.rows,
           totalCount: countResult.rows[0].count,
           hasNextPage: cleanOffset + cleanLimit < countResult.rows[0].count,
           httpStatus: 200
         };
-    
       },
-      'Erreur lors de la recherche des utilisateur'
+      {
+        sortingSchema: generalSortingSchema,
+        orderSchema: generalOrderUserSchema,
+        inputSchema: searchUsersSchema,
+        logAction: 'SEARCH_USERS',
+        requiresAuth: true,
+        errorMessage: 'Erreur lors de la recherche d\'utilisateurs'
+      }
     ),
     
   },
@@ -247,8 +274,8 @@ export default {
      * @throws {GraphQLError} Si l'utilisateur n'a pas les droits (401 ou 403)
      * @throws {GraphQLError} Si une erreur se produit lors de la création de l'utilisateur (500)
      */
-    createUser: withErrorHandling(
-      async (_, { input }, context) => {
+    createUser: withSecureResolver(
+      async (_, { input, validated }, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
           userId: "uuid-of-user",
@@ -269,7 +296,9 @@ export default {
         }
         }        
         */
-    
+        // ========================================
+        // RECUPERER LES DONNEES NESSESAIRES
+        // ======================================== 
         // Vérification des droits d'accès
          // un visiteur peut créer un utilisateur, donc pas de requireAuth ici
 
@@ -280,10 +309,10 @@ export default {
         }
 
         const cleanInput = {
-          name: sanitizeString(input.name),
-          email: sanitizeString(input.email),
-          pseudo: sanitizeString(input.pseudo),
-          password: sanitizeString(input.password),  
+          name: sanitizeStrict(input.name),
+          email: sanitizeStrict(input.email),
+          pseudo: sanitizeStrict(input.pseudo),
+          password: sanitizeStrict(input.password),  
         };
 
         // Valider les données
@@ -343,6 +372,9 @@ export default {
 
         // Utiliser l'import statique en haut du fichier : uuidv4
         const id = uuidv4();
+        // ========================================
+        // REQUETES BASE DE DONNEES
+        // ========================================         
 
         // Envelopper la création utilisateur + bibliothèques par défaut dans une transaction
         await db.query('BEGIN');
@@ -422,8 +454,16 @@ export default {
           console.error('createUser transaction error:', txErr && txErr.message ? txErr.message : txErr);
           throw txErr;
         }
+        // ========================================
+        // DONNEES RECUPEREES
+        // ======================================== 
+        
       },
-      "Erreur lors de la création de l'utilisateur"
+      {
+        logAction: 'ADD_USER',
+        requiresAuth: true,
+        errorMessage: 'Erreur lors de l\'ajout de l\'utilisateur'
+      }
     ),
     
     /**
@@ -438,8 +478,8 @@ export default {
      * @throws {GraphQLError} Si l'utilisateur n'a pas les droits (401 ou 403)
      * @throws {GraphQLError} Si une erreur se produit lors de la mise à jour de l'utilisateur (500)
      */
-    updateUser: withErrorHandling(
-      async (_, { input }, context) => {
+    updateUser: withSecureResolver(
+      async (_, { input, validated }, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
           userId: "uuid-of-user",
@@ -459,7 +499,9 @@ export default {
         }
         }       
         */
-    
+        // ========================================
+        // RECUPERER LES DONNEES NESSESAIRES
+        // ======================================== 
         // NOTE : on ne peut pas changer le mot de passe ici (pour des raisons de sécurité), il y a une mutation dédiée
 
         // Extraction des paramètres
@@ -527,14 +569,18 @@ export default {
         // Ajouter updated_at
         fields.push(`updated_at = CURRENT_TIMESTAMP`);
         values.push(cleanIdUser);
-
+        // ========================================
+        // REQUETES BASE DE DONNEES
+        // ======================================== 
         const result = await db.query(`
           UPDATE users
           SET ${fields.join(', ')}
           WHERE id_user = $${idx}
           RETURNING id_user, name, email, pseudo, id_role, id_status, created_at, updated_at
         `, values);
-
+        // ========================================
+        // DONNEES RECUPEREES
+        // ========================================         
         if (result.rows.length === 0) {
           throw new GraphQLError('Utilisateur non trouvé', {
             extensions: { code: 'NOT_FOUND', httpStatus: 404 }
@@ -544,7 +590,11 @@ export default {
         if (context?.res?.status) context.res.status(200);
         return result.rows[0];
       },
-      "Erreur lors de la mise à jour de l'utilisateur"
+      {
+        logAction: 'UPDATE_USER',
+        requiresAuth: true,
+        errorMessage: 'Erreur lors de la mise à jour de l\'utilisateur'
+      }
     ),
     
     /**
@@ -556,8 +606,8 @@ export default {
      * @throws {GraphQLError} Si l'utilisateur n'a pas les droits (401 ou 403)
      * @throws {GraphQLError} Si une erreur se produit lors de la suppression de l'utilisateur (500)
      */
-    deleteUser: withErrorHandling(
-      async (_, { input }, context) => {
+    deleteUser: withSecureResolver(
+      async (_, { input, validated }, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
           userId: "uuid-of-user",
@@ -576,7 +626,9 @@ export default {
         }
         }       
         */
-    
+        // ========================================
+        // RECUPERER LES DONNEES NESSESAIRES
+        // ======================================== 
         // Extraction des paramètres  
         const { id_user } = input;
 
@@ -594,6 +646,9 @@ export default {
 
         // Vérification de l'existence de l'utilisateur
         await findUserOrThrow(cleanIdUser);
+        // ========================================
+        // REQUETES BASE DE DONNEES
+        // ======================================== 
 
         const result = await db.query(
           'DELETE FROM users WHERE id_user = $1 RETURNING id_user',
@@ -639,14 +694,20 @@ export default {
             'DELETE FROM reports WHERE id_user = $1',
             [cleanIdUser]
           );
-
+        // ========================================
+        // DONNEES RECUPEREES
+        // ======================================== 
         if (context && context.res && typeof context.res.status === 'function') {
           context.res.status(200);
         }
 
         return true;
       },
-      "Erreur lors de la suppression de l'utilisateur"
+      {
+        logAction: 'DELETE_USER',
+        requiresAuth: true,
+        errorMessage: 'Erreur lors de la suppression de l\'utilisateur'
+      }
     ),
     
     /**
@@ -658,10 +719,11 @@ export default {
      * @throws {GraphQLError} Si l'utilisateur n'a pas les droits (401 ou 403)
      * @throws {GraphQLError} Si une erreur se produit lors de la suppression de l'utilisateur (500)
      */
-    adminResetPassword: withErrorHandling(
-      async (_, { input }, context) => {
-        // Seul un administrateur peut appeler cette mutation
-        requireAdmin(context);
+    adminResetPassword: withSecureResolver(
+      async (_, { input, validated }, context) => {
+        // ========================================
+        // RECUPERER LES DONNEES NESSESAIRES
+        // ======================================== 
 
         const { id_user, newPassword } = input || {};
         if (!id_user || !newPassword) {
@@ -681,14 +743,22 @@ export default {
 
         // Vérifier que l'utilisateur existe
         await findUserOrThrow(cleanIdUser);
-
+        // ========================================
+        // REQUETES BASE DE DONNEES
+        // ======================================== 
         const hashed = await bcrypt.hash(cleanNewPassword, 10);
         await db.query('UPDATE users SET password = $1, updated_at = CURRENT_TIMESTAMP WHERE id_user = $2', [hashed, cleanIdUser]);
-
+        // ========================================
+        // DONNEES RECUPEREES
+        // ========================================         
         if (context?.res?.status) context.res.status(200);
         return true;
       },
-      'Erreur lors de la réinitialisation du mot de passe'
+      {
+        logAction: 'UPDATE_PASSWORD_ADMIN',
+        requiresAuth: true,
+        errorMessage: 'Erreur lors de la mise à jour du mot de passe par l\'administrateur'
+      }
     ),
     
     /** 
@@ -700,8 +770,8 @@ export default {
      * @throws {GraphQLError} Si l'utilisateur n'a pas les droits (401 ou 403)
      * @throws {GraphQLError} Si une erreur se produit lors de la suppression de l'utilisateur (500)
      */
-    changePassword: withErrorHandling(
-      async (_, { input }, context) => {
+    changePassword: withSecureResolver(
+      async (_, { input, validated }, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
           userId: "uuid-of-user",
@@ -722,7 +792,11 @@ export default {
         }
         }       
         */
-          // Extraction des paramètres
+          
+        // ========================================
+        // RECUPERER LES DONNEES NESSESAIRES
+        // ======================================== 
+        // Extraction des paramètres
           const { id_user, oldPassword, newPassword } = input || {};
 
           if (!id_user || !oldPassword || !newPassword) {
@@ -778,16 +852,24 @@ export default {
           }
 
           const hashedNewPassword = await bcrypt.hash(cleanNewPassword, 10);
-
+        // ========================================
+        // REQUETES BASE DE DONNEES
+        // ======================================== 
           await db.query(
             'UPDATE users SET password = $1, updated_at = CURRENT_TIMESTAMP WHERE id_user = $2',
             [hashedNewPassword, cleanIdUser]
           );
-
+        // ========================================
+        // DONNEES RECUPEREES
+        // ========================================         
           if (context?.res?.status) context.res.status(200);
           return true;
       },
-      "Erreur lors du changement de mot de passe"
+      {
+        logAction: 'UPDATE_PASSWORD',
+        requiresAuth: true,
+        errorMessage: 'Erreur lors de la mise à jour du mot de passe'
+      }
     ),
     
 // ========================================

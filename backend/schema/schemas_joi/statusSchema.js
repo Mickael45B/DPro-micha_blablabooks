@@ -1,41 +1,43 @@
+import e from "express";
 import Joi from "joi";
+
+//-----------------------------------------------------------
+// GENERAL SORTING SCHEMA
+//-----------------------------------------------------------
+
+export const generalStatusSchema = Joi.object({
+    id_status: Joi.number().integer(), // ID du status
+    status_name: Joi.string().min(2).max(255), // Nom du status
+    created_at: Joi.date(),// Date de création
+    updated_at: Joi.date(),// Date de mise à jour
+});
+export const generalOrderStatusSchema = Joi.object({
+    order: Joi.string().valid('created_at', 'id_status', 'status_name', 'updated_at').default('created_at'),
+});
 
 //-----------------------------------------------------------
 //QUERIES 
 //-----------------------------------------------------------
 export const getStatusesSchema = Joi.object({
-    limit: Joi.number().integer().min(1).max(100).default(50),
-    offset: Joi.number().integer().min(0).default(0),
-    order: Joi.string().valid('created_at', 'id_status', 'status_name', 'updated_at').default('created_at'),
-    direction: Joi.string().valid('ASC', 'DESC').default('DESC'),
 });
 
 export const getStatusSchema = Joi.object({
-    id_status: Joi.number().integer().required(),
 });
 
 export const searchStatusesSchema = Joi.object({
-    status_name: Joi.string().min(2).max(255).required(),
-    limit: Joi.number().integer().min(1).max(100).default(50),
-    offset: Joi.number().integer().min(0).default(0),
-    order: Joi.string().valid('created_at', 'id_status', 'status_name', 'updated_at').default('created_at'),
-    direction: Joi.string().valid('ASC', 'DESC').default('DESC'),
+    query: Joi.string().min(2).max(255).required(),
 });
 
 //-----------------------------------------------------------
 //MUTATIONS
 //-----------------------------------------------------------
 export const createStatusSchema = Joi.object({
-    status_name: Joi.string().min(2).max(255).required(),
 });
 
 export const updateStatusSchema = Joi.object({
-    id_status: Joi.number().integer().required(),
-    status_name: Joi.string().min(2).max(255).required(),
 });
 
 export const deleteStatusSchema = Joi.object({
-    id_status: Joi.number().integer().required(),
 });
 
 /*

@@ -1,26 +1,32 @@
+import e from "express";
 import Joi from "joi";
+
+//-----------------------------------------------------------
+// GENERAL SORTING SCHEMA
+//-----------------------------------------------------------
+
+export const generalRoleSchema = Joi.object({
+    id_role: Joi.string().uuid(), // UUIDv4
+    role_name: Joi.string().min(2).max(50), // Nom du rôle
+    created_at: Joi.date(),// Date de création
+    updated_at: Joi.date(),// Date de mise à jour
+});
+export const generalOrderRoleSchema = Joi.object({
+    order: Joi.string().valid('created_at', 'id_role', 'role_name', 'updated_at').default('created_at'),
+});
 
 //-----------------------------------------------------------
 //QUERIES 
 //-----------------------------------------------------------
 
 export const getRolesSchema = Joi.object({
-    limit: Joi.number().integer().min(1).max(100).default(50),
-    offset: Joi.number().integer().min(0).default(0),
-    order: Joi.string().valid('created_at', 'id_role', 'role_name', 'updated_at').default('created_at'),
-    direction: Joi.string().valid('ASC', 'DESC').default('DESC'),
 });
 
 export const getRoleSchema = Joi.object({
-    id_role: Joi.string().uuid().required(),
 });
 
 export const searchRolesSchema = Joi.object({
-    role_name: Joi.string().min(2).max(100).required(),
-    limit: Joi.number().integer().min(1).max(100).default(50),
-    offset: Joi.number().integer().min(0).default(0),
-    order: Joi.string().valid('created_at', 'id_role', 'role_name', 'updated_at').default('created_at'),
-    direction: Joi.string().valid('ASC', 'DESC').default('DESC'),
+    query: Joi.string().min(2).max(100).required(),
 });
 
 //-----------------------------------------------------------
@@ -28,16 +34,12 @@ export const searchRolesSchema = Joi.object({
 //-----------------------------------------------------------
 
 export const addRoleSchema = Joi.object({
-    role_name: Joi.string().min(2).max(50).required(),
 });
 
 export const updateRoleSchema = Joi.object({
-    id_role: Joi.string().uuid().required(),
-    role_name: Joi.string().min(2).max(50).required(),
 });
 
 export const deleteRoleSchema = Joi.object({
-    id_role: Joi.string().uuid().required(),
 });
 
 /*

@@ -9,10 +9,20 @@ import fetchLibraryById from './utils/utils_librairies.js';
 
 import { isAuthenticated, requireAuth, requireAdmin, requireOwnershipOrAdmin, sanitizeString, sanitizeInput, flattenEdges, makePageInfo, makeEdgeFromBook, withErrorHandling } from './utils/helpers/helpers_general.js';
 
-import { findReviewOrThrow, validateReviewInput} from './utils/helpers/helpers_Reviews.js';
 import { console } from "node:inspector";
 
-import {getReviewsSchema, getReviewSchema, searchReviewsSchema, addReviewSchema, updateReviewSchema, deleteReviewSchema } from '../schema/schemas_joi/reviewSchema.js';
+// Importer les helpers généralistes
+import { withSecureResolver } from './utils/helpers/helpers_general.js';
+// Importer les helpers spécifiques
+import { findReviewOrThrow, validateReviewInput} from './utils/helpers/helpers_bookhaslibrary.js';
+
+// Importer le schema Joi genéral
+import { generalSortingSchema } from '../schema/schemas_joi/generalSchema.js';
+// Importer les schemas Joi spécifiques
+import { generalOrderReviewsSchema, generalOrderReviewsSchema, searchReviewsSchema} from '../schema/schemas_joi/bookhaslibrarySchema.js';
+
+// Importer les wrappers et helpers de sécurité
+import { sanitizeStrict} from './utils/helpers/helpers_securite.js';
 
 
 export default {
@@ -28,8 +38,8 @@ export default {
        * @throws {GraphQLError} Si l'utilisateur n'a pas les droits (401 ou 403)  
        * @throws {GraphQLError} Si une erreur se produit lors de la récupération des avis (500)
      */
-    getReviews: withErrorHandling(
-      async (_, args, context) => {
+    getReviews: withSecureResolver(
+      async (_, { validated }, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
           userId: "uuid-of-user",
@@ -45,22 +55,25 @@ export default {
         }
         */
     
-        // Vérification des droits d'accès
-        requireAuth(context);
+        // ========================================
+        // RECUPERER LES DONNEES NESSESAIRES
+        // ======================================== 
 
         // Extraction et validation des paramètres de pagination et de tri
-        const { limit = 150, offset = 0, order = 'created_at', direction = 'DESC' } = args;
+        const { limit = 150, offset = 0, order = 'created_at', direction = 'DESC' } = validated;
 
         // Sanitize inputs
-        const cleanLimit = Math.min(Math.max(parseInt(limit) || 150, 1), 1000);
-        const cleanOffset = Math.max(parseInt(offset) || 0, 0);
+        // const cleanLimit = Math.min(Math.max(parseInt(limit) || 150, 1), 1000);
+        // const cleanOffset = Math.max(parseInt(offset) || 0, 0);
         const validOrders = ['created_at', 'rating', 'id_book', 'id_user'];
         const { order: safeOrder, direction: safeDirection } = validateOrderParams(
-          sanitizeString(order), 
-          sanitizeString(direction), 
+          sanitizeStrict(order), 
+          sanitizeStrict(direction), 
           validOrders
         );
-        
+        // ========================================
+        // REQUETES BASE DE DONNEES
+        // ======================================== 
         const result = await db.query(`
           SELECT id_review, id_user, id_book, title_rating, rating, comment, created_at, updated_at
           FROM reviews
@@ -70,7 +83,9 @@ export default {
 
         const countResult = await db.query("SELECT COUNT(*)::int as count FROM reviews");
         const totalCount = countResult.rows[0].count;
-
+        // ========================================
+        // DONNEES RECUPEREES
+        // ======================================== 
         return {
           reviews: result.rows,
           totalCount,
@@ -79,7 +94,13 @@ export default {
         };
     
       },
-      'Erreur lors de la récupération des avis'
+      {
+        sortingSchema: generalSortingSchema,
+        orderSchema: generalOrderReviewSchema,
+        logAction: 'GET_ALL_REVIEWS',
+        requiresAuth: true,
+        errorMessage: 'Erreur lors de la récupération des avis'
+      }
     ),
     
     /**
@@ -90,8 +111,8 @@ export default {
      * @throws {GraphQLError} Si l'utilisateur n'est pas authentifié (401)
      * @throws {GraphQLError} Si une erreur se produit lors de la récupération de l'avis (500)
      */
-    getReview: withErrorHandling(
-      async (_, { id_review }, context) => {
+    getReview: withSecureResolver(
+      async (_, { id_review, validated }, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
           userId: "uuid-of-user",
@@ -106,12 +127,11 @@ export default {
         /* Exemple variables :
         {"id_review": "1a2b3c4d-5e6f-7g8h-9i0j-1k2l3m4n1o6p"}
         */
-    
-        // Vérification des droits d'accès
-        requireAuth(context);
+        // ========================================
+        // RECUPERER LES DONNEES NESSESAIRES
+        // ======================================== 
 
-        // Sanitize input
-        const cleanIdReview = sanitizeString(id_review);
+        const cleanIdReview = sanitizeStrict(id_review);
 
         if (!cleanIdReview) {
           throw new GraphQLError('ID de l\'avis manquant', {
@@ -119,12 +139,21 @@ export default {
           });
         }
 
+        // ========================================
+        // REQUETES BASE DE DONNEES
+        // ======================================== 
         const review = await findReviewOrThrow(cleanIdReview);
-
+        // ========================================
+        // DONNEES RECUPEREES
+        // ========================================        
         if (context?.res?.status) context.res.status(200);
         return review;
       },
-      "Erreur lors de la récupération de l'avis"
+      {
+        logAction: 'GET_ONE_REVIEW',
+        requiresAuth: true,
+        errorMessage: 'Erreur lors de la récupération de l\'avis'
+      }
     ),
     
     /**
@@ -137,8 +166,8 @@ export default {
      * @throws {GraphQLError} Si l'utilisateur n'est pas authentifié (401)
      * @throws {GraphQLError} Si une erreur se produit lors de la recherche des avis (500)
      */
-    searchReviews: withErrorHandling(
-      async (_, args, context) => {
+    searchReviews: withSecureResolver(
+      async (_, { validated }, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
           userId: "uuid-of-user",
@@ -152,12 +181,14 @@ export default {
         /* Exemple variables :
         {"content": "bien"}
         */
-
+        // ========================================
+        // RECUPERER LES DONNEES NESSESAIRES
+        // ======================================== 
         // Vérification des droits d'accès
         requireAuth(context);
 
         // Extraction et validation des paramètres de pagination et de tri
-        const { limit = 50, offset = 0, order = 'created_at', direction = 'DESC', content } = args;
+        const { limit = 50, offset = 0, order = 'created_at', direction = 'DESC', content } = validated;
 
         // Sanitize inputs
         const cleanLimit = Math.min(Math.max(parseInt(limit) || 50, 1), 100);
@@ -177,7 +208,9 @@ export default {
         }
 
         const searchPattern = `%${cleanComment}%`;
-
+        // ========================================
+        // REQUETES BASE DE DONNEES
+        // ======================================== 
         const result = await db.query(`
           SELECT id_review, id_user, id_book, title_rating, rating, comment, created_at, updated_at
           FROM reviews
@@ -190,7 +223,9 @@ export default {
           SELECT COUNT(*)::int as count FROM reviews
           WHERE LOWER(COALESCE(title_rating, '')) LIKE LOWER($1) OR LOWER(COALESCE(comment, '')) LIKE LOWER($1)
         `, [searchPattern]);
-
+        // ========================================
+        // DONNEES RECUPEREES
+        // ========================================                
         return {
           reviews: result.rows,
           totalCount: countResult.rows[0].count,
@@ -198,7 +233,14 @@ export default {
           httpStatus: 200
         };    
       },
-      'Erreur lors de la recherche des avis'
+      {
+        sortingSchema: generalSortingSchema,
+        orderSchema: generalOrderReviewSchema,
+        inputSchema: searchReviewsSchema,
+        logAction: 'SEARCH_REVIEWS',
+        requiresAuth: true,
+        errorMessage: 'Erreur lors de la recherche d\'avis'
+      }
     ),
     
   },
@@ -218,8 +260,8 @@ export default {
      * @throws {GraphQLError} Si les données d'entrée sont invalides (400)
      * @throws {GraphQLError} Si une erreur se produit lors de la création de l'avis (500)
      */
-    addReview: withErrorHandling(
-      async (_, { input }, context) => {
+    addReview: withSecureResolver(
+      async (_, { input, validated }, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
           userId: "uuid-of-user",
@@ -242,8 +284,9 @@ export default {
         }        
         */
     
-        // Vérification de l'authentification de l'utilisateur
-        requireAuth(context);
+        // ========================================
+        // RECUPERER LES DONNEES NESSESAIRES
+        // ======================================== 
 
         const currentUserId = context?.user?.id ?? context?.user?.id_user ?? null;
         if (!currentUserId) {
@@ -261,11 +304,11 @@ export default {
 
         // Sanitize inputs AVANT validation
         const cleanInput = {
-          id_user: sanitizeString(input.id_user),
-          id_book: sanitizeString(input.id_book),
-          title_rating: sanitizeString(input.title_rating),
-          rating: parseInt(input.rating), 
-          comment: sanitizeString(input.comment || ''),
+          id_user: sanitizeStrict(input.id_user),
+          id_book: sanitizeStrict(input.id_book),
+          title_rating: sanitizeStrict(input.title_rating),
+          rating: parseInt(input.rating),
+          comment: sanitizeStrict(input.comment || ''),
         };
 
         // Vérifier que le livre existe
@@ -275,18 +318,26 @@ export default {
         validateReviewInput(cleanInput);
 
         const id = uuidv4();
-
+        // ========================================
+        // REQUETES BASE DE DONNEES
+        // ========================================         
         const result = await db.query(`
           INSERT INTO reviews (id_review, id_user, id_book, title_rating, rating, comment) 
           VALUES ($1, $2, $3, $4, $5, $6)
           RETURNING *
         `, [id, cleanInput.id_user, cleanInput.id_book, cleanInput.title_rating, cleanInput.rating, cleanInput.comment]);
-
+        // ========================================
+        // DONNEES RECUPEREES
+        // ======================================== 
         if (context?.res?.status) context.res.status(201);
         return result.rows[0];
     
       },
-      "Erreur lors de l'ajout de l'avis"
+      {
+        logAction: 'ADD_REVIEW',
+        requiresAuth: true,
+        errorMessage: 'Erreur lors de l\'ajout de l\'avis'
+      }
     ),
     
     /**
@@ -301,8 +352,8 @@ export default {
      * @throws {GraphQLError} Si l'utilisateur n'est pas authentifié (401)
      * @throws {GraphQLError} Si une erreur se produit lors de la mise à jour de l'avis (500)
      */
-    updateReview: withErrorHandling(
-      async (_, { input }, context) => {
+    updateReview: withSecureResolver(
+      async (_, { input, validated }, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
           userId: "uuid-of-user",
@@ -325,8 +376,9 @@ export default {
         }       
         */
     
-        // Sanitize input
-        const cleanIdReview = sanitizeString(input.id_review);
+        // ========================================
+        // RECUPERER LES DONNEES NESSESAIRES
+        // ======================================== 
 
         if (!cleanIdReview) {
           throw new GraphQLError('ID de l\'avis manquant', {
@@ -389,7 +441,9 @@ export default {
 
         // Ajouter l'ID comme dernier paramètre
         values.push(cleanIdReview);
-
+        // ========================================
+        // REQUETES BASE DE DONNEES
+        // ======================================== 
         const result = await db.query(`
           UPDATE reviews
           SET ${updates.join(", ")}
@@ -402,22 +456,21 @@ export default {
             extensions: { code: 'NOT_FOUND', httpStatus: 404 }
           });
         }
+        // ========================================
+        // DONNEES RECUPEREES
+        // ========================================         
 
         if (context?.res?.status) context.res.status(200);
         // Return the Review object directly to match the GraphQL schema
         return result.rows[0];
     
     
-    
-    
-    
-    
-    
-    
-    
-    
       },
-      "Erreur lors de la mise à jour de l'avis"
+      {
+        logAction: 'UPDATE_BOOK_IN_LIBRARY',
+        requiresAuth: true,
+        errorMessage: 'Erreur lors de la mise à jour'
+      }
     ),
     
     /**     
@@ -429,8 +482,8 @@ export default {
      * @throws {GraphQLError} Si l'utilisateur n'est pas authentifié (401)
      * @throws {GraphQLError} Si une erreur se produit lors de la suppression de l'avis (500)
      */
-    deleteReview: withErrorHandling(
-      async (_, args, context) => {
+    deleteReview: withSecureResolver(
+      async (_, { input, validated }, context) => {
         /* exemple context JWT décodé ( à revoir):
           {
             userId: "uuid-of-user",
@@ -444,7 +497,9 @@ export default {
         /* Exemple variables :
           {"input": {"id_review":"4bb6dccc-14fb-4e50-985d-e49405785e28"} }
         */
-
+        // ========================================
+        // RECUPERER LES DONNEES NESSESAIRES
+        // ======================================== 
         const { input } = args;
         
         // Vérification de l'authentification de l'utilisateur
@@ -461,19 +516,27 @@ export default {
 
         // Vérification de l'existence de l'avis
         const existingReview = await findReviewOrThrow(cleanIdReview);
-        
+        // ========================================
+        // REQUETES BASE DE DONNEES
+        // ======================================== 
         const result = await db.query(
           "DELETE FROM reviews WHERE id_review = $1 RETURNING id_review",
           [cleanIdReview] 
         );
-
+        // ========================================
+        // DONNEES RECUPEREES
+        // ======================================== 
         if (context && context.res && typeof context.res.status === 'function') {
           context.res.status(200);
         }
 
         return true;
       },
-      "Erreur lors de la suppression de l'avis"
+      {
+        logAction: 'DELETE_REVIEW',
+        requiresAuth: true,
+        errorMessage: 'Erreur lors de la suppression de l\'avis'
+      }
     ),
     
   },

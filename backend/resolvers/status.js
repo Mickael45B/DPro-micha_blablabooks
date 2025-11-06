@@ -14,8 +14,22 @@ import { isAuthenticated, requireAuth, requireAdmin, requireOwnershipOrAdmin, sa
 import { findStatusOrThrow, validateStatusInput, existingStatusInput} from './utils/helpers/helpers_status.js';
 import { clean } from "semver";
 
-import {getStatusesSchema, getStatusSchema, searchStatusesSchema, createStatusSchema, updateStatusSchema, deleteStatusSchema } from '../schema/schemas_joi/statusSchema.js';
 import { validateWithJoi } from './utils/helpers/helpers_books.js';
+
+
+
+// Importer les helpers généralistes
+import { withSecureResolver } from './utils/helpers/helpers_general.js';
+// Importer les helpers spécifiques
+import { findBookLibraryOrThrow, requireEditableLibrary, verifyUserOwnsLibrary} from './utils/helpers/helpers_bookhaslibrary.js';
+
+// Importer le schema Joi genéral
+import { generalSortingSchema } from '../schema/schemas_joi/generalSchema.js';
+// Importer les schemas Joi spécifiques
+import { generalOrderStatusesSchema, generalOrderStatusesSchema, searchStatusesSchema} from '../schema/schemas_joi/bookhaslibrarySchema.js';
+
+// Importer les wrappers et helpers de sécurité
+import { sanitizeStrict} from './utils/helpers/helpers_securite.js';
 
 
 
@@ -32,8 +46,8 @@ export default {
          * @throws {GraphQLError} Si l'utilisateur n'a pas les droits (401 ou 403)  
          * @throws {GraphQLError} Si une erreur se produit lors de la récupération des utilisateurs (500)
          */
-        getStatuses: withErrorHandling(
-        async (_, args, context) => {
+        getStatuses: withSecureResolver(
+            async (_, { validated }, context) => {
             
             /* exemple context JWT décodé ( à revoir):
             {
@@ -50,30 +64,33 @@ export default {
             }
             */
             
-            // Vérification des droits d'accès
-            requireAdmin(context);
+        // ========================================
+        // RECUPERER LES DONNEES NESSESAIRES
+        // ======================================== 
 
-            const { limit = 50, offset = 0, order = 'created_at', direction = 'ASC' } = args;
+            const { limit = 50, offset = 0, order = 'created_at', direction = 'ASC' } = validated;
             
             // Validation avec Joi => 1ere couche - défense en profondeur
             const validatedArgs = validateWithJoi(getStatusesSchema, {
-            limit : args.limit,
-            offset : args.offset,
-            order : args.order,
-            direction : args.direction  
+            limit : validated.limit,
+            offset : validated.offset,
+            order : validated.order,
+            direction : validated.direction
             });
             
             // Sanitize inputs => 2ème couche - défense en profondeur
-            const cleanLimit = Math.min(Math.max(parseInt(limit) || 50, 1), 100);
-            const cleanOffset = Math.max(parseInt(offset) || 0, 0);
+            // const cleanLimit = Math.min(Math.max(parseInt(limit) || 50, 1), 100);
+            // const cleanOffset = Math.max(parseInt(offset) || 0, 0);
             const validOrders = ['status_name', 'created_at', 'updated_at'];
             const { order: safeOrder, direction: safeDirection } = validateOrderParams(
-            sanitizeString(order), 
-            sanitizeString(direction), 
+            sanitizeStrict(order), 
+            sanitizeStrict(direction), 
             validOrders
             );
             
-
+        // ========================================
+        // REQUETES BASE DE DONNEES
+        // ======================================== 
             const result = await db.query(`
             SELECT *
             FROM status
@@ -83,15 +100,23 @@ export default {
                 
             const countResult = await db.query('SELECT COUNT(*)::int as count FROM status');
             const totalCount = countResult.rows[0].count;
-
+        // ========================================
+        // DONNEES RECUPEREES
+        // ======================================== 
             return {
             status: result.rows,
             totalCount,
             hasNextPage: cleanOffset + cleanLimit < totalCount,
             httpStatus: 200
             };
-        },
-        'Erreur lors de la récupération des statuts'
+      },
+      {
+        sortingSchema: generalSortingSchema,
+        orderSchema: generalOrderStatusesSchema,
+        logAction: 'GET_ALL_STATUSES',
+        requiresAuth: true,
+        errorMessage: 'Erreur lors de la récupération des statuts'
+      }
         ),
         
         /**
@@ -102,8 +127,8 @@ export default {
             * @throws {GraphQLError} Si le statut n'existe pas (404)
             * @throws {GraphQLError} Si une erreur se produit lors de la récupération du statut (500)
         */
-        getStatus: withErrorHandling(
-        async (_, args, context) => {
+        getStatus: withSecureResolver(
+            async (_, { id_status, validated }, context) => {
             /* exemple context JWT décodé ( à revoir):
             {
             userId: "uuid-of-user",
@@ -119,8 +144,9 @@ export default {
             {"id_status": 1}
             */
             
-            // Vérification des droits d'accès
-            requireAdmin(context);
+        // ========================================
+        // RECUPERER LES DONNEES NESSESAIRES
+        // ======================================== 
 
             const { id_status } = args;
             
@@ -130,21 +156,29 @@ export default {
             });
 
             // Sanitize input => 2ème couche - défense en profondeur
-            const cleanIdStatus = sanitizeString(validatedArgs.id_status);
+            const cleanIdStatus = sanitizeStrict(validatedArgs.id_status);
 
             if (!cleanIdStatus) {
             throw new GraphQLError('ID statut manquant', {
                 extensions: { code: 'BAD_USER_INPUT', httpStatus: 400 }
             });
             }
-
+        // ========================================
+        // REQUETES BASE DE DONNEES
+        // ======================================== 
             const status = await findStatusOrThrow(cleanIdStatus);
-            
+        // ========================================
+        // DONNEES RECUPEREES
+        // ========================================        
             if (context?.res?.status) context.res.status(200);
             return status;
-        },
-        "Erreur lors de la récupération de l'utilisateur"
-        ),
+      },
+      {
+        logAction: 'GET_ONE_STATUS',
+        requiresAuth: true,
+        errorMessage: 'Erreur lors de la récupération du statut'
+      }
+    ),
         
         /**
      * Recherche des statuts par nom avec pagination et tri
@@ -158,8 +192,8 @@ export default {
      * @throws {GraphQLError} Si l'utilisateur n'a pas les droits (401 ou 403)
      * @throws {GraphQLError} Si une erreur se produit lors de la récupération des statuts (500)
      */
-        searchStatuses: withErrorHandling(
-        async (_, args, context) => {   
+        searchStatuses: withSecureResolver(
+            async (_, { validated }, context) => {
             /* exemple context JWT décodé ( à revoir):
             {
             userId: "uuid-of-user",
@@ -175,11 +209,12 @@ export default {
             {"status_name": "et"}
             */
 
-            // Vérification des droits d'accès
-            requireAdmin(context);
+        // ========================================
+        // RECUPERER LES DONNEES NESSESAIRES
+        // ======================================== 
 
             // Extraction et validation des paramètres de pagination et de tri
-            const { limit = 50, offset = 0, order = 'created_at', direction = 'DESC', status_name } = args;
+            const { limit = 50, offset = 0, order = 'created_at', direction = 'DESC', query } = validated;
 
             // Validation avec Joi => 1ere couche - défense en profondeur
             const validatedArgs = validateWithJoi(searchStatusesSchema, {
@@ -191,15 +226,15 @@ export default {
             });
 
             // Sanitize inputs
-            const cleanLimit = Math.min(Math.max(parseInt(limit) || 50, 1), 100);
-            const cleanOffset = Math.max(parseInt(offset) || 0, 0);
+            // const cleanLimit = Math.min(Math.max(parseInt(limit) || 50, 1), 100);
+            // const cleanOffset = Math.max(parseInt(offset) || 0, 0);
             const validOrders = ['created_at', 'name', 'email', 'pseudo', 'id_role', 'id_user'];
             const { order: safeOrder, direction: safeDirection } = validateOrderParams(
-            sanitizeString(order), 
-            sanitizeString(direction), 
+            sanitizeStrict(order), 
+            sanitizeStrict(direction), 
             validOrders
             );
-            const cleanStatusName = sanitizeString(status_name || '');
+            const cleanStatusName = sanitizeStrict(query || '');
 
             // Validation du terme de recherche
             if (!cleanStatusName || typeof cleanStatusName !== 'string' || cleanStatusName.trim().length === 0) {
@@ -210,7 +245,9 @@ export default {
 
             // Création du motif de recherche
             const searchPattern = `%${cleanStatusName}%`;
-
+        // ========================================
+        // REQUETES BASE DE DONNEES
+        // ======================================== 
             const result = await db.query(`
             SELECT *
             FROM status
@@ -223,16 +260,25 @@ export default {
             SELECT COUNT(*)::int as count FROM status
             WHERE LOWER(status_name) LIKE LOWER($1)
             `, [searchPattern]);
-
+        // ========================================
+        // DONNEES RECUPEREES
+        // ========================================                
             return {
             status: result.rows,
             totalCount: countResult.rows[0].count,
             hasNextPage: cleanOffset + cleanLimit < countResult.rows[0].count,
             httpStatus: 200
             };
-        },
-        'Erreur lors de la recherche des statut'
-        ),
+      },
+      {
+        sortingSchema: generalSortingSchema,
+        orderSchema: generalOrderStatusSchema,
+        inputSchema: searchStatusesSchema,
+        logAction: 'SEARCH_STATUSES',
+        requiresAuth: true,
+        errorMessage: 'Erreur lors de la recherche de statuts'
+      }
+    ),
 
     },
 
@@ -246,8 +292,8 @@ export default {
          * @throws {GraphQLError} Si l'utilisateur n'a pas les droits (401 ou 403)
          * @throws {GraphQLError} Si une erreur se produit lors de la création de l'utilisateur (500)
          */
-        createStatus: withErrorHandling(
-        async (_, { input }, context) => {
+        createStatus: withSecureResolver(
+            async (_, { input, validated }, context) => {
             /* exemple context JWT décodé ( à revoir):
             {
             userId: "uuid-of-user",
@@ -265,7 +311,9 @@ export default {
             }
             }        
             */
-            
+        // ========================================
+        // RECUPERER LES DONNEES NESSESAIRES
+        // ======================================== 
             if (!input || !input.status_name) {
             throw new GraphQLError('Tous les champs sont requis', {
                 extensions: { code: 'BAD_USER_INPUT', httpStatus: 400 }
@@ -276,23 +324,31 @@ export default {
             const validatedInput = validateWithJoi(createStatusSchema, { status_name: input.status_name });
 
             // Sanitize inputs => 2ème couche - défense en profondeur
-            const cleanInput = validateStatusInput(validatedInput);
+            const cleanInput = sanitizeStrict(validatedInput);
 
             // Vérifier qu'un statut avec le même nom n'existe pas (insensible à la casse)
             await existingStatusInput(cleanInput);
 
-
+        // ========================================
+        // REQUETES BASE DE DONNEES
+        // ========================================         
             const result = await db.query(`
             INSERT INTO status ( status_name, created_at, updated_at)
             VALUES ($1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
             RETURNING id_status, status_name, created_at, updated_at
             `, [cleanInput.status_name]);
-
+        // ========================================
+        // DONNEES RECUPEREES
+        // ======================================== 
             if (context?.res?.status) context.res.status(201);
             return result.rows[0];
-        },
-        'Erreur lors de la création du statut'
-        ),
+      },
+      {
+        logAction: 'ADD_STATUS_TO_LIBRARY',
+        requiresAuth: true,
+        errorMessage: 'Erreur lors de l\'ajout du statut'
+      }
+    ),
 
         /**
          * Met à jour un utilisateur existant
@@ -304,8 +360,8 @@ export default {
          * @throws {GraphQLError} Si l'utilisateur n'a pas les droits (401 ou 403)
          * @throws {GraphQLError} Si une erreur se produit lors de la mise à jour de l'utilisateur (500)
          */
-        updateStatus: withErrorHandling(
-        async (_,  { input}, context) => {
+        updateStatus: withSecureResolver(
+            async (_, { input, validated }, context) => {
             /* exemple context JWT décodé ( à revoir):
             {
             userId: "uuid-of-user",
@@ -325,7 +381,9 @@ export default {
             }
             }       
             */
-            
+        // ========================================
+        // RECUPERER LES DONNEES NESSESAIRES
+        // ======================================== 
             const { id_status, status_name } = input;
 
             // Validation avec Joi => 1ere couche - défense en profondeur
@@ -337,19 +395,27 @@ export default {
             // Sanitize inputs => 2ème couche - défense en profondeur
             const cleanIdStatus = sanitizeHtml(validatedInput.id_status);
             const cleanName = sanitizeHtml(validatedInput.status_name);
-
+        // ========================================
+        // REQUETES BASE DE DONNEES
+        // ======================================== 
             const result = await db.query(`
             UPDATE status
             SET status_name = $1, updated_at = CURRENT_TIMESTAMP
             WHERE id_status = $2
             RETURNING id_status, status_name, created_at, updated_at
             `, [cleanName, cleanIdStatus]);
-
+        // ========================================
+        // DONNEES RECUPEREES
+        // ========================================         
             if (context?.res?.status) context.res.status(200);
             return result.rows[0];
-        },
-        "Erreur lors de la mise à jour du statut"
-        ),
+      },
+      {
+        logAction: 'UPDATE_STATUS_IN_LIBRARY',
+        requiresAuth: true,
+        errorMessage: 'Erreur lors de la mise à jour du statut'
+      }
+    ),
         
         /**
          * Supprime un statut par son ID
@@ -359,7 +425,7 @@ export default {
          * @throws {GraphQLError} Si l'utilisateur n'a pas les droits (401 ou 403)
          * @throws {GraphQLError} Si une erreur se produit lors de la suppression du statut (500)
          */
-        deleteStatus: withErrorHandling(
+        deleteStatus: withSecureResolver(
         async (_, args, context) => {
             /* exemple context JWT décodé ( à revoir):
             {
@@ -380,8 +446,9 @@ export default {
             }       
             */
             
-                    // Vérification des droits d'accès
-                    requireAdmin(context);
+        // ========================================
+        // RECUPERER LES DONNEES NESSESAIRES
+        // ======================================== 
 
                     // Extraction des paramètres  
                     const { id_status } = input;
@@ -403,20 +470,28 @@ export default {
 
                     // Vérification de l'existence du statut
                     await findStatusOrThrow(cleanIdStatus);
-
+        // ========================================
+        // REQUETES BASE DE DONNEES
+        // ======================================== 
                     const result = await db.query(`
                     DELETE FROM status
                     WHERE id_status = $1
                     RETURNING id_status, status_name, created_at, updated_at
                     `, [cleanIdStatus]);
-
+        // ========================================
+        // DONNEES RECUPEREES
+        // ======================================== 
                 if (context && context.res && typeof context.res.status === 'function') {
                 context.res.status(200);
                 }
                 return true;
-        },
-        "Erreur lors de la suppression du statut"
-        ),
+      },
+      {
+        logAction: 'DELETE_STATUS',
+        requiresAuth: true,
+        errorMessage: 'Erreur lors de la suppression du statut'
+      }
+    ),
         
     },
 

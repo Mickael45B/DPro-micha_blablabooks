@@ -11,11 +11,26 @@ import fetchLibraryById from './utils/utils_librairies.js';
 
 import { isAuthenticated, requireAuth, requireAdmin, requireOwnershipOrAdmin, sanitizeString, sanitizeInput, flattenEdges, makePageInfo, makeEdgeFromBook, withErrorHandling } from './utils/helpers/helpers_general.js';
 
-import { findRolePermissionOrThrow, validateRolePermissionInput} from './utils/helpers/helpers_RolePermissions.js';
 
 //Revoir le "searchPermissionsRoles" une fois que la colonne name sera dispo dans la table rolehaspermissions
 
 import {getPermissionsRolesSchema, getPermissionRoleSchema, searchPermissionsRolesSchema, addPermissionRoleSchema, updatePermissionRoleSchema, deletePermissionRoleSchema } from '../schema/schemas_joi/RoleshaspermissionSchema.js';
+import { sanitizeStrict } from "./utils/helpers/helpers_securite.js";
+
+// Importer les helpers généralistes
+import { withSecureResolver } from './utils/helpers/helpers_general.js';
+// Importer les helpers spécifiques
+import { findRolePermissionOrThrow, validateRolePermissionInput} from './utils/helpers/helpers_RolePermissions.js';
+
+// Importer le schema Joi genéral
+import { generalSortingSchema } from '../schema/schemas_joi/generalSchema.js';
+// Importer les schemas Joi spécifiques
+import { generalRolesHasPermissionsSchema, generalOrderRolesHasPermissionsSchema, searchPermissionsRolesSchema} from '../schema/schemas_joi/bookhaslibrarySchema.js';
+
+// Importer les wrappers et helpers de sécurité
+import { sanitizeStrict} from './utils/helpers/helpers_securite.js';
+
+
 
 export default {
   Query: {
@@ -30,8 +45,8 @@ export default {
        * @throws {GraphQLError} Si l'utilisateur n'a pas les droits (401 ou 403)  
        * @throws {GraphQLError} Si une erreur se produit lors de la récupération des relations (500)
      */
-    getPermissionsRoles: withErrorHandling(
-      async (_, args, context) => {
+    getPermissionsRoles: withSecureResolver(
+      async (_, { validated }, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
           userId: "uuid-of-user",
@@ -47,22 +62,25 @@ export default {
         }
         */
     
-        // Vérification des droits d'accès
-        requireAdmin(context);
+        // ========================================
+        // RECUPERER LES DONNEES NESSESAIRES
+        // ======================================== 
 
         // Extraction et validation des paramètres de pagination et de tri
-        const { limit = 50, offset = 0, order = 'created_at', direction = 'ASC' } = args;
+        const { limit = 50, offset = 0, order = 'created_at', direction = 'ASC' } = validated;
 
         // Sanitize inputs
         const cleanLimit = Math.min(Math.max(parseInt(limit) || 50, 1), 100);
         const cleanOffset = Math.max(parseInt(offset) || 0, 0);
         const validOrders = ['created_at', 'id_role', 'id_permission', 'updated_at'];
         const { order: safeOrder, direction: safeDirection } = validateOrderParams(
-          sanitizeString(order), 
-          sanitizeString(direction), 
+          sanitizeStrict(order), 
+          sanitizeStrict(direction), 
           validOrders
         );
-        
+        // ========================================
+        // REQUETES BASE DE DONNEES
+        // ======================================== 
         // Requête principale avec pagination et tri sécurisé        
         const result = await db.query(`
           SELECT id_rolehaspermission, id_role, id_permission, created_at, updated_at
@@ -73,7 +91,9 @@ export default {
         
         const countResult = await db.query('SELECT COUNT(*)::int as count FROM rolehaspermissions');
         const totalCount = countResult.rows[0].count;
-        
+        // ========================================
+        // DONNEES RECUPEREES
+        // ======================================== 
         return {
           roleHasPermissions: result.rows,
           totalCount,
@@ -82,7 +102,13 @@ export default {
         };
     
       },
-      'Erreur lors de la récupération des relations'
+      {
+        sortingSchema: generalSortingSchema,
+        orderSchema: generalOrderRolesHasPermissionsSchema,
+        logAction: 'GET_ALL_ROLES_HAS_PERMISSIONS',
+        requiresAuth: true,
+        errorMessage: 'Erreur lors de la récupération des rôles et permissions'
+      }
     ),
     
     /** 
@@ -92,9 +118,9 @@ export default {
        * @returns {object} La relation trouvée
        * @throws {GraphQLError} Si la relation n'est pas trouvée (404)
        */
-    getPermissionRole: withErrorHandling(
-      async (_, args, context) => {
-    
+    getPermissionRole: withSecureResolver(
+      async (_, { id_rolehaspermission, validated }, context) => {
+
         /* exemple context JWT décodé ( à revoir):
         {
           userId: "uuid-of-user",
@@ -111,10 +137,9 @@ export default {
         }
         */
     
-        // Vérification des droits d'accès
-        requireAuth(context);
-
-        const { id_rolehaspermission } = args;
+        // ========================================
+        // RECUPERER LES DONNEES NESSESAIRES
+        // ======================================== 
 
         // Validation de l'ID 
         if (!id_rolehaspermission) {
@@ -124,16 +149,24 @@ export default {
         }
         
         // Sanitize input
-        const cleanIdRoleHasPermission = sanitizeString(id_rolehaspermission);
-
+        const cleanIdRoleHasPermission = sanitizeStrict(id_rolehaspermission);
+        // ========================================
+        // REQUETES BASE DE DONNEES
+        // ======================================== 
         // Vérifie si la relation existe et le retourne
         const rolePermission  = await findRolePermissionOrThrow(cleanIdRoleHasPermission);
-
+        // ========================================
+        // DONNEES RECUPEREES
+        // ========================================        
         if (context?.res?.status) context.res.status(200);
         return rolePermission;
     
       },
-      "Erreur lors de la récupération de la relation"
+      {
+        logAction: 'GET_ONE_ROLE_HAS_PERMISSION',
+        requiresAuth: true,
+        errorMessage: 'Erreur lors de la récupération de la relation rôle-permission'
+      }
     ),
     
     /**
@@ -146,8 +179,8 @@ export default {
      * @throws {GraphQLError} Si l'utilisateur n'est pas authentifié (401)
      * @throws {GraphQLError} Si une erreur se produit lors de la recherche (500)
      */
-    searchPermissionsRoles: withErrorHandling(
-      async (_, args, context) => {
+    searchPermissionsRoles: withSecureResolver(
+      async (_, { validated }, context) => {
     
         /* exemple context JWT décodé ( à revoir):
         {
@@ -164,23 +197,24 @@ export default {
         {"name": "et"}
         */
     
-        // Vérification des droits d'accès
-        requireAuth(context);
+        // ========================================
+        // RECUPERER LES DONNEES NESSESAIRES
+        // ======================================== 
 
         // Extraction et validation des paramètres de pagination et de tri
-        const { limit = 50, offset = 0, order = 'created_at', direction = 'DESC', id_role, id_permission } = args;
+        const { limit = 50, offset = 0, order = 'created_at', direction = 'DESC', id_role, query } = validated;
 
         // Sanitize inputs
-        const cleanLimit = Math.min(Math.max(parseInt(limit) || 50, 1), 100);
-        const cleanOffset = Math.max(parseInt(offset) || 0, 0);
+        // const cleanLimit = Math.min(Math.max(parseInt(limit) || 50, 1), 100);
+        // const cleanOffset = Math.max(parseInt(offset) || 0, 0);
         const validOrders = ['created_at', 'id_role', 'id_permission', 'updated_at'];
         const { order: safeOrder, direction: safeDirection } = validateOrderParams(
-          sanitizeString(order), 
-          sanitizeString(direction), 
+          sanitizeStrict(order), 
+          sanitizeStrict(direction), 
           validOrders
         );
-        const cleanIdRole = sanitizeString(id_role || '');
-        const cleanIdPermission = sanitizeString(id_permission || '');
+        const cleanIdRole = sanitizeStrict(query || '');
+        const cleanIdPermission = sanitizeStrict(id_permission || '');
 
         if (!cleanIdRole && !cleanIdPermission) {
           throw new GraphQLError('ID du rôle ou de la permission requis', {
@@ -203,7 +237,9 @@ export default {
           whereClause += `id_permission = $${paramIndex++}`;
           queryParams.push(cleanIdPermission);
         }
-
+        // ========================================
+        // REQUETES BASE DE DONNEES
+        // ======================================== 
         const result = await db.query(`
           SELECT id_rolehaspermission, id_role, id_permission, created_at, updated_at 
           FROM rolehaspermissions 
@@ -217,7 +253,9 @@ export default {
           FROM rolehaspermissions
           WHERE ${whereClause}
         `, queryParams);
-
+        // ========================================
+        // DONNEES RECUPEREES
+        // ========================================                
         return {
           roleHasPermissions: result.rows,
           totalCount: countResult.rows[0].count,
@@ -225,7 +263,14 @@ export default {
           httpStatus: 200
         };
       },
-      'Erreur lors de la recherche des rôles'
+      {
+        sortingSchema: generalSortingSchema,
+        orderSchema: generalOrderRoleHasPermissionSchema,
+        inputSchema: searchRoleHasPermissionSchema,
+        logAction: 'SEARCH_ROLE_HAS_PERMISSION',
+        requiresAuth: true,
+        errorMessage: 'Erreur lors de la recherche des rôles et permissions'
+      }
     ),
     
   },
@@ -239,8 +284,8 @@ export default {
      * @throws {GraphQLError} Si l'utilisateur n'est pas authentifié (401)
      * @throws {GraphQLError} Si une erreur se produit lors de la création (500)
      */
-    addPermissionRole: withErrorHandling(
-      async (_, { input }, context) => {
+    addPermissionRole: withSecureResolver(
+      async (_, { input, validated }, context) => {
     
         /* exemple context JWT décodé ( à revoir):
         {
@@ -261,8 +306,9 @@ export default {
         }               
         */
     
-        // Vérification des droits d'accès
-        requireAdmin(context);
+        // ========================================
+        // RECUPERER LES DONNEES NESSESAIRES
+        // ======================================== 
 
         // Vérifier si l'input est fourni
         if (!input) {
@@ -298,13 +344,17 @@ export default {
           });
         }
         const id = uuidv4();
-
+        // ========================================
+        // REQUETES BASE DE DONNEES
+        // ========================================         
         const result = await db.query(`
           INSERT INTO rolehaspermissions (id_rolehaspermission, id_role, id_permission)
           VALUES ($1, $2, $3)
           RETURNING *
         `, [id, cleanInput.id_role, cleanInput.id_permission]);
-        
+        // ========================================
+        // DONNEES RECUPEREES
+        // ======================================== 
         // return {
         //   roleHasPermissions: result.rows[0],
         //   httpStatus: 201
@@ -313,7 +363,11 @@ export default {
         if (context?.res?.status) context.res.status(201);
         return result.rows[0];
       },
-      "Erreur lors de l'ajout de la relation"
+      {
+        logAction: 'ADD_ROLE_HAS_PERMISSION',
+        requiresAuth: true,
+        errorMessage: 'Erreur lors de l\'ajout de la relation de rôle et de permission'
+      }
     ),
     
     /**
@@ -327,8 +381,8 @@ export default {
      * @throws {GraphQLError} Si l'utilisateur n'est pas authentifié (401)
      * @throws {GraphQLError} Si une erreur se produit lors de la mise à jour de la relation (500)
      */
-    updatePermissionRole: withErrorHandling(
-      async (_, { input }, context) => {
+    updatePermissionRole: withSecureResolver(
+      async (_, { input, validated }, context) => {
     
         /* exemple context JWT décodé ( à revoir):
         {
@@ -350,8 +404,9 @@ export default {
         }
         */
     
-        // Vérification des droits d'accès
-        requireAdmin(context);
+        // ========================================
+        // RECUPERER LES DONNEES NESSESAIRES
+        // ======================================== 
 
         // Vérifier si l'id de la relation est fourni
         if (!input.id_rolehaspermission) {
@@ -401,14 +456,18 @@ export default {
 
         // Ajouter l'ID de la relation
         values.push(cleanIdRoleHasPermission);
-
+        // ========================================
+        // REQUETES BASE DE DONNEES
+        // ======================================== 
         const result = await db.query(`
           UPDATE rolehaspermissions
           SET ${updates.join(', ')}
           WHERE id_rolehaspermission = $${paramIndex}
           RETURNING *
         `, values);
-
+        // ========================================
+        // DONNEES RECUPEREES
+        // ========================================         
         if (result.rows.length === 0) {
           throw new GraphQLError("Relation non trouvée", {
             extensions: { code: 'NOT_FOUND', httpStatus: 404 }
@@ -417,7 +476,11 @@ export default {
         if (context?.res?.status) context.res.status(200);
         return result.rows[0];
       },
-      "Erreur lors de la mise à jour de la relation"
+      {
+        logAction: 'UPDATE_ROLE_HAS_PERMISSION',
+        requiresAuth: true,
+        errorMessage: 'Erreur lors de la mise à jour de la relation de rôle et de permission'
+      }
     ),
     
     /**
@@ -429,8 +492,8 @@ export default {
      * @throws {GraphQLError} Si l'utilisateur n'est pas authentifié (401)
      * @throws {GraphQLError} Si une erreur se produit lors de la suppression de la relation (500)
      */
-    deletePermissionRole: withErrorHandling(
-      async (_, { input }, context) => {
+    deletePermissionRole: withSecureResolver(
+      async (_, { input, validated }, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
           userId: "uuid-of-user",
@@ -445,8 +508,9 @@ export default {
         {"input": {"id_permission":"329bb3b5-fb4c-4785-bfc5-06fca44b8f85"} }
         */
     
-        // Vérification des droits d'accès
-        requireAdmin(context);
+        // ========================================
+        // RECUPERER LES DONNEES NESSESAIRES
+        // ======================================== 
 
         // Sanitize input
         const cleanIdRoleHasPermission = sanitizeString(input.id_rolehaspermission);
@@ -460,7 +524,9 @@ export default {
         
         // Vérifier que la relation existe
         await findRolePermissionOrThrow(cleanIdRoleHasPermission);
-
+        // ========================================
+        // REQUETES BASE DE DONNEES
+        // ======================================== 
         const result = await db.query(
           'DELETE FROM rolehaspermissions WHERE id_rolehaspermission = $1 RETURNING *',
           [cleanIdRoleHasPermission]
@@ -468,7 +534,9 @@ export default {
         if (context && context.res && typeof context.res.status === 'function') {
           context.res.status(200);
         }
-
+        // ========================================
+        // DONNEES RECUPEREES
+        // ======================================== 
         return true;
 
         /*
@@ -488,7 +556,11 @@ export default {
         };
         */
       },
-      'Erreur lors de la suppression de la relation'
+      {
+        logAction: 'DELETE_ROLE_HAS_PERMISSION',
+        requiresAuth: true,
+        errorMessage: 'Erreur lors de la suppression de la relation de rôle et de permission'
+      }
     ),
     
   },

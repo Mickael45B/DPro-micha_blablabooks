@@ -44,7 +44,7 @@ export default {
        * @throws {GraphQLError} Si l'utilisateur n'a pas les droits (401 ou 403)  
        * @throws {GraphQLError} Si une erreur se produit lors de la récupération des permissions (500)
      */
-    getReports: withErrorHandling(
+    getReports: withSecureResolver(
       async (_, { validated }, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
@@ -116,7 +116,7 @@ export default {
      * @throws {GraphQLError} Si l'utilisateur n'a pas les droits (401 ou 403)  
      * @throws {GraphQLError} Si une erreur se produit lors de la récupération de la permission (500)
      */
-    getReport: withErrorHandling(
+    getReport: withSecureResolver(
       async (_, { id_report, validated }, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
@@ -171,7 +171,7 @@ export default {
      * @throws {GraphQLError} Si l'utilisateur n'a pas les droits (401 ou 403)  
      * @throws {GraphQLError} Si une erreur se produit lors de la recherche des rapports (500)
      */
-    searchReportsByUser: withErrorHandling(
+    searchReportsByUser: withSecureResolver(
       async (_, { validated }, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
@@ -261,7 +261,7 @@ export default {
      * @throws {GraphQLError} Si l'utilisateur n'a pas les droits (401 ou 403)  
      * @throws {GraphQLError} Si une erreur se produit lors de la recherche des rapports (500)
      */
-    searchReportsByStatus: withErrorHandling(
+    searchReportsByStatus: withSecureResolver(
       async (_, { validated }, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
@@ -363,7 +363,7 @@ export default {
      * @throws {GraphQLError} Si l'utilisateur n'a pas les droits (401 ou 403)
      * @throws {GraphQLError} Si une erreur se produit lors de la recherche des rapports (500)
      */
-    searchReportsByDetailsOrReason: withErrorHandling(
+    searchReportsByDetailsOrReason: withSecureResolver(
       async (_, { validated }, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
@@ -449,7 +449,7 @@ export default {
      * @throws {GraphQLError} Si l'utilisateur n'a pas les droits (401 ou 403)
      * @throws {GraphQLError} Si une erreur se produit lors de la recherche des rapports (500)
      */
-    searchReports: withErrorHandling(
+    searchReports: withSecureResolver(
       async (_, { validated }, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
@@ -584,7 +584,7 @@ export default {
      * @throws {GraphQLError} Si l'utilisateur n'a pas les droits (401 ou 403)
      * @throws {GraphQLError} Si une erreur se produit lors de la création du rapport (500)
      */
-    addReport: withErrorHandling(
+    addReport: withSecureResolver(
       async (_, { input, validated }, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
@@ -683,7 +683,7 @@ export default {
      * @throws {GraphQLError} Si l'utilisateur n'a pas les droits (401 ou 403)
      * @throws {GraphQLError} Si une erreur se produit lors de la création du rapport (500)
      */
-    updateReport: withErrorHandling(
+    updateReport: withSecureResolver(
       async (_, { input, validated }, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
@@ -811,7 +811,7 @@ export default {
      * @throws {GraphQLError} Si l'utilisateur n'a pas les droits (401 ou 403)
      * @throws {GraphQLError} Si une erreur se produit lors de la suppression du rapport (500)
      */
-    deleteReport: withErrorHandling(
+    deleteReport: withSecureResolver(
       async (_, { input, validated }, context) => {
         /* exemple context JWT décodé ( à revoir):
         {

@@ -24,14 +24,9 @@ export const generalOrderReportSchema = Joi.object({
 //QUERIES 
 //-----------------------------------------------------------
 export const getReportsSchema = Joi.object({
-    limit: Joi.number().integer().min(1).max(100).default(50),
-    offset: Joi.number().integer().min(0).default(0),
-    order: Joi.string().valid('id_report', 'id_user', 'report_type', 'reported_id', 'reason', 'status', 'created_at', 'updated_at').default('created_at'),
-    direction: Joi.string().valid('ASC', 'DESC').default('DESC'),
 });
 
 export const getReportSchema = Joi.object({
-    id_report: Joi.string().min(34).max(36).required(), // UUIDv4
 });
 
 export const searchReportsByUserSchema = Joi.object({
@@ -57,24 +52,12 @@ export const searchReportsSchema = Joi.object({
 //MUTATIONS
 //-----------------------------------------------------------
 export const addReportSchema = Joi.object({
-    id_user: Joi.string().min(34).max(36).required(), // UUIDv4
-    report_type: Joi.string().valid('user', 'review', 'message', 'other').required(),
-    reported_id: Joi.string().min(34).max(36).required(), // UUIDv4
-    reason: Joi.string().min(3).max(255).required(),
-    details: Joi.string().max(1000).optional(),
 });
 
 export const updateReportSchema = Joi.object({
-    id_report: Joi.string().min(34).max(36).required(), // UUIDv4
-    id_user: Joi.string().min(34).max(36).optional(), // UUIDv4
-    report_type: Joi.string().valid('user', 'review', 'message', 'other').optional(),
-    reported_id: Joi.string().min(34).max(36).optional(), // UUIDv4
-    reason: Joi.string().min(3).max(255).optional(),
-    details: Joi.string().max(1000).optional(),
 });
 
 export const deleteReportSchema = Joi.object({
-    id_report: Joi.string().min(34).max(36).required(), // UUIDv4
 });
 
 
