@@ -17,7 +17,7 @@ import { findRolesOrThrow, validateRolesInput} from './utils/helpers/helpers_Rol
 // Importer le schema Joi genéral
 import { generalSortingSchema } from '../schema/schemas_joi/generalSchema.js';
 // Importer les schemas Joi spécifiques
-import { generalOrderRoleSchema, generalOrderRoleSchema, searchRolesSchema} from '../schema/schemas_joi/bookhaslibrarySchema.js';
+import { generalRoleSchema, generalOrderRoleSchema, searchRolesSchema} from '../schema/schemas_joi/roleSchema.js';
 
 // Importer les wrappers et helpers de sécurité
 import { sanitizeStrict} from './utils/helpers/helpers_securite.js';

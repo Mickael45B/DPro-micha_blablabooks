@@ -9,14 +9,14 @@ import sanitizeHtml from 'sanitize-html';
 import { GraphQLError } from 'graphql';
 import fetchBookById from './utils/utils_books.js';
 import fetchLibraryById from './utils/utils_librairies.js';
-import { validateWithJoi } from './utils/helpers/helpers_books.js';
 
 import { isAuthenticated, requireAuth, requireAdmin, requireOwnershipOrAdmin, sanitizeString, sanitizeInput, flattenEdges, makePageInfo, makeEdgeFromBook, withErrorHandling, withRateLimit } from './utils/helpers/helpers_general.js';
 
 import { findUserOrThrow, validateUserInput, validatePasswordInput} from './utils/helpers/helpers_Users.js';
 import { clean } from "semver";
 
-import {getUsersSchema, getUserSchema, searchUsersSchema, createUserSchema, updateUserSchema, deleteUserSchema, adminResetPasswordSchema, changePasswordSchema } from '../schema/schemas_joi/userSchema.js';
+import { generalUserSchema, generalOrderUserSchema, searchUsersSchema} from '../schema/schemas_joi/userSchema.js';
+
 import { log } from "console";
 
 import {sanitizeStrict, validateAgainstInjection, withOutputSanitization} from './utils/helpers/helpers_securite.js';

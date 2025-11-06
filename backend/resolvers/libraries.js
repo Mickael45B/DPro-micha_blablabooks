@@ -7,8 +7,7 @@ import { fetchUserById } from './utils/utils_users.js';
 import fetchUserRoleNameById from './utils/utils_roles.js';
 import { isAuthenticated, requireAuth, requireAdmin, requireOwnershipOrAdmin, sanitizeString, sanitizeInput, flattenEdges, makePageInfo, makeEdgeFromBook, withErrorHandling } from './utils/helpers/helpers_general.js';
 
-import { getLibrariesSchema, getUserLibrariesSchema, getLibrarySchema, searchLibrariesSchema, addLibrarySchema, updateLibrarySchema, deleteAllLibrariesFromUserSchema, deleteLibrarySchema } from '../schema/schemas_joi/librairySchema.js';
-import { validateWithJoi } from './utils/helpers/helpers_books.js';
+// import { validateWithJoi } from './utils/helpers/helpers_books.js';
 
 // Importer les helpers généralistes
 import { withSecureResolver } from './utils/helpers/helpers_general.js';
@@ -18,7 +17,7 @@ import { findLibraryOrThrow, requireEditableLibrary, findUserOrThrow} from './ut
 // Importer le schema Joi genéral
 import { generalSortingSchema } from '../schema/schemas_joi/generalSchema.js';
 // Importer les schemas Joi spécifiques
-import { generalOrderLibrarySchema, generalOrderLibrarySchema, searchLibrariesSchema} from '../schema/schemas_joi/bookhaslibrarySchema.js';
+import { generalLibrarySchema, generalOrderLibrarySchema, searchLibrariesSchema} from '../schema/schemas_joi/librairySchema.js';
 
 // Importer les wrappers et helpers de sécurité
 import { sanitizeStrict} from './utils/helpers/helpers_securite.js';

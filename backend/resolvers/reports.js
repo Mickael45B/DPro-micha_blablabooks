@@ -9,9 +9,7 @@ import fetchLibraryById from './utils/utils_librairies.js';
 
 import { isAuthenticated, requireAuth, requireAdmin, requireOwnershipOrAdmin, sanitizeString, sanitizeInput, flattenEdges, makePageInfo, makeEdgeFromBook, withErrorHandling } from './utils/helpers/helpers_general.js';
 
-import { findReportOrThrow, validateReportInput} from './utils/helpers/helpers_Reports.js';
 
-import {getReportsSchema, getReportSchema, searchReportsByUserSchema, searchReportsByStatusSchema, searchReportsByDetailsOrReasonSchema, searchReportsSchema, addReportSchema, updateReportSchema, deleteReportSchema } from '../schema/schemas_joi/reportSchema.js';
 
 
 // Importer les helpers généralistes
@@ -22,7 +20,7 @@ import { findBookLibraryOrThrow, requireEditableLibrary, verifyUserOwnsLibrary} 
 // Importer le schema Joi genéral
 import { generalSortingSchema } from '../schema/schemas_joi/generalSchema.js';
 // Importer les schemas Joi spécifiques
-import { generalOrderBookHasLibrarySchema, generalOrderBookHasLibrarySchema, searchBooksInLibrarySchema} from '../schema/schemas_joi/bookhaslibrarySchema.js';
+import { generalReportSchema, generalOrderReportSchema, searchReportsByUserSchema, searchReportsByStatusSchema, searchReportsByDetailsOrReasonSchema, searchReportsSchema} from '../schema/schemas_joi/reportSchema.js';
 
 // Importer les wrappers et helpers de sécurité
 import { sanitizeStrict} from './utils/helpers/helpers_securite.js';
@@ -101,7 +99,7 @@ export default {
       },
       {
         sortingSchema: generalSortingSchema,
-        orderSchema: generalOrderReportsSchema,
+        orderSchema: generalOrderReportSchema,
         logAction: 'GET_ALL_REPORTS',
         requiresAuth: true,
         errorMessage: 'Erreur lors de la récupération des rapports'
@@ -244,7 +242,7 @@ export default {
       {
         sortingSchema: generalSortingSchema,
         orderSchema: generalOrderReportSchema,
-        inputSchema: searchReportsSchema,
+        inputSchema: searchReportsByUserSchema,
         logAction: 'SEARCH_REPORTS',
         requiresAuth: true,
         errorMessage: 'Erreur lors de la recherche de rapports'
@@ -346,7 +344,7 @@ export default {
       {
         sortingSchema: generalSortingSchema,
         orderSchema: generalOrderReportSchema,
-        inputSchema: searchReportsSchema,
+        inputSchema: searchReportsByStatusSchema,
         logAction: 'SEARCH_REPORTS',
         requiresAuth: true,
         errorMessage: 'Erreur lors de la recherche de rapports'
@@ -432,7 +430,7 @@ export default {
       {
         sortingSchema: generalSortingSchema,
         orderSchema: generalOrderReportSchema,
-        inputSchema: searchReportsSchema,
+        inputSchema: searchReportsByDetailsOrReasonSchema,
         logAction: 'SEARCH_REPORTS',
         requiresAuth: true,
         errorMessage: 'Erreur lors de la recherche de rapports'

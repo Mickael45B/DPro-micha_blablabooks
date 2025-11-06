@@ -11,22 +11,21 @@ import fetchLibraryById from './utils/utils_librairies.js';
 
 import { isAuthenticated, requireAuth, requireAdmin, requireOwnershipOrAdmin, sanitizeString, sanitizeInput, flattenEdges, makePageInfo, makeEdgeFromBook, withErrorHandling } from './utils/helpers/helpers_general.js';
 
-import { findStatusOrThrow, validateStatusInput, existingStatusInput} from './utils/helpers/helpers_status.js';
 import { clean } from "semver";
 
-import { validateWithJoi } from './utils/helpers/helpers_books.js';
+import { validateWithJoi } from './utils/helpers/helpers_securite.js';
 
 
 
 // Importer les helpers généralistes
 import { withSecureResolver } from './utils/helpers/helpers_general.js';
 // Importer les helpers spécifiques
-import { findBookLibraryOrThrow, requireEditableLibrary, verifyUserOwnsLibrary} from './utils/helpers/helpers_bookhaslibrary.js';
+import { findStatusOrThrow, validateStatusInput, existingStatusInput} from './utils/helpers/helpers_status.js';
 
 // Importer le schema Joi genéral
 import { generalSortingSchema } from '../schema/schemas_joi/generalSchema.js';
 // Importer les schemas Joi spécifiques
-import { generalOrderStatusesSchema, generalOrderStatusesSchema, searchStatusesSchema} from '../schema/schemas_joi/bookhaslibrarySchema.js';
+import { generalStatusSchema, generalOrderStatusSchema, searchStatusesSchema} from '../schema/schemas_joi/statusSchema.js';
 
 // Importer les wrappers et helpers de sécurité
 import { sanitizeStrict} from './utils/helpers/helpers_securite.js';
@@ -148,7 +147,6 @@ export default {
         // RECUPERER LES DONNEES NESSESAIRES
         // ======================================== 
 
-            const { id_status } = args;
             
             // Validation avec Joi => 1ere couche - défense en profondeur
             const validatedArgs = validateWithJoi(getStatusSchema, {

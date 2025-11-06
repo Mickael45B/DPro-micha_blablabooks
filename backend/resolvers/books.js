@@ -9,9 +9,7 @@ import fetchLibraryById from './utils/utils_librairies.js';
 // import { isAuthenticated, requireAuth, requireAdmin, requireOwnershipOrAdmin, sanitizeString, sanitizeInput } from './utils/helpers/helpers_general.js';
 import { isAuthenticated, requireAuth, requireAdmin, requireOwnershipOrAdmin, sanitizeString, sanitizeInput, flattenEdges, makePageInfo, makeEdgeFromBook, withErrorHandling  } from './utils/helpers/helpers_general.js';
 
-import { findBookOrThrow, validateBookInput, validateWithJoi} from './utils/helpers/helpers_books.js';
 
-import {generalBookSchema, generalOrderBookSchema, getBooksSchema, getBookSchema, searchBooksSchema , createBookSchema, updateBookSchema, deleteBookSchema} from '../schema/schemas_joi/bookSchema.js';
 import { validate as uuidValidate } from 'uuid';
 
 // Importer les helpers généralistes
@@ -22,7 +20,7 @@ import { findBookOrThrow, validateBookInput} from './utils/helpers/helpers_books
 // Importer le schema Joi genéral
 import { generalSortingSchema } from '../schema/schemas_joi/generalSchema.js';
 // Importer les schemas Joi spécifiques
-import { generalBookSchema, generalOrderBookSchema, searchBooksSchema} from '../schema/schemas_joi/bookhaslibrarySchema.js';
+import { generalBookSchema, generalOrderBookSchema, searchBooksSchema} from '../schema/schemas_joi/bookSchema.js';
 
 // Importer les wrappers et helpers de sécurité
 import { sanitizeStrict} from './utils/helpers/helpers_securite.js';

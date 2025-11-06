@@ -14,8 +14,6 @@ import { isAuthenticated, requireAuth, requireAdmin, requireOwnershipOrAdmin, sa
 
 //Revoir le "searchPermissionsRoles" une fois que la colonne name sera dispo dans la table rolehaspermissions
 
-import {getPermissionsRolesSchema, getPermissionRoleSchema, searchPermissionsRolesSchema, addPermissionRoleSchema, updatePermissionRoleSchema, deletePermissionRoleSchema } from '../schema/schemas_joi/RoleshaspermissionSchema.js';
-import { sanitizeStrict } from "./utils/helpers/helpers_securite.js";
 
 // Importer les helpers généralistes
 import { withSecureResolver } from './utils/helpers/helpers_general.js';
@@ -25,7 +23,7 @@ import { findRolePermissionOrThrow, validateRolePermissionInput} from './utils/h
 // Importer le schema Joi genéral
 import { generalSortingSchema } from '../schema/schemas_joi/generalSchema.js';
 // Importer les schemas Joi spécifiques
-import { generalRolesHasPermissionsSchema, generalOrderRolesHasPermissionsSchema, searchPermissionsRolesSchema} from '../schema/schemas_joi/bookhaslibrarySchema.js';
+import { generalRolesHasPermissionsSchema, generalOrderRolesHasPermissionsSchema, searchPermissionsRolesSchema} from '../schema/schemas_joi/RoleshaspermissionSchema.js'
 
 // Importer les wrappers et helpers de sécurité
 import { sanitizeStrict} from './utils/helpers/helpers_securite.js';
@@ -265,8 +263,8 @@ export default {
       },
       {
         sortingSchema: generalSortingSchema,
-        orderSchema: generalOrderRoleHasPermissionSchema,
-        inputSchema: searchRoleHasPermissionSchema,
+        orderSchema: generalOrderRolesHasPermissionsSchema,
+        inputSchema: searchPermissionsRolesSchema,
         logAction: 'SEARCH_ROLE_HAS_PERMISSION',
         requiresAuth: true,
         errorMessage: 'Erreur lors de la recherche des rôles et permissions'

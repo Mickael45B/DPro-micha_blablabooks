@@ -15,7 +15,7 @@ import { findBookLibraryOrThrow, requireEditableLibrary, verifyUserOwnsLibrary} 
 // Importer le schema Joi genéral
 import { generalSortingSchema } from '../schema/schemas_joi/generalSchema.js';
 // Importer les schemas Joi spécifiques
-import { generalOrderBookHasLibrarySchema, generalOrderBookHasLibrarySchema, searchBooksInLibrarySchema} from '../schema/schemas_joi/bookhaslibrarySchema.js';
+import { generalBookHasLibrarySchema, generalOrderBookHasLibrarySchema, searchBooksInLibrarySchema} from '../schema/schemas_joi/bookhaslibrarySchema.js';
 
 // Importer les wrappers et helpers de sécurité
 import { sanitizeStrict} from './utils/helpers/helpers_securite.js';

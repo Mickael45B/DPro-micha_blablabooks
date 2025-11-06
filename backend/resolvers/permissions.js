@@ -21,7 +21,7 @@ import { findPermissionsOrThrow, validatePermissionInput} from './utils/helpers/
 // Importer le schema Joi genéral
 import { generalSortingSchema } from '../schema/schemas_joi/generalSchema.js';
 // Importer les schemas Joi spécifiques
-import { generalOrderPermissionsSchema, generalOrderPermissionsSchema, searchPermissionsSchema} from '../schema/schemas_joi/bookhaslibrarySchema.js';
+import { generalPermissionSchema, generalOrderPermissionSchema, searchPermissionsSchema} from '../schema/schemas_joi/permissionsSchema.js';
 
 // Importer les wrappers et helpers de sécurité
 import { sanitizeStrict} from './utils/helpers/helpers_securite.js';
@@ -243,7 +243,7 @@ export default {
       {
         sortingSchema: generalSortingSchema,
         orderSchema: generalOrderPermissionSchema,
-        inputSchema: searchPermissionSchema,
+        inputSchema: searchPermissionsSchema,
         logAction: 'SEARCH_PERMISSIONS',
         requiresAdmin: true,
         errorMessage: 'Erreur lors de la recherche de permissions'

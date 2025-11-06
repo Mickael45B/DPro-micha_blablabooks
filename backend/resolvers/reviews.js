@@ -14,12 +14,12 @@ import { console } from "node:inspector";
 // Importer les helpers généralistes
 import { withSecureResolver } from './utils/helpers/helpers_general.js';
 // Importer les helpers spécifiques
-import { findReviewOrThrow, validateReviewInput} from './utils/helpers/helpers_bookhaslibrary.js';
+import { findReviewOrThrow, validateReviewInput} from './utils/helpers/helpers_Reviews.js';
 
 // Importer le schema Joi genéral
 import { generalSortingSchema } from '../schema/schemas_joi/generalSchema.js';
 // Importer les schemas Joi spécifiques
-import { generalOrderReviewsSchema, generalOrderReviewsSchema, searchReviewsSchema} from '../schema/schemas_joi/bookhaslibrarySchema.js';
+import { generalReviewSchema, generalOrderReviewSchema, searchReviewsSchema} from '../schema/schemas_joi/reviewSchema.js';
 
 // Importer les wrappers et helpers de sécurité
 import { sanitizeStrict} from './utils/helpers/helpers_securite.js';
@@ -500,7 +500,6 @@ export default {
         // ========================================
         // RECUPERER LES DONNEES NESSESAIRES
         // ======================================== 
-        const { input } = args;
         
         // Vérification de l'authentification de l'utilisateur
         requireOwnershipOrAdmin(existingReview.id_user, context);

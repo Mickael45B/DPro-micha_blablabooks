@@ -21,7 +21,7 @@ import { findMessageOrThrow, requireMessageAccess, validateMessageInput} from '.
 // Importer le schema Joi genéral
 import { generalSortingSchema } from '../schema/schemas_joi/generalSchema.js';
 // Importer les schemas Joi spécifiques
-import { generalMessagesSchema, generalOrderMessagesSchema, searchMessagesSchema} from '../schema/schemas_joi/bookhaslibrarySchema.js';
+import { generalMessagesSchema, generalOrderMessagesSchema, searchMessagesSchema} from '../schema/schemas_joi/messagesSchema.js';
 
 // Importer les wrappers et helpers de sécurité
 import { sanitizeStrict} from './utils/helpers/helpers_securite.js';
@@ -175,7 +175,7 @@ export default {
         // ========================================
         // RECUPERER LES DONNEES NESSESAIRES
         // ======================================== 
-        const { userId, type = 'received', limit = 50, offset = 0 } = args;
+        const {  type = 'received', limit = 50, offset = 0 } = args;
 
         const cleanUserId = sanitizeStrict(userId);
 
@@ -297,8 +297,8 @@ export default {
       },
       {
         sortingSchema: generalSortingSchema,
-        orderSchema: generalMessageSchema,
-        inputSchema: searchMessageSchema,
+        orderSchema: generalOrderMessagesSchema,
+        inputSchema: searchMessagesSchema,
         logAction: 'SEARCH_MESSAGES',
         requiresAuth: true,
         errorMessage: 'Erreur lors de la recherche de messages'

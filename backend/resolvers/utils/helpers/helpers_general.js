@@ -315,7 +315,7 @@ export const withSecureResolver = (resolverFn, config = {}) => {
       async (parent, args, context, info) => {
         // Vérification d'authentification
         // if (requiresAdmin) {
-        //   requireAdmin(context);
+        // requireAdmin(context);
         // } else if (requiresAuth) {
         //   requireAuth(context);
         // }
