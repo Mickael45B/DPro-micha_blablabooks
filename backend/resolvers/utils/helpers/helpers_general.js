@@ -184,6 +184,15 @@ export const sanitizeRichText = (input) => {
   });
 };
 
+export const sanitizeNumber = (input) => {
+  const num = Number(input);
+  if (!Number.isFinite(num) || Number.isNaN(num)) {
+      throw new GraphQLError('Valeur numérique non finie', {
+        extensions: { code: 'BAD_REQUEST', httpStatus: 400 }
+      });
+    }
+  return num;
+};
 
 // ========================================
 // HELPERS GÉNÉRAUX
@@ -289,88 +298,235 @@ export const withRateLimit = (fn, options = {}) => {
   };
 };
 
+
+
+const sanitizeRecursive = (data) => {
+  if (data === null || data === undefined) return data;
+  
+  if (Array.isArray(data)) {
+    return data.map(item => sanitizeRecursive(item));
+  }
+  
+  if (typeof data === 'object') {
+    const sanitized = {};
+    for (const [key, value] of Object.entries(data)) {
+      if (typeof value === 'string') {
+        sanitized[key] = sanitizeStrict(value);
+      } else if (typeof value === 'number') {
+        sanitized[key] = sanitizeNumber(value);
+      } else if (typeof value === 'boolean') {
+        sanitized[key] = Boolean(value);
+      } else if (value !== null && typeof value === 'object') {
+        sanitized[key] = sanitizeRecursive(value);
+      } else {
+        sanitized[key] = value;
+      }
+    }
+    return sanitized;
+  }
+  
+  if (typeof data === 'string') {
+    return sanitizeStrict(data);
+  }
+  
+  if (typeof data === 'number') {
+    return sanitizeNumber(data);
+  }
+  
+  return data;
+};
+
+
 // ========================================
 // STRUCTURE DES RESOLVERS
 // ========================================
 
 /**
  * Wrapper générique pour sécuriser les resolvers
- * - Valide les inputs avec Joi
- * - Sanitize les données
- * - Valide contre les injections
- * - Log les activités suspectes
+ * 
+ * @param {Function} resolverFn - Fonction resolver à wrapper
+ * @param {Object} config - Configuration
+ * @param {Joi.Schema} config.structureSchema - Schéma Joi pour valider inputs ET outputs
+ * @param {Joi.Schema} config.sortingSchema - Schéma Joi pour pagination (limit, offset, direction)
+ * @param {Joi.Schema} config.orderSchema - Schéma Joi pour tri (order)
+ * @param {string} config.logAction - Nom de l'action pour les logs (ex: 'CREATE_USER')
+ * @param {boolean} config.requiresAuth - Nécessite authentification (default: true)
+ * @param {boolean} config.requiresAdmin - Nécessite rôle admin (default: false)
+ * @param {Function|string} config.getResourceUserId - Fonction ou champ pour extraire l'ID propriétaire
+ * @param {string} config.errorMessage - Message d'erreur personnalisé
+ * @param {boolean} config.blockOnInjection - Bloquer la requête si injection détectée (default: true)
+ * @param {boolean} config.validateOutput - Valider la structure des données de sortie (default: false)
+ * 
+ * @returns {Function} Resolver sécurisé
  */
-export const withSecureResolver = (resolverFn, config = {}) => {
+  export const withSecureResolver = (resolverFn, config = {}) => {
   const {
-    inputSchema = null,
+    structureSchema = null,
     sortingSchema = null,
     orderSchema = null,
     logAction = 'UNKNOWN_ACTION',
     requiresAuth = true,
     requiresAdmin = false,
+    getResourceUserId = null,
+    errorMessage = 'Erreur lors de l\'opération',
   } = config;
+
 
   return withErrorHandling(
     withOutputSanitization(
+      // =============================================
+      // 1. VERIFIER DES AUTORISATIONS 
+      // =============================================
       async (parent, args, context, info) => {
-        // Vérification d'authentification
-        // if (requiresAdmin) {
-        // requireAdmin(context);
-        // } else if (requiresAuth) {
-        //   requireAuth(context);
-        // }
-
-        // Validation Joi des inputs
-        let validatedData = {};
-        
-        if (inputSchema) {
-          validatedData = { ...validatedData, ...validateWithJoi(inputSchema, args) };
+        if (requiresAdmin) {
+          requireAdmin(context);
+        } else if (getResourceUserId) {
+          const resourceUserId = typeof getResourceUserId === 'function' 
+            ? getResourceUserId(args, context)
+            : args[getResourceUserId];
+          requireOwnershipOrAdmin(resourceUserId, context);
+        } else if (requiresAuth) {
+          requireAuth(context);
         }
+      // =============================================
+      // 2. VALIDATION JOI DES INPUTS 
+      // =============================================
+        let validatedDataInput = {};
         
+        if (structureSchema) {
+          validatedDataInput = { 
+            ...validatedDataInput, 
+            ...validateWithJoi(structureSchema, args.input || args) 
+          };
+        }        
         if (sortingSchema) {
           const sorting = validateWithJoi(sortingSchema, {
             limit: args.limit,
             offset: args.offset,
             direction: args.direction
           });
-          validatedData = { ...validatedData, ...sorting };
+          validatedDataInput = { ...validatedDataInput, ...sorting };
         }
         
         if (orderSchema) {
           const order = validateWithJoi(orderSchema, { order: args.order });
-          validatedData = { ...validatedData, ...order };
+          validatedDataInput = { ...validatedDataInput, ...order };
+        }
+        // =============================================
+        // 3. DÉTECTION DES PATTERNS MALVEILLANTS (AVANT SANITIZATION)
+        // =============================================
+        const hasInjectionAttempt = validateAgainstInjection(validatedDataInput);
+        
+        if (hasInjectionAttempt) {
+          // Log l'attaque avec les données brutes (non sanitizées)
+          await logSuspiciousActivity(`SEND__${logAction}__BLOCKED`, validatedDataInput, context);
+          
+          // Bloquer la requête
+          throw new GraphQLError('Contenu suspect détecté dans la requête', {
+            extensions: { 
+              code: 'MALICIOUS_CONTENT_DETECTED', 
+              httpStatus: 400 
+            }
+          });
         }
 
-        // Sanitization stricte
-        const sanitizedData = {};
-        for (const [key, value] of Object.entries(validatedData)) {
-          if (typeof value === 'string') {
-            sanitizedData[key] = sanitizeStrict(value);
-          } else {
-            sanitizedData[key] = value;
-          }
-        }
+        // =============================================
+        // 4. SANITIZATION (si pas de malice détectée)
+        // =============================================
+        const sanitizedData = sanitizeRecursive(validatedDataInput);
 
-        // Log des activités suspectes (INPUT)
-        await logSuspiciousActivity(`SEND__${logAction}`, sanitizedData, context);
+        // Log les données après sanitization (pour comparaison)
+        await logSuspiciousActivity(`SEND__${logAction}__SANITIZED`, {
+          original: validatedDataInput,
+          sanitized: sanitizedData
+        }, context);
 
-        // Exécuter le resolver avec les données validées
+        // =============================================
+        // 5. EXÉCUTION DU RESOLVER
+        // =============================================
         const result = await resolverFn(parent, { ...args, validated: sanitizedData }, context, info);
 
-        // Validation anti-injection des résultats
-        if (result && typeof result === 'object') {
-          validateAgainstInjection(result);
-        }
+        // =============================================
+        // 6. VALIDATION DES OUTPUTS (contre les injections de second ordre)
+        // =============================================
 
-        // Log des activités suspectes (OUTPUT)
-        await logSuspiciousActivity(`RECOVER__${logAction}`, result, context);
+        if (result) {
+          // Détecter les patterns malveillants dans les données de la BDD
+          const hasInjectionInDB = validateAgainstInjection(result);
+          
+          if (hasInjectionInDB) {
+            // 🚨 ALERTE CRITIQUE : Injection de second ordre détectée !
+            await logSuspiciousActivity(`RECOVER__${logAction}__SECOND_ORDER_INJECTION`, {
+              action: logAction,
+              user: context.user?.id_user,
+              data: result,
+              warning: '🔥 DONNÉES CORROMPUES DÉTECTÉES EN BASE DE DONNÉES'
+            }, context);
+            
+            // Option 1 : Bloquer la réponse (recommandé)
+            throw new GraphQLError('Erreur de sécurité : données corrompues détectées', {
+              extensions: { 
+                code: 'DATA_INTEGRITY_ERROR', 
+                httpStatus: 500 
+              }
+            });
+            
+            }
+            let validatedOutput = result;
+            if (validatedOutput && structureSchema) {
+              try {
+                validatedOutput = validateWithJoi(structureSchema, result);
+              } catch (error) {
+                // Si la validation échoue, logger mais ne pas bloquer
+                console.warn(`⚠️ Output validation failed for ${logAction}:`, error.message);
+                validatedOutput = result; // Garder les données originales
+              }
+            }
 
-        return result;
+          }
+
+          // Note: withOutputSanitization se charge déjà de la sanitization des données de sortie
+
+        // Retourner le résultat final sécurisé
+        return validatedOutput;
       }
     ),
-    config.errorMessage || 'Erreur lors de l\'opération'
+    errorMessage
   );
 };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

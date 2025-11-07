@@ -138,50 +138,50 @@ export const detectSQLInjection = (input) => {
  * Validation custom anti-injection
  */
 export const validateAgainstInjection = (data) => {
-  const checkValue = (value, fieldName = 'field') => {
-    if (!value || typeof value !== 'string') return;
+  if (!data) return false;
+  
+  const checkValue = (value) => {
+    if (typeof value !== 'string') return false;
     
-    // Détecter XSS
-    if (/<script|javascript:|onerror=|onload=/gi.test(value)) {
-      throw new GraphQLError(`Contenu suspect dans ${fieldName}`, {
-        extensions: { code: 'XSS_DETECTED', httpStatus: 400 }
-      });
-    }
+    // Patterns XSS
+    const xssPatterns = [
+      /<script/gi,
+      /javascript:/gi,
+      /onerror=/gi,
+      /onload=/gi,
+      /<iframe/gi,
+      /eval\(/gi,
+      /expression\(/gi,
+    ];
     
-    // Détecter SQLi
-    if (detectSQLInjection(value)) {
-      throw new GraphQLError(`Pattern SQL suspect dans ${fieldName}`, {
-        extensions: { code: 'SQL_INJECTION_DETECTED', httpStatus: 400 }
-      });
-    }
+    // Patterns SQL Injection
+    const sqlPatterns = [
+      /union\s+select/gi,
+      /drop\s+table/gi,
+      /delete\s+from/gi,
+      /insert\s+into/gi,
+      /exec\s*\(/gi,
+      /execute\s*\(/gi,
+      /--\s*$/gm, // Commentaires SQL
+      /;\s*drop/gi,
+      /'\s*or\s*'1'\s*=\s*'1/gi,
+    ];
+    
+    return [...xssPatterns, ...sqlPatterns].some(pattern => pattern.test(value));
   };
 
-  // Si c'est un tableau
+  // Vérification récursive
   if (Array.isArray(data)) {
-    data.forEach((item, index) => {
-      if (typeof item === 'object') {
-        validateAgainstInjection(item);
-      } else {
-        checkValue(item, `index[${index}]`);
-      }
-    });
-    return;
+    return data.some(item => detectMaliciousPatterns(item));
   }
-
-  // Si c'est un objet
+  
   if (typeof data === 'object' && data !== null) {
-    for (const [key, value] of Object.entries(data)) {
-      if (typeof value === 'object') {
-        validateAgainstInjection(value);
-      } else {
-        checkValue(value, key);
-      }
-    }
-    return;
+    return Object.values(data).some(value => detectMaliciousPatterns(value));
   }
+  
+  return checkValue(data);
 
-  // Si c'est une valeur simple
-  checkValue(data);
+
 };
 
 // ========================================

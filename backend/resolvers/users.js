@@ -12,16 +12,37 @@ import fetchLibraryById from './utils/utils_librairies.js';
 
 import { isAuthenticated, requireAuth, requireAdmin, requireOwnershipOrAdmin, sanitizeString, sanitizeInput, flattenEdges, makePageInfo, makeEdgeFromBook, withErrorHandling, withRateLimit } from './utils/helpers/helpers_general.js';
 
-import { findUserOrThrow, validateUserInput, validatePasswordInput} from './utils/helpers/helpers_Users.js';
 import { clean } from "semver";
 
-import { generalUserSchema, generalOrderUserSchema, searchUsersSchema} from '../schema/schemas_joi/userSchema.js';
 
 import { log } from "console";
 
-import {sanitizeStrict, validateAgainstInjection, withOutputSanitization} from './utils/helpers/helpers_securite.js';
+import { validateAgainstInjection, withOutputSanitization} from './utils/helpers/helpers_securite.js';
 
 import {generateAccessToken, generateRefreshToken, verifyToken, decodeToken} from './utils/utils_authentification.js';
+
+
+
+// Importer les helpers généralistes
+import { withSecureResolver } from './utils/helpers/helpers_general.js';
+// Importer les helpers spécifiques
+import { findUserOrThrow, validateUserInput, validatePasswordInput} from './utils/helpers/helpers_Users.js';
+
+// Importer le schema Joi genéral
+import { generalSortingSchema } from '../schema/schemas_joi/generalSchema.js';
+// Importer les schemas Joi spécifiques
+import { generalUserSchema, generalOrderUserSchema, searchUsersSchema} from '../schema/schemas_joi/userSchema.js';
+
+// Importer les wrappers et helpers de sécurité
+import { sanitizeStrict} from './utils/helpers/helpers_securite.js';
+
+
+
+
+
+
+
+
 
 // Revoir le resolver "changePassword",
 

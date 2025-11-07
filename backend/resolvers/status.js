@@ -111,7 +111,7 @@ export default {
       },
       {
         sortingSchema: generalSortingSchema,
-        orderSchema: generalOrderStatusesSchema,
+        orderSchema: generalOrderStatusSchema,
         logAction: 'GET_ALL_STATUSES',
         requiresAuth: true,
         errorMessage: 'Erreur lors de la récupération des statuts'

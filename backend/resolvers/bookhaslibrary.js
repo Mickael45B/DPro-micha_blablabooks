@@ -64,6 +64,7 @@ export default {
         // ======================================== 
         const { limit = 50, offset = 0, direction = 'ASC', order = 'created_at' } = validated;
 
+        console.log('Validated params in getBooksInLibrary:', typeof limit);
         // const cleanLimit = Math.min(Math.max(parseInt(limit) || 50, 1), 100);
         // const cleanOffset = Math.max(parseInt(offset) || 0, 0);
         const validOrders = ['id_book', 'created_at', 'updated_at'];
