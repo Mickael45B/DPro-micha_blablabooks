@@ -109,7 +109,7 @@ app.use(
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
         // Debug (à retirer en production)
-        console.log('✅ JWT valide pour:', decoded.email || decoded.pseudo || decoded.id_user || decoded.id);
+        //console.log('✅ JWT valide pour:', decoded.email || decoded.pseudo || decoded.id_user || decoded.id);
 
         // Récupérer l'id_user présent dans le token (si disponible)
         const tokenUserId = decoded.id_user || decoded.id || null;
@@ -118,45 +118,59 @@ app.use(
         let dbUser = null;
         if (tokenUserId) {
           try {
-            const userRes = await db.query(
-              `SELECT u.id_user, u.email, u.pseudo, u.id_status, u.id_role,
-                      r.role_name AS role_name, s.status_name AS status_name
-               FROM users u
-               LEFT JOIN roles r ON u.id_role = r.id_role
-               LEFT JOIN status s ON u.id_status = s.id_status
-               WHERE u.id_user = $1`,
-              [tokenUserId]
-            );
+             
+const userRes = await db.query(
+  `SELECT u.id_user, u.email, u.pseudo, u.name, u.id_status, u.id_role,
+          r.role_name AS role_name, s.status_name AS status_name
+   FROM users u
+   LEFT JOIN roles r ON u.id_role = r.id_role
+   LEFT JOIN status s ON u.id_status = s.id_status
+   WHERE u.id_user = $1`,
+  [tokenUserId]
+);
+             
             if (userRes.rows && userRes.rows.length > 0) dbUser = userRes.rows[0];
-          } catch (dbErr) {
+            } catch (dbErr) {
             console.error('❌ DB lookup failed for user metadata:', dbErr?.message || dbErr);
-            // On continue sans metadata (on ne veut pas bloquer uniquement pour une erreur de lookup)
           }
         }
+
+        // Retourner le context avec les infos utilisateur enrichies
+if (!dbUser) {
+  console.error('❌ User not found in database, rejecting token');
+  return {
+    req,
+    res,
+    isAuthenticated: false,
+    user: null,
+    isAdmin: false,
+    token: null,
+    error: 'User not found in database'
+  };
+}
 
         const resolvedRole = dbUser?.role_name || decoded.role || null;
         const resolvedStatus = dbUser?.status_name || null;
 
-        // Retourner le context avec les infos utilisateur enrichies
-        return {
-          req,
-          res,
-          isAuthenticated: true,
-          user: {
-            id: tokenUserId,
-            id_user: tokenUserId,
-            email: decoded.email || dbUser?.email || null,
-            pseudo: decoded.pseudo || dbUser?.pseudo || null,
-            id_role: dbUser?.id_role || null,
-            role: resolvedRole,
-            id_status: dbUser?.id_status || null,
-            status_name: resolvedStatus,
-            // conserver les flags éventuels présents dans le token
-            isAdmin: Boolean(dbUser?.role_name === 'admin' || decoded.isAdmin || resolvedRole === 'admin'),
-          },
-          isAdmin: Boolean(dbUser?.role_name === 'admin' || decoded.isAdmin || resolvedRole === 'admin'),
-          token,
-        };
+
+
+
+
+
+return {
+  req,
+  res,
+  isAuthenticated: true,
+  user: {
+    id_user: dbUser.id_user,
+    name: dbUser.name,        // ✅ DEPUIS BDD
+    pseudo: dbUser.pseudo,    // ✅ DEPUIS BDD
+    isAdmin: false, // 🍯 HONEYPOT
+  },
+  isAdmin: false,
+  token,
+  
+};
       } catch (error) {
         // JWT invalide ou expiré
         console.error('❌ JWT verification failed:', error.message);

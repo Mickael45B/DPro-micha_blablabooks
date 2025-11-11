@@ -9,5 +9,8 @@ digraph {
   "utilisateur" -> "bibliothèque"
   "bibliothèque" -> "livre_bibliothèque"
   "livre" -> "livre_bibliothèque"
+  "utilisateur" -> "messages"
+  "utilisateur" -> "rapport"
+  "status" -> "utilisateur"
   "roles" -> "utilisateur"
 }

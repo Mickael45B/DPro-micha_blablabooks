@@ -21,17 +21,43 @@ skinparam classFontName Arial
 skinparam classFontSize 18
 skinparam classHeaderBackgroundColor #92c5de
 
-Table("autorisations") {
-    {field} + pk(id_autorisations)
-    {field} + nom
+Table("messages") {
+    {field} + pk(id_message)
+    {field} + expediteur
+    {field} + destinataire
+    {field} + sujet
+    {field} + contenu
 }
 
-"autorisations" "1..*" --- "*" "roles": "Affecter"
+"rapport" "*" --- "1" "utilisateur": "dénoncer"
+
+Table("rapport") {
+    {field} + pk(id_rapport)
+    {field} + dénociateur
+    {field} + dénoncé
+    {field} + type
+    {field} + raison
+    {field} + détail
+    {field} + état
+}
 
 Table("roles") {
     {field} + pk(id_roles)
     {field} + nom
 }
+
+"autorisations" "1..*" --- "*" "roles": "Affecter"
+
+Table("autorisations") {
+    {field} + pk(id_autorisations)
+    {field} + nom
+}
+
+"messages" "*" --- "1" "utilisateur": "adresser"
+
+"messages" "*" --- "1" "utilisateur": "recevoir"
+
+"rapport" "*" --- "1" "utilisateur": "suspecter"
 
 "roles" "1" --- "*" "utilisateur": "attribuer"
 
@@ -43,6 +69,8 @@ Table("utilisateur") {
     {field} + email
     {field} + pseudo
     {field} + mot_de_passe
+    {field} + token
+    {field} + derniere_connexion
 }
 
 "utilisateur" "1" --- "*" "avis": "Ecrire"
@@ -53,10 +81,18 @@ Table("bibliothèque") {
     {field} + est_modifiable
 }
 
+"utilisateur" "*" --- "1" "status": "conditionner"
+
 Table("avis") {
     {field} + pk(id_avis)
+    {field} + titre_avis
     {field} + note
     {field} + commentaire
+}
+
+Table("status") {
+    {field} + pk(id_status)
+    {field} + nom
 }
 
 "livre" "*" --- "*" "bibliothèque": "livre_bibliothèque"
@@ -80,6 +116,6 @@ Table("livre") {
     {field} + moyenne_note
 }
 
-"livre" "1" --- "*" "avis": "virtuelement_posseder"
+"livre" "1" --- "*" "avis": "posseder"
 
 @enduml

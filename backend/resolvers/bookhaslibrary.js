@@ -8,14 +8,14 @@ import fetchBookById from './utils/utils_books.js';
 import fetchLibraryById from './utils/utils_librairies.js';
 
 // Importer les helpers généralistes
-import { withSecureResolver } from './utils/helpers/helpers_general.js';
+import { withSecureResolver, verifyUserInDB } from './utils/helpers/helpers_general.js';
 // Importer les helpers spécifiques
 import { findBookLibraryOrThrow, requireEditableLibrary, verifyUserOwnsLibrary} from './utils/helpers/helpers_bookhaslibrary.js';
 
 // Importer le schema Joi genéral
 import { generalSortingSchema } from '../schema/schemas_joi/generalSchema.js';
 // Importer les schemas Joi spécifiques
-import { generalBookHasLibrarySchema, generalOrderBookHasLibrarySchema, searchBooksInLibrarySchema} from '../schema/schemas_joi/bookhaslibrarySchema.js';
+import { generalBookHasLibrarySchema, generalOrderBookHasLibrarySchema, searchBooksInLibrary, addBookHasLibrarySchema, updateBookHasLibrarySchema, deleteBookHasLibrarySchema, addBooksToLibrarySchema, removeBooksFromLibrarySchema} from '../schema/schemas_joi/bookhaslibrarySchema.js';
 
 // Importer les wrappers et helpers de sécurité
 import { sanitizeStrict} from './utils/helpers/helpers_securite.js';
@@ -27,7 +27,6 @@ import { sanitizeStrict} from './utils/helpers/helpers_securite.js';
 
 export default {
   Query: {
-
     /**
      * Récupère les livres d'une bibliothèque avec pagination et tri
      * 🔒 Route protégée - L'utilisateur ne peut voir que ses propres livres (sauf admin)
@@ -40,19 +39,13 @@ export default {
      * @throws {GraphQLError} Si l'utilisateur n'a pas les droits (401 ou 403)  
      * @throws {GraphQLError} Si une erreur se produit lors de la récupération des livres (500)
      */
-    getBooksInLibrary: withSecureResolver(
+    getBooksInLibraries: withSecureResolver(
       async (_, { validated }, context) => {
-        /* exemple context JWT décodé ( à revoir):
-        {
-          userId: "uuid-of-user",
-          email: "user@example.com",
-          role: "admin"
-        }
+        /* exemple header (admin):
+          {"Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZF91c2VyIjoiMWUyZDNjNGItNWE2Zi03ZThkLTljMGItMWEyZjNlNGQ1YzZiIiwibmFtZSI6IkFsaWNlIER1cG9udCIsInBzZXVkbyI6InBldGl0IHBvaXNzb24ifQ.c8A_mkFWejX_6GDls2GbqCykqsvCISe6soTAHzHbQCM"}
         */
         /*exemple de requête :
-        query {
-            getBooksInLibrary { books{id_bookhaslibrary, book{title,description}, library{id_library name, user{name, role{role_name}}}} }
-        }
+          query {getBooksInLibraries { books{id_bookhaslibrary, book{title,description}, library{id_library name, user{name, role{role_name}}}} }}
         */
         /* Exemple variables :
         {
@@ -62,34 +55,39 @@ export default {
         // ========================================
         // RECUPERER LES DONNEES NESSESAIRES
         // ======================================== 
-        const { limit = 50, offset = 0, direction = 'ASC', order = 'created_at' } = validated;
+        const { limit = 50, offset = 0, direction = 'DESC', order = 'created_at' } = validated;
 
-        console.log('Validated params in getBooksInLibrary:', typeof limit);
-        // const cleanLimit = Math.min(Math.max(parseInt(limit) || 50, 1), 100);
-        // const cleanOffset = Math.max(parseInt(offset) || 0, 0);
-        const validOrders = ['id_book', 'created_at', 'updated_at'];
+        const validOrders = ['id_book', 'id_library', 'created_at', 'updated_at'];
         const { order: safeOrder, direction: safeDirection } = validateOrderParams(
           order,
           direction,
           validOrders
         );
-
         // ========================================
         // REQUETES BASE DE DONNEES
         // ======================================== 
         const result = await db.query(`
-          SELECT id_bookhaslibrary, id_book, id_library, is_read, is_favorite, created_at, updated_at
-          FROM bookhaslibrary
-          ORDER BY ${safeOrder} ${safeDirection}
+          SELECT 
+            bhl.id_bookhaslibrary, 
+            bhl.id_book, 
+            bhl.id_library, 
+            bhl.is_read, 
+            bhl.is_favorite, 
+            bhl.created_at, 
+            bhl.updated_at,
+            l.name as library_name,
+            l.id_user as library_owner_id
+          FROM bookhaslibrary bhl
+          INNER JOIN libraries l ON bhl.id_library = l.id_library
+          ORDER BY bhl.${safeOrder} ${safeDirection}
           LIMIT $1 OFFSET $2
         `, [limit, offset]);
 
         const countResult = await db.query('SELECT COUNT(*)::int as count FROM bookhaslibrary');
         const totalCount = countResult.rows[0].count;
-
         // ========================================
         // DONNEES RECUPEREES
-        // ======================================== 
+        // ========================================
         return {
           books: result.rows,
           totalCount,
@@ -100,9 +98,220 @@ export default {
       {
         sortingSchema: generalSortingSchema,
         orderSchema: generalOrderBookHasLibrarySchema,
-        logAction: 'GET_ALL_BOOKS_IN_LIBRARY',
+        logAction: 'ADMIN_GET_ALL_BOOKS_ALL_LIBRARIES',
         requiresAuth: true,
-        errorMessage: 'Erreur lors de la récupération des livres en bibliothèque'
+        requiresAdmin: true, // ✅ Admin uniquement
+        errorMessage: 'Erreur lors de la récupération (admin)'
+      }
+    ),
+
+    /**
+     * Récupère tous les livres de toutes LES bibliothèques de l'utilisateur connecté
+     * 🔒 Route protégée - Utilisateur authentifié
+     */
+    getMyBooksInLibraries: withSecureResolver(
+      /* exemple de header  :
+        {"Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZF91c2VyIjoiNGc1ZjZlN2QtOGM5Yi0wYTFmLTJlM2QtNGM1YjZhN2Y4ZTlkIiwibmFtZSI6IkRpYW5lIE1vcmVsIiwicHNldWRvIjoibGludXggdGhlIGJlc3QiLCJpc0FkbWluIjpmYWxzZX0.JPjw19bbnW1IGSunQ4FWC7Z2j8UzYIDUFxET6x4jC6U"}
+      */  
+      /*exemple de requête :
+        query {getMyBooksInLibraries { books{ id_bookhaslibrary book{title, author} library{id_library name} } totalCount hasNextPage }}      
+      */
+      /* Exemple variables :
+        {
+        }
+      */
+
+      async (_, { validated }, context) => {
+        const { limit = 50, offset = 0, direction = 'DESC', order = 'created_at' } = validated;
+
+        // Triple vérification BDD
+        const user = await verifyUserInDB(context);
+
+        const validOrders = ['id_book', 'created_at', 'updated_at'];
+        const { order: safeOrder, direction: safeDirection } = validateOrderParams(
+          order,
+          direction,
+          validOrders
+        );
+
+        // Si admin : voir tout, sinon uniquement ses bibliothèques
+        let query, countQuery, params, countParams;
+
+        if (user.isAdmin) {
+          // Admin voit tous les livres de toutes les bibliothèques
+  query = `
+    SELECT 
+      bhl.id_bookhaslibrary, 
+      bhl.id_book, 
+      bhl.id_library, 
+      bhl.is_read, 
+      bhl.is_favorite,
+      bhl.created_at, 
+      bhl.updated_at
+    FROM bookhaslibrary bhl
+    ORDER BY bhl.${safeOrder} ${safeDirection}
+    LIMIT $1 OFFSET $2
+  `;
+  params = [limit, offset];
+  
+  countQuery = 'SELECT COUNT(*)::int as count FROM bookhaslibrary';
+  countParams = [];
+
+        } else {
+          // Utilisateur normal : uniquement SES bibliothèques
+query = `
+  SELECT 
+    bhl.id_bookhaslibrary, 
+    bhl.id_book, 
+    bhl.id_library, 
+    bhl.is_read, 
+    bhl.is_favorite,
+    bhl.created_at, 
+    bhl.updated_at,
+    l.id_user AS library_owner_id,
+    l.name AS library_name
+  FROM bookhaslibrary bhl
+  INNER JOIN libraries l ON bhl.id_library = l.id_library
+  WHERE l.id_user = $1
+  ORDER BY bhl.${safeOrder} ${safeDirection}
+  LIMIT $2 OFFSET $3
+`;
+          params = [user.id_user, limit, offset];
+          
+          countQuery = `
+            SELECT COUNT(*)::int as count 
+            FROM bookhaslibrary bhl
+            INNER JOIN libraries l ON bhl.id_library = l.id_library
+            WHERE l.id_user = $1
+          `;
+          countParams = [user.id_user];
+        }
+
+        const result = await db.query(query, params);
+        const countResult = await db.query(countQuery, countParams);
+        const totalCount = countResult.rows[0].count;
+
+        return {
+          books: result.rows,
+          totalCount,
+          hasNextPage: offset + limit < totalCount,
+          httpStatus: 200,
+        };
+      },
+      {
+        structureSchema: generalBookHasLibrarySchema,
+        sortingSchema: generalSortingSchema,
+        orderSchema: generalOrderBookHasLibrarySchema,
+        logAction: 'GET_MY_BOOKS_IN_MY_LIBRARIES',
+        requiresAuth: false,
+        errorMessage: 'Erreur lors de la récupération de vos livres'
+      }
+    ),
+
+    /**
+     * Récupère les livres d'UNE bibliothèque spécifique
+     * 🔒 Route protégée - Propriétaire de la bibliothèque ou admin
+     */
+    getBooksInLibrary: withSecureResolver(
+      /* exemple context JWT décodé ( à revoir):
+      admin
+      {"Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZF91c2VyIjoiMWUyZDNjNGItNWE2Zi03ZThkLTljMGItMWEyZjNlNGQ1YzZiIiwibmFtZSI6IkFsaWNlIER1cG9udCIsInBzZXVkbyI6InBldGl0IHBvaXNzb24ifQ.c8A_mkFWejX_6GDls2GbqCykqsvCISe6soTAHzHbQCM"}
+      utilisateur normal
+      {"Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZF91c2VyIjoiNGc1ZjZlN2QtOGM5Yi0wYTFmLTJlM2QtNGM1YjZhN2Y4ZTlkIiwibmFtZSI6IkRpYW5lIE1vcmVsIiwicHNldWRvIjoibGludXggdGhlIGJlc3QiLCJpc0FkbWluIjpmYWxzZX0.JPjw19bbnW1IGSunQ4FWC7Z2j8UzYIDUFxET6x4jC6U"}
+      */  
+      /*exemple de requête :
+        query GetBooksInLibrary($id_library: ID!) {getBooksInLibrary( id_library: $id_library ) { books { id_bookhaslibrary book { title author } library { id_library name } } totalCount hasNextPage}}      
+      */
+      /* Exemple variables :
+        bibliotheque de l'utilisateur non admin :
+        {
+          "id_library": "4d5e6f7g-8h9i-0j1k-2l3m-4n5o6p7q8r9s"
+        }
+        bibliotheque d'un autre utilisateur que celui connecté (voir si erreur 403 ) :
+        {
+          "id_library": "6f7g8h9i-0j1k-2l3m-4n5o-6p7q8r9s0t1i"
+        }
+        bibliotheque inexistante (voir si erreur 404 ) :
+        {
+          "id_library": "00000000-0000-0000-0000-000000000000"
+        }
+        bibliotheque de l'admin (voir si ok pour admin) :
+        {
+          "id_library": "1a2b3c4d-5e6f-7g8h-9i0j-1k2l3m4n5o6p"
+        }
+      */
+
+      async (_, { validated }, context) => {
+        const { id_library, limit = 50, offset = 0, direction = 'DESC', order = 'created_at' } = validated;
+
+        if (!id_library) {
+          throw new GraphQLError('id_library requis', {
+            extensions: { code: 'BAD_REQUEST', httpStatus: 400 }
+          });
+        }
+
+        // Vérifier que la bibliothèque existe
+        const library = await fetchLibraryById(id_library);
+        
+        if (!library) {
+          throw new GraphQLError('Bibliothèque non trouvée', {
+            extensions: { code: 'NOT_FOUND', httpStatus: 404 }
+          });
+        }
+
+        // Triple vérification BDD + ownership
+        const user = await verifyUserInDB(context);
+        
+        if (!user.isAdmin && library.id_user !== user.id_user) {
+          throw new GraphQLError('Accès refusé à cette bibliothèque', {
+            extensions: { code: 'FORBIDDEN', httpStatus: 403 }
+          });
+        }
+
+        // Requête BDD
+        const validOrders = ['id_book', 'created_at', 'updated_at'];
+        const { order: safeOrder, direction: safeDirection } = validateOrderParams(
+          order,
+          direction,
+          validOrders
+        );
+
+        const result = await db.query(`
+          SELECT 
+            id_bookhaslibrary, 
+            id_book, 
+            id_library, 
+            is_read, 
+            is_favorite, 
+            created_at, 
+            updated_at
+          FROM bookhaslibrary
+          WHERE id_library = $1
+          ORDER BY ${safeOrder} ${safeDirection}
+          LIMIT $2 OFFSET $3
+        `, [id_library, limit, offset]);
+
+        const countResult = await db.query(
+          'SELECT COUNT(*)::int as count FROM bookhaslibrary WHERE id_library = $1',
+          [id_library]
+        );
+        
+        const totalCount = countResult.rows[0].count;
+
+        return {
+          books: result.rows,
+          totalCount,
+          hasNextPage: offset + limit < totalCount,
+          httpStatus: 200,
+        };
+      },
+      {
+        structureSchema: generalBookHasLibrarySchema, // Avec id_library requis
+        sortingSchema: generalSortingSchema,
+        orderSchema: generalOrderBookHasLibrarySchema,
+        logAction: 'GET_BOOKS_IN_ONE_LIBRARY',
+        requiresAuth: true,
+        errorMessage: 'Erreur lors de la récupération des livres de la bibliothèque'
       }
     ),
 
@@ -115,49 +324,44 @@ export default {
      * @throws {GraphQLError} Si une erreur se produit lors de la récupération des livres (500)
      */
     getBookInLibrary: withSecureResolver(
-      async (_, { id_bookhaslibrary, validated }, context) => {
-        /* exemple context JWT décodé ( à revoir):
+      /* exemple context JWT décodé ( à revoir):
         {
           userId: "uuid-of-user",
-          email: "user@example.com",
-          role: "admin"
+          email: "user@example.com"
         }
         */
         /*exemple de requête :
-        query 
-          GetBookInLibrary($id_bookhaslibrary: ID!) 
-          {getBookInLibrary(id_bookhaslibrary: $id_bookhaslibrary) {id_bookhaslibrary }}
-
+        query GetBookInLibrary($id_bookhaslibrary: ID!) { getBookInLibrary( id_bookhaslibrary: $id_bookhaslibrary ) { id_bookhaslibrary book { title author } library { id_library name } } }
         */
         /* Exemple variables :
-        {
-          id_bookhaslibrary: "11b3c4d5e-6f7g-8h9i-0j1k-2l3m4n5o6p7"
-        }
+        { "id_bookhaslibrary": "00e1f2g3-h4i5-j6k7-l8m9-n0o1p2q3r4s5" }        
         */
-
-        // ========================================
-        // RECUPERER LES DONNEES NESSESAIRES
-        // ======================================== 
+      async (_, { id_bookhaslibrary }, context) => {
         const cleanId = sanitizeStrict(id_bookhaslibrary);
-
-        // ========================================
-        // REQUETES BASE DE DONNEES
-        // ======================================== 
         const bookLibrary = await findBookLibraryOrThrow(cleanId);
         
-        // ========================================
-        // DONNEES RECUPEREES
-        // ========================================        
-        // Vérifier l'accès
-        await verifyUserOwnsLibrary(bookLibrary.id_library, context);
+        // Vérifier que la bibliothèque et le livre existent
+        const library = await fetchLibraryById(bookLibrary.id_library);
+        const book = await fetchBookById(bookLibrary.id_book);
+
+        
+        // Vérifier ownership de la bibliothèque (triple vérification BDD. On ne fait pas confiance au token seul. retourne une valeur ou lève une erreur si pas trouvé)
+        const user = await verifyUserInDB(context);
+        
+        if (!user.isAdmin && library.id_user !== user.id_user) {
+          throw new GraphQLError('Accès refusé', {
+            extensions: { code: 'FORBIDDEN', httpStatus: 403 }
+          });
+        }
 
         if (context?.res?.status) context.res.status(200);
         return bookLibrary;
       },
       {
+        structureSchema: generalBookHasLibrarySchema,
         logAction: 'GET_ONE_BOOK_IN_LIBRARY',
         requiresAuth: true,
-        errorMessage: 'Erreur lors de la récupération du livre en bibliothèque'
+        errorMessage: 'Erreur lors de la récupération du livre'
       }
     ),
 
@@ -171,14 +375,10 @@ export default {
      * @returns {object} { data: { books, totalCount, hasNextPage }, httpStatus } Les livres trouvés et des informations de pagination
      * @throws {GraphQLError} Si l'utilisateur n'a pas les droits (401 ou 403)
      * @throws {GraphQLError} Si une erreur se produit lors de la récupération des livres (500)
-     */
+     */ 
     searchBooksInLibrary: withSecureResolver(
-      async (_, { validated }, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
-          userId: "uuid-of-user",
-          email: "user@example.com",
-          role: "admin"
         }
         */
         /*exemple de requête :
@@ -187,19 +387,18 @@ export default {
         /* Exemple variables :
         { "titleOrAuthor": "00" }        
         */
-    
-        // ========================================
-        // RECUPERER LES DONNEES NESSESAIRES
-        // ======================================== 
-        const { bookOrLibrary, limit = 50, offset = 0, direction = 'ASC', order = 'created_at' } = validated;
+      async (_, { validated }, context) => {
 
-        if (!bookOrLibrary || bookOrLibrary.length < 2) {
+        const { titleOrAuthor, limit = 50,  offset = 0, direction = 'DESC', order = 'created_at' } = validated;  
+
+        if (!titleOrAuthor || titleOrAuthor.length < 2) {
           throw new GraphQLError('Le terme de recherche doit contenir au moins 2 caractères', {
             extensions: { code: 'BAD_REQUEST', httpStatus: 400 }
           });
         }
 
-        const cleanQuery = sanitizeStrict(bookOrLibrary);
+        const user = await verifyUserInDB(context);
+        const cleanQuery = sanitizeStrict(titleOrAuthor);
         const searchPattern = `%${cleanQuery}%`;
 
         const validOrders = ['id_book', 'created_at', 'updated_at'];
@@ -209,47 +408,74 @@ export default {
           validOrders
         );
 
-        // ========================================
-        // REQUETES BASE DE DONNEES
-        // ======================================== 
-        const result = await db.query(`
-          SELECT bhl.*, b.title, b.author
-          FROM bookhaslibrary bhl
-          INNER JOIN books b ON bhl.id_book = b.id_book
-          WHERE LOWER(b.title) LIKE LOWER($1) OR LOWER(b.author) LIKE LOWER($1)
-          ORDER BY ${safeOrder} ${safeDirection}
-          LIMIT $2 OFFSET $3
-        `, [searchPattern, limit, offset]);
+        // Si admin : chercher partout, sinon uniquement dans ses bibliothèques
+        let query, countQuery, params, countParams;
 
-        const countResult = await db.query(`
-          SELECT COUNT(*)::int as count
-          FROM bookhaslibrary bhl
-          INNER JOIN books b ON bhl.id_book = b.id_book
-          WHERE LOWER(b.title) LIKE LOWER($1) OR LOWER(b.author) LIKE LOWER($1)
-        `, [searchPattern]);
+        if (user.isAdmin) {
+          query = `
+            SELECT bhl.*, b.title, b.author
+            FROM bookhaslibrary bhl
+            INNER JOIN books b ON bhl.id_book = b.id_book
+            WHERE LOWER(b.title) LIKE LOWER($1) OR LOWER(b.author) LIKE LOWER($1)
+            ORDER BY bhl.${safeOrder} ${safeDirection}
+            LIMIT $2 OFFSET $3
+          `;
+          params = [searchPattern, limit, offset];
+          
+          countQuery = `
+            SELECT COUNT(*)::int as count
+            FROM bookhaslibrary bhl
+            INNER JOIN books b ON bhl.id_book = b.id_book
+            WHERE LOWER(b.title) LIKE LOWER($1) OR LOWER(b.author) LIKE LOWER($1)
+          `;
+          countParams = [searchPattern];
+        } else {
+          query = `
+            SELECT bhl.*, b.title, b.author
+            FROM bookhaslibrary bhl
+            INNER JOIN books b ON bhl.id_book = b.id_book
+            INNER JOIN libraries l ON bhl.id_library = l.id_library
+            WHERE (LOWER(b.title) LIKE LOWER($1) OR LOWER(b.author) LIKE LOWER($1))
+              AND l.id_user = $2
+            ORDER BY bhl.${safeOrder} ${safeDirection}
+            LIMIT $3 OFFSET $4
+          `;
+          params = [searchPattern, user.id_user, limit, offset];
+          
+          countQuery = `
+            SELECT COUNT(*)::int as count
+            FROM bookhaslibrary bhl
+            INNER JOIN books b ON bhl.id_book = b.id_book
+            INNER JOIN libraries l ON bhl.id_library = l.id_library
+            WHERE (LOWER(b.title) LIKE LOWER($1) OR LOWER(b.author) LIKE LOWER($1))
+              AND l.id_user = $2
+          `;
+          countParams = [searchPattern, user.id_user];
+        }
+
+        const result = await db.query(query, params);
+        const countResult = await db.query(countQuery, countParams);
         const totalCount = countResult.rows[0].count;
 
-        // ========================================
-        // DONNEES RECUPEREES
-        // ========================================                
         return {
-          BookHasLibrary: result.rows,
+          books: result.rows,
           totalCount,
           hasNextPage: offset + limit < totalCount,
           httpStatus: 200,
         };
       },
       {
+        structureSchema: generalBookHasLibrarySchema,
+        specificSchema: searchBooksInLibrary,
         sortingSchema: generalSortingSchema,
         orderSchema: generalOrderBookHasLibrarySchema,
-        inputSchema: searchBooksInLibrarySchema,
-        logAction: 'SEARCH_BOOKS_IN_LIBRARY',
+        logAction: 'SEARCH_BOOKS_IN_LIBRARIES',
         requiresAuth: true,
-        errorMessage: 'Erreur lors de la recherche de livres'
+        errorMessage: 'Erreur lors de la recherche'
       }
     ),
-  },
 
+  },
   Mutation: {
     /**
      * Ajoute un livre à une bibliothèque
@@ -330,6 +556,10 @@ export default {
         return result.rows[0];
       },
       {
+        structureSchema: generalBookHasLibrarySchema,
+        specificSchema: addBookHasLibrarySchema,
+        sortingSchema: generalSortingSchema,
+        orderSchema: generalOrderBookHasLibrarySchema,
         logAction: 'ADD_BOOK_TO_LIBRARY',
         requiresAuth: true,
         errorMessage: 'Erreur lors de l\'ajout du livre'
@@ -436,6 +666,10 @@ export default {
         return result.rows[0];
       },
       {
+        structureSchema: generalBookHasLibrarySchema,
+        specificSchema: updateBookHasLibrarySchema,
+        sortingSchema: generalSortingSchema,
+        orderSchema: generalOrderBookHasLibrarySchema,
         logAction: 'UPDATE_BOOK_IN_LIBRARY',
         requiresAuth: true,
         errorMessage: 'Erreur lors de la mise à jour'
@@ -499,6 +733,10 @@ export default {
         return true;
       },
       {
+        structureSchema: generalBookHasLibrarySchema,
+        specificSchema: deleteBookHasLibrarySchema,
+        sortingSchema: generalSortingSchema,
+        orderSchema: generalOrderBookHasLibrarySchema,
         logAction: 'DELETE_BOOK_FROM_LIBRARY',
         requiresAuth: true,
         errorMessage: 'Erreur lors de la suppression'
@@ -524,14 +762,14 @@ export default {
         }
         */
         /*exemple de requête :
-        mutation AddBooksToLibrary($input: AddBooksToLibraryInput!) { addBooksToLibrary(input: $input) { added } }
+        mutation AddBooksToLibrary($input: AddBooksToLibraryInput!) { addBooksToLibrary(input: $input) {booksInLibrary{book{title}}  } }
 
         */
         /* Exemple variables :     
         { "input": 
           { "books": [
-              { "id": "7v8w9x0y-1z2a-3b4c-5d6e-7f8g9h0i1j2k", "id_library": "1bd2f719-a89a-4231-aa6d-dd1df163eee6" },
-              { "id": "8w9x0y1z-2a3b-4c5d-6e7f-8g9h0i1j2k3l", "id_library": "1bd2f719-a89a-4231-aa6d-dd1df163eee6" }
+              { "id_book": "3c4d5e6f-7g8h-9i0j-1k2l-3m4n5o6p7q8r", "id_library": "2b3c4d5e-6f7g-8h9i-0j1k-2l3m4n5o6p7q" },
+              { "id_book": "9x0y1z2a-3b4c-5d6e-7f8g-9h0i1j2k3l4m", "id_library": "2b3c4d5e-6f7g-8h9i-0j1k-2l3m4n5o6p7q" }
             ] 
           }
         }        
@@ -580,13 +818,11 @@ export default {
 
         for (const book of cleanBooks) {
           const id = uuidv4();
-          placeholders.push(
-            `(${paramIndex}, ${paramIndex + 1}, ${paramIndex + 2}, ${paramIndex + 3}, ${paramIndex + 4}, NOW(), NOW())`
-          );
+          // Un seul jeu de placeholders $n par ligne
+          placeholders.push(`($${paramIndex}, $${paramIndex + 1}, $${paramIndex + 2}, $${paramIndex + 3}, $${paramIndex + 4}, NOW(), NOW())`);
           values.push(id, book.id_book, book.id_library, false, false);
           paramIndex += 5;
         }
-
         // ========================================
         // REQUETES BASE DE DONNEES
         // ======================================== 
@@ -596,7 +832,7 @@ export default {
           INSERT INTO bookhaslibrary (id_bookhaslibrary, id_book, id_library, is_read, is_favorite, created_at, updated_at)
           VALUES ${placeholders.join(', ')}
           ON CONFLICT (id_book, id_library) DO NOTHING
-          RETURNING id_bookhaslibrary
+          RETURNING *
         `, values);
 
         // ========================================
@@ -605,11 +841,15 @@ export default {
         if (context?.res?.status) context.res.status(201);
 
         return {
-          added: result.rowCount,
+          booksInLibrary: result.rows,
           httpStatus: 201,
         };
       },
       {
+        structureSchema: generalBookHasLibrarySchema,
+        specificSchema: addBooksToLibrarySchema,
+        sortingSchema: generalSortingSchema,
+        orderSchema: generalOrderBookHasLibrarySchema,
         logAction: 'ADD_MULTIPLE_BOOKS_TO_LIBRARY',
         requiresAuth: true,
         errorMessage: 'Erreur lors de l\'ajout des livres en batch'
@@ -634,7 +874,7 @@ export default {
         }
         */
         /*exemple de requête :
-        mutation RemoveBooksFromLibrary($input: RemoveBooksFromLibraryInput!) { removeBooksFromLibrary(input: $input) { removed } }
+        mutation RemoveBooksFromLibrary($input: RemoveBooksFromLibraryInput!) { addBooksToLibrary(input: $input) {removed{book{title}}  } }
 
        */
         /* Exemple variables :     
@@ -671,21 +911,27 @@ export default {
         }
 
         // Préparer la suppression en batch avec des paires (id_book, id_library)
-        const conditions = cleanBooks.map((book, index) => {
-          const bookIndex = index * 2 + 1;
-          const libraryIndex = index * 2 + 2;
-          return `(id_book = ${bookIndex} AND id_library = ${libraryIndex})`;
-        });
+        const values = [];
+        const tuplePlaceholders = [];
+        let paramIndex = 1;
+        for (const book of cleanBooks) {
+          tuplePlaceholders.push(`($${paramIndex}, $${paramIndex + 1})`);
+          values.push(book.id_book, book.id_library);
+          paramIndex += 2;
+        }
 
-        const values = cleanBooks.flatMap(book => [book.id_book, book.id_library]);
+        if (tuplePlaceholders.length === 0) {
+          throw new GraphQLError('Aucun livre à supprimer', { extensions: { code: 'BAD_REQUEST', httpStatus: 400 } });
+        }
 
         // ========================================
         // REQUETES BASE DE DONNEES
         // ======================================== 
         const result = await db.query(`
-          DELETE FROM bookhaslibrary
-          WHERE ${conditions.join(' OR ')}
-          RETURNING id_bookhaslibrary
+          DELETE FROM bookhaslibrary b
+          USING (VALUES ${tuplePlaceholders.join(', ')}) AS vals(id_book, id_library)
+          WHERE b.id_book = vals.id_book AND b.id_library = vals.id_library
+          RETURNING b.*;
         `, values);
 
         // ========================================
@@ -694,7 +940,7 @@ export default {
         if (context?.res?.status) context.res.status(200);
 
         return {
-          removed: result.rowCount,
+          removed: result.rows,
           httpStatus: 200,
         };
       },
@@ -718,12 +964,3 @@ export default {
   },
 };
 
-        // ========================================
-        // RECUPERER LES DONNEES NESSESAIRES
-        // ========================================
-        // ========================================
-        // REQUETES BASE DE DONNEES
-        // ========================================
-        // ========================================
-        // DONNEES RECUPEREES
-        // ========================================

@@ -27,8 +27,8 @@ export const getBooksInLibrarySchema = Joi.object({
 export const getBookInLibrarySchema = Joi.object({
 });
 
-export const searchBooksInLibrarySchema = Joi.object({
-    titleOrAuthor: Joi.string().min(1).max(255).required(),// Terme de recherche
+export const searchBooksInLibrary = Joi.object({
+    titleOrAuthor: Joi.string().min(2).max(255).required(),// Terme de recherche
 });
 
 //-----------------------------------------------------------
@@ -43,11 +43,11 @@ export const updateBookHasLibrarySchema = Joi.object({
 export const deleteBookHasLibrarySchema = Joi.object({
 });
 
-export const removeBooksFromLibrarySchema = Joi.object({
-});     
-
 export const addBooksToLibrarySchema = Joi.object({
 });
+
+export const removeBooksFromLibrarySchema = Joi.object({
+});     
 
 /*
 -------------------------------------------------------------------------------------------------------------------------

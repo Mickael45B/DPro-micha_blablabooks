@@ -15,6 +15,7 @@ CREATE TABLE autorisations (
 CREATE TABLE avis (
   PRIMARY KEY (id_avis),
   id_avis        VARCHAR(42) NOT NULL,
+  titre_avis     VARCHAR(42),
   note           VARCHAR(42),
   commentaire    VARCHAR(42),
   id_utilisateur VARCHAR(42) NOT NULL,
@@ -55,20 +56,53 @@ CREATE TABLE livre_bibliotheque (
   code_bibliotheque VARCHAR(42) NOT NULL
 );
 
+CREATE TABLE messages (
+  PRIMARY KEY (id_message),
+  id_message       VARCHAR(42) NOT NULL,
+  expediteur       VARCHAR(42),
+  destinataire     VARCHAR(42),
+  sujet            VARCHAR(42),
+  contenu          VARCHAR(42),
+  id_utilisateur_1 VARCHAR(42) NOT NULL,
+  id_utilisateur_2 VARCHAR(42) NOT NULL
+);
+
+CREATE TABLE rapport (
+  PRIMARY KEY (id_rapport),
+  id_rapport       VARCHAR(42) NOT NULL,
+  denociateur      VARCHAR(42),
+  denonce          VARCHAR(42),
+  type             VARCHAR(42),
+  raison           VARCHAR(42),
+  detail           VARCHAR(42),
+  etat             VARCHAR(42),
+  id_utilisateur_1 VARCHAR(42) NOT NULL,
+  id_utilisateur_2 VARCHAR(42) NOT NULL
+);
+
 CREATE TABLE roles (
   PRIMARY KEY (id_roles),
   id_roles VARCHAR(42) NOT NULL,
   nom      VARCHAR(42)
 );
 
+CREATE TABLE status (
+  PRIMARY KEY (id_status),
+  id_status VARCHAR(42) NOT NULL,
+  nom       VARCHAR(42)
+);
+
 CREATE TABLE utilisateur (
   PRIMARY KEY (id_utilisateur),
-  id_utilisateur VARCHAR(42) NOT NULL,
-  nom            VARCHAR(42),
-  email          VARCHAR(42),
-  pseudo         VARCHAR(42),
-  mot_de_passe   VARCHAR(42),
-  id_roles       VARCHAR(42) NOT NULL
+  id_utilisateur     VARCHAR(42) NOT NULL,
+  nom                VARCHAR(42),
+  email              VARCHAR(42),
+  pseudo             VARCHAR(42),
+  mot_de_passe       VARCHAR(42),
+  token              VARCHAR(42),
+  derniere_connexion VARCHAR(42),
+  id_roles           VARCHAR(42) NOT NULL,
+  id_status          VARCHAR(42) NOT NULL
 );
 
 ALTER TABLE Affecter ADD FOREIGN KEY (id_roles) REFERENCES roles (id_roles);
@@ -82,4 +116,11 @@ ALTER TABLE bibliotheque ADD FOREIGN KEY (id_utilisateur) REFERENCES utilisateur
 ALTER TABLE livre_bibliotheque ADD FOREIGN KEY (code_bibliotheque) REFERENCES bibliotheque (code_bibliotheque);
 ALTER TABLE livre_bibliotheque ADD FOREIGN KEY (id_livre) REFERENCES livre (id_livre);
 
+ALTER TABLE messages ADD FOREIGN KEY (id_utilisateur_2) REFERENCES utilisateur (id_utilisateur);
+ALTER TABLE messages ADD FOREIGN KEY (id_utilisateur_1) REFERENCES utilisateur (id_utilisateur);
+
+ALTER TABLE rapport ADD FOREIGN KEY (id_utilisateur_2) REFERENCES utilisateur (id_utilisateur);
+ALTER TABLE rapport ADD FOREIGN KEY (id_utilisateur_1) REFERENCES utilisateur (id_utilisateur);
+
+ALTER TABLE utilisateur ADD FOREIGN KEY (id_status) REFERENCES status (id_status);
 ALTER TABLE utilisateur ADD FOREIGN KEY (id_roles) REFERENCES roles (id_roles);

@@ -8,7 +8,22 @@ type PaginatedBooksInLibrary {
 
 extend type Query {
     # Récupérer tous les livres en bibliothèque
+    getBooksInLibraries(
+        limit: Int, 
+        offset: Int, 
+        order: String = "created_at", # Colonne par défaut pour le tri
+        direction: String = "ASC" # Direction par défaut pour le tri (ASC ou DESC)
+    ): PaginatedBooksInLibrary!
+
+    getMyBooksInLibraries(
+        limit: Int, 
+        offset: Int, 
+        order: String = "created_at", # Colonne par défaut pour le tri
+        direction: String = "ASC" # Direction par défaut pour le tri (ASC ou DESC)
+    ): PaginatedBooksInLibrary!
+
     getBooksInLibrary(
+        id_library: ID!, 
         limit: Int, 
         offset: Int, 
         order: String = "created_at", # Colonne par défaut pour le tri
@@ -16,7 +31,13 @@ extend type Query {
     ): PaginatedBooksInLibrary!
 
     # Récupérer un livre en bibliothèque par son ID
-    getBookInLibrary(id_bookhaslibrary: ID!): BookHasLibrary 
+    getBookInLibrary(
+        id_bookhaslibrary: ID!,
+        limit: Int, 
+        offset: Int,
+        order: String = "created_at", # Colonne par défaut pour le tri
+        direction: String = "ASC" # Direction par défaut pour le tri (ASC ou DESC)
+        ): BookHasLibrary 
 
     # Rechercher des livres en bibliothèque par titre ou auteur avec pagination
     searchBooksInLibrary(titleOrAuthor: String!, limit: Int, offset: Int): PaginatedBooksInLibrary!

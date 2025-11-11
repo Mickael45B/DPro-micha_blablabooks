@@ -18,9 +18,57 @@ const MAX_LOG_SIZE = 10 * 1024 * 1024; // 10 MB
   }
 })();
 
+/**
+ * Sanitize récursif pour objets et tableaux
+ * Nettoie toutes les strings en profondeur
+ * 
+ * @param {*} data - Données à nettoyer
+ * @returns {*} Données nettoyées
+ */
+export const sanitizeRecursive = (data) => {
+  if (data === null || data === undefined) return data;
+  
+  // Tableaux
+  if (Array.isArray(data)) {
+    return data.map(item => sanitizeRecursive(item));
+  }
+  
+  // Objets
+  if (typeof data === 'object') {
+    const sanitized = {};
+    for (const [key, value] of Object.entries(data)) {
+      if (typeof value === 'string') {
+        sanitized[key] = sanitizeStrict(value);
+      } else if (typeof value === 'number') {
+        sanitized[key] = sanitizeNumber(value);
+      } else if (typeof value === 'boolean') {
+        sanitized[key] = Boolean(value);
+      } else if (value !== null && typeof value === 'object') {
+        sanitized[key] = sanitizeRecursive(value);
+      } else {
+        sanitized[key] = value;
+      }
+    }
+    return sanitized;
+  }
+  
+  // Strings
+  if (typeof data === 'string') {
+    return sanitizeStrict(data);
+  }
+  
+  // Nombres
+  if (typeof data === 'number') {
+    return sanitizeNumber(data);
+  }
+  
+  // Autres types (boolean, Date, etc.)
+  return data;
+};
 // ========================================
 // HELPERS DE SANITIZATION
 // ========================================
+
 /**
  * Sanitize strict : Supprime TOUT le HTML
  */
@@ -53,6 +101,7 @@ export const sanitizeStrict = (input) => {
   
   return cleaned;
 };
+
 
 /**
  * Sanitize pour le contenu riche (reviews, descriptions)
@@ -134,10 +183,64 @@ export const detectSQLInjection = (input) => {
   return sqlPatterns.some(pattern => pattern.test(input));
 };
 
+          /**
+           * Validation custom anti-injection
+           */
+          export const validateAgainstInjection = (data) => {
+            const checkValue = (value, fieldName = 'field') => {
+              if (!value || typeof value !== 'string') return;
+              
+              // Détecter XSS
+              if (/<script|javascript:|onerror=|onload=/gi.test(value)) {
+                throw new GraphQLError(`Contenu suspect dans ${fieldName}`, {
+                  extensions: { code: 'XSS_DETECTED', httpStatus: 400 }
+                });
+              }
+              
+              // Détecter SQLi
+              if (detectSQLInjection(value)) {
+                throw new GraphQLError(`Pattern SQL suspect dans ${fieldName}`, {
+                  extensions: { code: 'SQL_INJECTION_DETECTED', httpStatus: 400 }
+                });
+              }
+            };
+
+            // Si c'est un tableau
+            if (Array.isArray(data)) {
+              data.forEach((item, index) => {
+                if (typeof item === 'object') {
+                  validateAgainstInjection(item);
+                } else {
+                  checkValue(item, `index[${index}]`);
+                }
+              });
+              return;
+            }
+
+            // Si c'est un objet
+            if (typeof data === 'object' && data !== null) {
+              for (const [key, value] of Object.entries(data)) {
+                if (typeof value === 'object') {
+                  validateAgainstInjection(value);
+                } else {
+                  checkValue(value, key);
+                }
+              }
+              return;
+            }
+
+            // Si c'est une valeur simple
+            checkValue(data);
+          };
+
 /**
- * Validation custom anti-injection
+ * Détecte les patterns malveillants SANS throw d'erreur
+ * Retourne true si malice détectée, false sinon
+ * 
+ * @param {*} data - Données à analyser (string, object, array)
+ * @returns {boolean} true si patterns suspects détectés
  */
-export const validateAgainstInjection = (data) => {
+export const detectMaliciousPatterns = (data) => {
   if (!data) return false;
   
   const checkValue = (value) => {
@@ -152,6 +255,9 @@ export const validateAgainstInjection = (data) => {
       /<iframe/gi,
       /eval\(/gi,
       /expression\(/gi,
+      /<object/gi,
+      /<embed/gi,
+      /vbscript:/gi,
     ];
     
     // Patterns SQL Injection
@@ -162,14 +268,29 @@ export const validateAgainstInjection = (data) => {
       /insert\s+into/gi,
       /exec\s*\(/gi,
       /execute\s*\(/gi,
-      /--\s*$/gm, // Commentaires SQL
+      /--\s*$/gm,
       /;\s*drop/gi,
       /'\s*or\s*'1'\s*=\s*'1/gi,
+      /'\s*or\s+1\s*=\s*1/gi,
+      /admin'\s*--/gi,
+      /'\s*;\s*shutdown/gi,
     ];
     
-    return [...xssPatterns, ...sqlPatterns].some(pattern => pattern.test(value));
+    // Patterns Path Traversal
+    const traversalPatterns = [
+      /\.\.\//g,
+      /\.\.\\\\/g,
+      /%2e%2e%2f/gi,
+      /%252e%252e%252f/gi,
+    ];
+    
+    return [
+      ...xssPatterns, 
+      ...sqlPatterns, 
+      ...traversalPatterns
+    ].some(pattern => pattern.test(value));
   };
-
+  
   // Vérification récursive
   if (Array.isArray(data)) {
     return data.some(item => detectMaliciousPatterns(item));
@@ -180,8 +301,6 @@ export const validateAgainstInjection = (data) => {
   }
   
   return checkValue(data);
-
-
 };
 
 // ========================================
@@ -307,16 +426,41 @@ export const validateWithJoi = (schema, data) => {
   return value;
 };
 
+// ========================================
+// VALIDATION Sanitize 
+// ========================================
 
-
-
-
-
-
-
-
-
-
+/**
+ * Sanitize strict pour les nombres
+ * Empêche NaN, Infinity, valeurs trop grandes
+ */
+export const sanitizeNumber = (input) => {
+  if (input === null || input === undefined) return input;
+  
+  const num = Number(input);
+  
+  if (isNaN(num)) {
+    throw new GraphQLError('Valeur numérique invalide', {
+      extensions: { code: 'BAD_REQUEST', httpStatus: 400 }
+    });
+  }
+  
+  if (!isFinite(num)) {
+    throw new GraphQLError('Nombre infini non autorisé', {
+      extensions: { code: 'BAD_REQUEST', httpStatus: 400 }
+    });
+  }
+  
+  // Vérifier les limites raisonnables (ajustez selon vos besoins)
+  const MAX_SAFE_INTEGER = Number.MAX_SAFE_INTEGER;
+  if (Math.abs(num) > MAX_SAFE_INTEGER) {
+    throw new GraphQLError('Nombre trop grand', {
+      extensions: { code: 'BAD_REQUEST', httpStatus: 400 }
+    });
+  }
+  
+  return num;
+};
 
 /**
  * Nettoie une chaîne de caractères pour éviter les attaques XSS

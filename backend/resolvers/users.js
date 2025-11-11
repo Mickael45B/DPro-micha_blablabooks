@@ -977,9 +977,9 @@ export default {
         // Générer les tokens (durée selon rememberMe)
         const accessToken = generateAccessToken({
           id_user: user.id_user,
-          email: user.email,
+          name: user.name,
           pseudo: user.pseudo,
-          role: user.role_name || 'user',
+          isAdmin: false,
         }, rememberMe);
         
         const refreshToken = generateRefreshToken({
@@ -999,8 +999,9 @@ export default {
         return {
           user: {
             id_user: user.id_user,
-            email: user.email,
+            name: user.name,
             pseudo: user.pseudo,
+            isAdmin: false
           },
           accessToken,
           refreshToken,

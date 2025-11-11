@@ -55,7 +55,7 @@ export default {
         }
         */
         /*exemple de requête :
-        query {getBooks{books{title}}}
+        query {getBooks{books{title, id_book}}}
         */
         /* Exemple variables :
         {
@@ -65,7 +65,7 @@ export default {
         // ========================================
         // RECUPERER LES DONNEES NESSESAIRES
         // ======================================== 
-        const { limit = 50, offset = 0, direction = 'ASC', order = 'created_at' } = validated;
+        const { limit = 150, offset = 0, direction = 'ASC', order = 'created_at' } = validated;
 
         const validOrders = ['id_book', 'name', 'author', 'avg_rating', 'nb_reviews', 'is_in_favorite', 'publication_date', 'created_at', 'updated_at'];
         const { order: safeOrder, direction: safeDirection } = validateOrderParams(
@@ -99,10 +99,11 @@ export default {
         };
       },
       {
+        structureSchema: generalBookSchema,
         sortingSchema: generalSortingSchema,
-        orderSchema: generalOrderBookSchema,
+        orderSchema: generalOrderBookSchema,  
         logAction: 'GET_ALL_BOOKS',
-        requiresAdmin: true,
+        requiresAuth: true,
         errorMessage: 'Erreur lors de la récupération des livres'
       }
     ),
@@ -153,8 +154,11 @@ export default {
 
       },
       {
+        structureSchema: generalBookSchema,
+        sortingSchema: generalSortingSchema,
+        orderSchema: generalOrderBookSchema,  
         logAction: 'GET_ONE_BOOKS',
-        requiresAdmin: true,
+        requiresAuth: true,
         errorMessage: 'Erreur lors de la récupération d un livre'
       }
     ),
@@ -180,7 +184,7 @@ export default {
       }
       */
       /*exemple de requête :
-      query  searchBooks($titleOrAuthor: String!) {searchBooks(titleOrAuthor: $titleOrAuthor) {id_book,title }}
+      query  searchBooks($titleOrAuthor: String!) {searchBooks(titleOrAuthor: $titleOrAuthor) {books{title,author} }}
 
       */
       /* Exemple variables :
@@ -192,7 +196,7 @@ export default {
       // ======================================== 
 
       const { titleOrAuthor, limit = 50, offset = 0, direction = 'ASC', order = 'created_at' } = validated;
-
+console.log('titleOrAuthor:', titleOrAuthor);
       if (!titleOrAuthor || titleOrAuthor.length < 2) {
         throw new GraphQLError('Le terme de recherche doit contenir au moins 2 caractères', {
           extensions: { code: 'BAD_REQUEST', httpStatus: 400 }
@@ -218,7 +222,7 @@ export default {
         WHERE LOWER(title) LIKE LOWER($1) OR LOWER(author) LIKE LOWER($1)
         ORDER BY avg_rating DESC NULLS LAST, nb_reviews DESC
         LIMIT $2 OFFSET $3
-      `, [searchPattern, cleanLimit, cleanOffset]);
+      `, [searchPattern, limit, offset]);
       
       const countResult = await db.query(`
         SELECT COUNT(*)::int as count FROM books
@@ -230,16 +234,17 @@ export default {
       // ========================================                
       return {
         books: result.rows,
-        totalCount,
-        hasNextPage: offset + limit < totalCount,
+        countResult,
+        hasNextPage: offset + limit < countResult,
         httpStatus: 200,
       };
 
       },
       {
+        structureSchema: generalBookSchema,
         sortingSchema: generalSortingSchema,
-        orderSchema: generalOrderBookSchema,
-        inputSchema: searchBooksSchema,
+        orderSchema: generalOrderBookSchema,  
+        specificSchema: searchBooksSchema,
         logAction: 'SEARCH_BOOKS',
         requiresAuth: true,
         errorMessage: 'Erreur lors de la recherche de livres'
@@ -267,7 +272,7 @@ export default {
           }
         */
         /*exemple de requête :
-        mutation addBook($input: CreateBookInput!) { addBook(input: $input) {isbn }}
+        mutation addBook($input: CreateBookInput!) { addBook(input: $input) {isbn, id_book  }}
 
         */
         /* Exemple variables :
@@ -368,9 +373,9 @@ export default {
 
       },
       {
+        structureSchema: generalBookSchema,
         sortingSchema: generalSortingSchema,
-        orderSchema: generalOrderBookSchema,
-        inputSchema: searchBooksSchema,
+        orderSchema: generalOrderBookSchema,  
         logAction: 'ADDING_BOOK',
         requiresAdmin: true,
         errorMessage: 'Erreur lors de la création de livres'
@@ -386,7 +391,7 @@ export default {
     * @throws {GraphQLError} Si une erreur se produit lors de la mise à jour du livre (500)
     */
     updateBook: withErrorHandling(
-  async (_, { input, validated }, context) => {
+      async (_, { input, validated }, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
           userId: "uuid-of-user",
@@ -395,15 +400,17 @@ export default {
         }
         */
        /*exemple de requête :
-        mutation updateBook($input: UpdateBookInput!) { updateBook(input: $input) {__typename }}
+        mutation updateBook($input: UpdateBookInput!) { updateBook(input: $input) {id_book, isbn, title}}
 
         */
         /* Exemple variables :
         { "input": 
         {"id_book": "4c6dbaa3-9300-425e-88b6-8b2ee81d035e",
-          "title" :"toto au travail",
+          "title" :"toto au travail"
         }
-        }       
+        }  
+        ancient : 4c6dbaa3-9300-425e-88b6-8b2ee81d035e
+        nouveau : 49114f5f-537e-42e7-a42a-62a66d23da4c
         */
         // ========================================
         // RECUPERER LES DONNEES NESSESAIRES
@@ -412,26 +419,30 @@ export default {
         const { id_book, title, author, publication_date, genre, isbn, editor, vignetteimage, bookimage, age_limit, description, series } = input;
 
         const cleanInput = {  
-          id_book: sanitizeStrict(id_book),
-          title: sanitizeStrict(title),
-          author: sanitizeStrict(author),
-          publication_date: sanitizeStrict(publication_date),
-          genre: sanitizeStrict(genre),
-          isbn: sanitizeStrict(isbn),
-          editor: sanitizeStrict(editor),
-          vignetteimage: sanitizeStrict(vignetteimage),
-          bookimage: sanitizeStrict(bookimage),
-          age_limit: sanitizeStrict(age_limit),
-          description: sanitizeStrict(description),
-          series: sanitizeStrict(series)
+          id_book: sanitizeStrict(input.id_book),
+          title: sanitizeStrict(input.title),
+          author: sanitizeStrict(input.author),
+          publication_date: sanitizeStrict(input.publication_date),
+          genre: sanitizeStrict(input.genre),
+          isbn: sanitizeStrict(input.isbn),
+          editor: sanitizeStrict(input.editor),
+          vignetteimage: sanitizeStrict(input.vignetteimage),
+          bookimage: sanitizeStrict(input.bookimage),
+          age_limit: sanitizeStrict(input.age_limit),
+          description: sanitizeStrict(input.description),
+          series: sanitizeStrict(input.series)
         };
 
         const updates = [];
         const values = [];
         let paramIndex = 1;
 
-        if (validatedInput.title !== undefined) {
-          const cleanTitle = sanitizeString(validatedInput.title);
+        
+          const cleanIdBook = sanitizeStrict(id_book);
+          console.log('cleanIdBook:', cleanIdBook);
+
+        if (title !== undefined) {
+          const cleanTitle = sanitizeStrict(title);
           if (cleanTitle.trim().length < 1) {
             throw new GraphQLError('Le titre ne peut pas être vide', {
               extensions: { code: 'BAD_REQUEST', httpStatus: 400 },
@@ -440,25 +451,25 @@ export default {
           updates.push(`title = $${paramIndex++}`);
           values.push(cleanTitle);
         }        
-        if (validatedInput.author !== undefined) {
+        if (input.author !== undefined) {
           updates.push(`author = $${paramIndex++}`);
-          values.push(sanitizeInput(validatedInput.author));
+          values.push(sanitizeInput(input.author));
         }
-        if (validatedInput.publication_date !== undefined) {
+        if (input.publication_date !== undefined) {
           updates.push(`publication_date = $${paramIndex++}`);
-          values.push(sanitizeInput(validatedInput.publication_date));
+          values.push(sanitizeInput(input.publication_date));
         }
-        if (validatedInput.genre !== undefined) {
+        if (input.genre !== undefined) {
           updates.push(`genre = $${paramIndex++}`);
-          values.push(sanitizeInput(validatedInput.genre));
+          values.push(sanitizeInput(input.genre));
         }
-        if (validatedInput.isbn !== undefined) {
-          const cleanIsbn = sanitizeString(validatedInput.isbn);
+        if (input.isbn !== undefined) {
+          const cleanIsbn = sanitizeString(input.isbn);
           // Vérifier que l'ISBN n'est pas déjà utilisé par un autre livre
           if (cleanIsbn) {
             const existing = await db.query(
               'SELECT id_book FROM books WHERE isbn = $1 AND id_book != $2',
-              [cleanIsbn, cleanIdBook.id]
+              [cleanIsbn, cleanIdBook]
             );
             if (existing.rows.length > 0) {
               throw new GraphQLError('Cet ISBN est déjà utilisé par un autre livre', {
@@ -469,20 +480,20 @@ export default {
           updates.push(`isbn = $${paramIndex++}`);
           values.push(cleanIsbn);
         }
-        if (validatedInput.editor !== undefined) {
+        if (input.editor !== undefined) {
           updates.push(`editor = $${paramIndex++}`);
-          values.push(sanitizeInput(validatedInput.editor));
+          values.push(sanitizeInput(input.editor));
         }
-        if (validatedInput.vignetteImage !== undefined) {
+        if (input.vignetteImage !== undefined) {
           updates.push(`vignetteimage = $${paramIndex++}`);
-          values.push(sanitizeInput(validatedInput.vignetteImage));
+          values.push(sanitizeInput(input.vignetteImage));
         }
-        if (validatedInput.bookImage !== undefined) {
+        if (input.bookImage !== undefined) {
           updates.push(`bookimage = $${paramIndex++}`);
-          values.push(sanitizeInput(validatedInput.bookImage));
+          values.push(sanitizeInput(input.bookImage));
         }
-        if (validatedInput.age_limit !== undefined) {
-          const cleanAge = parseInt(validatedInput.age_limit);
+        if (input.age_limit !== undefined) {
+          const cleanAge = parseInt(input.age_limit);
           if (cleanAge < 0 || cleanAge > 18) {
             throw new GraphQLError('L\'âge limite doit être entre 0 et 18', {
               extensions: { code: 'BAD_REQUEST', httpStatus: 400 },
@@ -491,13 +502,13 @@ export default {
           updates.push(`age_limit = $${paramIndex++}`);
           values.push(cleanAge);
         }
-        if (validatedInput.description !== undefined) {
+        if (input.description !== undefined) {
           updates.push(`description = $${paramIndex++}`);
-          values.push(sanitizeInput(validatedInput.description));
+          values.push(sanitizeInput(input.description));
         }
-        if (validatedInput.series !== undefined) {
+        if (input.series !== undefined) {
           updates.push(`series = $${paramIndex++}`);
-          values.push(sanitizeInput(validatedInput.series));
+          values.push(sanitizeInput(input.series));
         }
     
         if (updates.length === 0) {
@@ -508,7 +519,7 @@ export default {
             },
           });
         }
-        values.push(cleanIdBook.id);
+        values.push(cleanIdBook);
 
         // ========================================
         // REQUETES BASE DE DONNEES
@@ -519,12 +530,14 @@ export default {
           WHERE id_book = $${paramIndex}
           RETURNING *
         `, values);
-
+          console.log('Values for updateBook:', result);
         // ========================================
         // DONNEES RECUPEREES
         // ========================================         
         if (result.rows.length === 0) {
-          throw new Error('Book not found');
+          throw new GraphQLError('Livre non trouvé', {
+            extensions: { code: 'NOT_FOUND', httpStatus: 404 },
+          });
         }
 
         // Return the Book object directly to match the schema (Book!)
@@ -533,8 +546,11 @@ export default {
 
       },
       {
+        structureSchema: generalBookSchema,
+        sortingSchema: generalSortingSchema,
+        orderSchema: generalOrderBookSchema,  
         logAction: 'UPDATE_BOOK',
-        requiresAuth: true,
+        requiresAdmin: true,
         errorMessage: 'Erreur lors de la mise à jour du livre'
       }
     ),
@@ -561,7 +577,7 @@ export default {
             mutation deleteBook($input: DeleteBookInput!) { deleteBook(input: $input) }
         */
       /* Exemple variables :
-        {"input": {"id_book":"a1b2c3d4-e5f6-7g8h-9i0j-1k2l3m4n5o6p"} }
+        {"input": {"id_book":"49114f5f-537e-42e7-a42a-62a66d23da4c"} }
         */
         // ========================================
         // RECUPERER LES DONNEES NESSESAIRES
@@ -613,6 +629,9 @@ export default {
         return true;
       },
       {
+        structureSchema: generalBookSchema,
+        sortingSchema: generalSortingSchema,
+        orderSchema: generalOrderBookSchema,  
         logAction: 'DELETE_BOOK',
         requiresAdmin : true,
         errorMessage: 'Erreur lors de la suppression du livre'

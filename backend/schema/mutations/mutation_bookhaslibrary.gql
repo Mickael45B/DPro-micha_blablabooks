@@ -1,4 +1,7 @@
-
+type ManyBooksFromLibrary {
+  booksInLibrary: [BookHasLibrary!]!
+  httpStatus: Int
+}
 extend type Mutation {
     #TABLE bookhaslibrary
     # Ajouter une nouvelle relation
@@ -11,8 +14,8 @@ extend type Mutation {
     deleteBookHasLibrary(input: DeleteBookHasLibraryInput!): Boolean!
 
     # Ajouter ou retirer des livres d'une bibliothèque
-    addBooksToLibrary(input: AddBooksToLibraryInput!): [BookHasLibrary!]!
+    addBooksToLibrary(input: AddBooksToLibraryInput!): ManyBooksFromLibrary!
 
     # Retirer des livres d'une bibliothèque
-    removeBooksFromLibrary(input: RemoveBooksFromLibraryInput!): Boolean!
+    removeBooksFromLibrary(input: RemoveBooksFromLibraryInput!): ManyBooksFromLibrary!
 }

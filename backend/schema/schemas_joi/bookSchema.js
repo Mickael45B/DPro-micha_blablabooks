@@ -36,7 +36,7 @@ export const getBookSchema = Joi.object({
 });
 
 export const searchBooksSchema = Joi.object({
-	query: Joi.string().min(1).max(255).required(),// Terme de recherche
+	titleOrAuthor: Joi.string().min(1).max(255).required(),// Terme de recherche
 });
 
 //-----------------------------------------------------------

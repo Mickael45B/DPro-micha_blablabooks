@@ -1,52 +1,128 @@
 import { GraphQLError } from 'graphql';
 import sanitizeHtml from 'sanitize-html';
+import Redis from 'ioredis';
+import db from '../../../db/connect_DB.js';
+import {withOutputSanitization, logSuspiciousActivity, detectMaliciousPatterns} from '../helpers/helpers_securite.js';
 
-import {withOutputSanitization, logSuspiciousActivity, validateAgainstInjection} from '../helpers/helpers_securite.js';
+const redis = new Redis({
+  host: process.env.REDIS_HOST || 'localhost',
+  port: process.env.REDIS_PORT || 6379,
+  password: process.env.REDIS_PASSWORD || undefined, // ✅ Utiliser le mot de passe
+  retryStrategy: (times) => {
+    const delay = Math.min(times * 50, 2000);
+    return delay;
+  },
+  maxRetriesPerRequest: 3,
+});
 
+redis.on('error', (err) => {
+  console.error('❌ Redis error:', err.message);
+});
+
+redis.on('connect', () => {
+  console.log('✅ Redis connected');
+});
+
+redis.on('ready', () => {
+  console.log('✅ Redis ready');
+});
 // ========================================
 // HELPERS D'AUTHENTIFICATION
 // ========================================
   // Défaut utilitaire pour savoir si l'utilisateur est authentifié
-  export const isAuthenticated = (context) => {
-    // Si utilisation d'un user (obtenu après vérif du token), prefère context.user
-    // Sinon fallback sur context.token
-    return Boolean(context && (context.user || context.token || context.isAuthenticated));
-  };
+            export const isAuthenticated = (context) => {
+              // Si utilisation d'un user (obtenu après vérif du token), prefère context.user
+              // Sinon fallback sur context.token
+              return Boolean(context && (context.user || context.token || context.isAuthenticated));
+            };
+
+  /**
+ * Vérifie l'utilisateur avec cache Redis (30 secondes)
+ */
+  const verifyUserWithCache = async (id_user, pseudo, name) => {
+    // Clé de cache unique
+    const cacheKey = `user_verify:${id_user}:${pseudo}:${name}`;
+    
+    // Tenter de récupérer depuis le cache
+    const cached = await redis.get(cacheKey);
+    if (cached) {
+      return JSON.parse(cached);
+    }
+    
+    // Sinon, vérifier en BDD
+    const result = await db.query(`
+      SELECT u.id_user, u.pseudo, u.name, r.role_name
+      FROM users u
+      LEFT JOIN roles r ON u.id_role = r.id_role
+      WHERE u.id_user = $1 
+        AND u.pseudo = $2 
+        AND u.name = $3
+    `, [id_user, pseudo, name]);
+    
+    if (result.rows.length === 0) {
+      return null; // Utilisateur invalide
+    }
+    
+    const user = result.rows[0];
+    
+    // Mettre en cache pour 30 secondes
+    await redis.setex(cacheKey, 30, JSON.stringify(user));
+    
+    return user;
+  };  
 
   /**
    * Vérifie que l'utilisateur est authentifié
    * @throws {GraphQLError} Si non authentifié
    */
   export const requireAuth = (context) => {
-    // Utiliser la fonction utilitaire isAuthenticated pour accepter
-    // context.token ou context.user (createContext fournit context.token)
-    if (!isAuthenticated(context)) {
-      throw new GraphQLError('Vous devez être connecté pour effectuer cette action', {
-        extensions: { 
-          code: 'UNAUTHENTICATED',
-          httpStatus: 401
-        },
-      });
-    }
+  if (!context || !context.isAuthenticated || !context.user) {
+    throw new GraphQLError('Vous devez être connecté pour effectuer cette action', {
+      extensions: { 
+        code: 'UNAUTHENTICATED',
+        httpStatus: 401
+      },
+    });
+  }
   };
 
   /**
    * Vérifie que l'utilisateur est administrateur
    * @throws {GraphQLError} Si non admin
    */
-  export const requireAdmin = (context) => {
-    requireAuth(context);
-    const isAdminFlag =
-      Boolean(context && (context.isAdmin || context.user?.isAdmin || context.user?.role === 'admin'));
-    if (!isAdminFlag) {
-      throw new GraphQLError('Accès refusé : droits administrateur requis', {
-        extensions: { 
-          code: 'FORBIDDEN',
-          httpStatus: 403
-        },
-      });
-    }
-  };
+  export const requireAdmin = async (context) => {
+  requireAuth(context);
+  
+  const { id_user, pseudo, name } = context.user || {};
+  
+  if (!id_user || !pseudo || !name) {
+    throw new GraphQLError('Données utilisateur incomplètes', {
+      extensions: { code: 'UNAUTHORIZED', httpStatus: 401 }
+    });
+  }
+  
+  const user = await verifyUserWithCache(id_user, pseudo, name);
+  
+  if (!user) {
+    await logSuspiciousActivity('HONEYPOT__TOKEN_FORGERY', {
+      claimed_id: id_user,
+      claimed_pseudo: pseudo,
+      claimed_name: name,
+      ip: context.req?.ip,
+      warning: '🚨 FALSIFICATION JWT DÉTECTÉE'
+    }, context);
+    
+    throw new GraphQLError('Accès refusé', {
+      extensions: { code: 'FORBIDDEN', httpStatus: 403 }
+    });
+  }
+  
+  if (user.role_name !== 'admin') {
+    throw new GraphQLError('Accès refusé', {
+      extensions: { code: 'FORBIDDEN', httpStatus: 403 }
+    });
+  }
+};
 
   /**
    * Vérifie que l'utilisateur peut accéder à une ressource
@@ -54,21 +130,79 @@ import {withOutputSanitization, logSuspiciousActivity, validateAgainstInjection}
    * @param {object} context - Contexte GraphQL
    * @throws {GraphQLError} Si accès refusé
    */
-  export const requireOwnershipOrAdmin = (resourceUserId, context) => {
+  export const requireOwnershipOrAdmin = async  (resourceUserId, context) => {
     requireAuth(context);
-    const currentUserId = context?.user?.id ?? context?.user?.id_user ?? null;
-    const isAdminFlag =
-      Boolean(context && (context.isAdmin || context.user?.isAdmin || context.user?.role === 'admin'));
 
-    if (resourceUserId !== currentUserId && !isAdminFlag) {
-      throw new GraphQLError('Vous ne pouvez accéder qu\'à vos propres ressources', {
-        extensions: {
-          code: 'FORBIDDEN',
-          httpStatus: 403
-        }
+    const { id_user, pseudo, name } = context.user || {};
+    
+    if (!id_user || !pseudo || !name) {
+      throw new GraphQLError('Données utilisateur incomplètes', {
+        extensions: { code: 'UNAUTHORIZED', httpStatus: 401 }
+      });
+    }
+    
+    const result = await db.query(`
+      SELECT u.id_user, u.pseudo, u.name, r.role_name
+      FROM users u
+      LEFT JOIN roles r ON u.id_role = r.id_role
+      WHERE u.id_user = $1 
+        AND u.pseudo = $2 
+        AND u.name = $3
+    `, [id_user, pseudo, name]);
+    
+    if (result.rows.length === 0) {
+      await logSuspiciousActivity('HONEYPOT__TOKEN_FORGERY', {
+        claimed_id: id_user,
+        claimed_pseudo: pseudo,
+        claimed_name: name,
+        resource_id: resourceUserId,
+        ip: context.req?.ip,
+        warning: '🚨 TENTATIVE DE FALSIFICATION DE JWT DÉTECTÉE'
+      }, context);
+      
+      throw new GraphQLError('Accès refusé', {
+        extensions: { code: 'FORBIDDEN', httpStatus: 403 }
+      });
+    }
+    
+    const user = result.rows[0];
+    
+    const isOwner = user.id_user === resourceUserId;
+    const isAdmin = user.role_name === 'admin';
+    
+    if (!isOwner && !isAdmin) {
+      throw new GraphQLError('Accès refusé', {
+        extensions: { code: 'FORBIDDEN', httpStatus: 403 }
       });
     }
   };
+
+/**
+ * Détecte si quelqu'un tente d'utiliser le honeypot isAdmin
+ */
+export const detectHoneypotUsage = async (context) => {
+  if (context.isAdmin === true) {
+    context._honeypotTriggered = true;
+    
+    await logSuspiciousActivity('HONEYPOT__ADMIN_FLAG_MANIPULATION', {
+      user: context.user?.id_user || 'anonymous',
+      email: context.user?.email || 'unknown',
+      pseudo: context.user?.pseudo || 'unknown',
+      ip: context.req?.ip || context.req?.connection?.remoteAddress, 
+      userAgent: context.req?.headers?.['user-agent'],
+      method: context.req?.method,
+      operationName: context.req?.body?.operationName,
+      query: context.req?.body?.query?.substring(0, 500),
+      variables: JSON.stringify(context.req?.body?.variables),
+      warning: '🚨 TENTATIVE DE MANIPULATION DU FLAG isAdmin DÉTECTÉE',
+      timestamp: new Date().toISOString(),
+    }, context);    
+    
+    return true;
+  }
+  
+  return false;
+};
 
 // ========================================
 // HELPERS DE JOI
@@ -194,6 +328,73 @@ export const sanitizeNumber = (input) => {
   return num;
 };
 
+const sanitizeRecursive = (data) => {
+  if (data === null || data === undefined) return data;
+  
+  if (Array.isArray(data)) {
+    return data.map(item => sanitizeRecursive(item));
+  }
+  
+  if (typeof data === 'object') {
+    const sanitized = {};
+    for (const [key, value] of Object.entries(data)) {
+      if (typeof value === 'string') {
+        sanitized[key] = sanitizeStrict(value);
+      } else if (typeof value === 'number') {
+        sanitized[key] = sanitizeNumber(value);
+      } else if (typeof value === 'boolean') {
+        sanitized[key] = Boolean(value);
+      } else if (value !== null && typeof value === 'object') {
+        sanitized[key] = sanitizeRecursive(value);
+      } else {
+        sanitized[key] = value;
+      }
+    }
+    return sanitized;
+  }
+  
+  if (typeof data === 'string') {
+    return sanitizeStrict(data);
+  }
+  
+  if (typeof data === 'number') {
+    return sanitizeNumber(data);
+  }
+  
+  return data;
+};
+
+// ========================================
+// WRAPPER ERROR HANDLING (try/catch)
+// ========================================
+/**
+ * Wrapper générique pour gérer les erreurs des resolvers
+ * @param {Function} resolverFn - Fonction resolver à wrapper
+ * @param {string} errorMessage - Message d'erreur personnalisé
+ * @returns {Function} Resolver wrappé avec gestion d'erreur
+ */
+export const withErrorHandling = (resolverFn, errorMessage) => {
+  return async (parent, args, context, info) => {
+    try {
+      return await resolverFn(parent, args, context, info);
+    } catch (error) {
+      // Si c'est déjà une GraphQLError, la relancer
+      if (error instanceof GraphQLError) {
+        throw error;
+      }
+      
+      // Sinon, créer une nouvelle GraphQLError avec le message personnalisé
+      throw new GraphQLError(errorMessage, {
+        extensions: {
+          code: 'INTERNAL_SERVER_ERROR',
+          httpStatus: 500,
+          originalError: error.message,
+        },
+      });
+    }
+  };
+};
+
 // ========================================
 // HELPERS GÉNÉRAUX
 // ========================================
@@ -227,31 +428,32 @@ export function makeEdgeFromBook(book) {
   return { node: book, cursor };
 }
 
-/**
- * Wrapper générique pour gérer les erreurs des resolvers
- * @param {Function} resolverFn - Fonction resolver à wrapper
- * @param {string} errorMessage - Message d'erreur personnalisé
- * @returns {Function} Resolver wrappé avec gestion d'erreur
- */
-export const withErrorHandling = (resolverFn, errorMessage) => {
-  return async (parent, args, context, info) => {
-    try {
-      return await resolverFn(parent, args, context, info);
-    } catch (error) {
-      // Si c'est déjà une GraphQLError, la relancer
-      if (error instanceof GraphQLError) {
-        throw error;
-      }
-      
-      // Sinon, créer une nouvelle GraphQLError avec le message personnalisé
-      throw new GraphQLError(errorMessage, {
-        extensions: {
-          code: 'INTERNAL_SERVER_ERROR',
-          httpStatus: 500,
-          originalError: error.message,
-        },
-      });
-    }
+export const verifyUserInDB = async (context) => {
+  const { id_user, pseudo, name } = context.user || {};
+  
+  if (!id_user || !pseudo || !name) {
+    throw new GraphQLError('Données utilisateur incomplètes', {
+      extensions: { code: 'UNAUTHORIZED', httpStatus: 401 }
+    });
+  }
+
+  const result = await db.query(`
+    SELECT u.id_user, r.role_name
+    FROM users u
+    LEFT JOIN roles r ON u.id_role = r.id_role
+    WHERE u.id_user = $1 AND u.pseudo = $2 AND u.name = $3
+  `, [id_user, pseudo, name]);
+  
+  if (result.rows.length === 0) {
+    throw new GraphQLError('Token invalide', {
+      extensions: { code: 'FORBIDDEN', httpStatus: 403 }
+    });
+  }
+
+  return {
+    id_user: result.rows[0].id_user,
+    role_name: result.rows[0].role_name,
+    isAdmin: result.rows[0].role_name === 'admin'
   };
 };
 
@@ -300,45 +502,8 @@ export const withRateLimit = (fn, options = {}) => {
 
 
 
-const sanitizeRecursive = (data) => {
-  if (data === null || data === undefined) return data;
-  
-  if (Array.isArray(data)) {
-    return data.map(item => sanitizeRecursive(item));
-  }
-  
-  if (typeof data === 'object') {
-    const sanitized = {};
-    for (const [key, value] of Object.entries(data)) {
-      if (typeof value === 'string') {
-        sanitized[key] = sanitizeStrict(value);
-      } else if (typeof value === 'number') {
-        sanitized[key] = sanitizeNumber(value);
-      } else if (typeof value === 'boolean') {
-        sanitized[key] = Boolean(value);
-      } else if (value !== null && typeof value === 'object') {
-        sanitized[key] = sanitizeRecursive(value);
-      } else {
-        sanitized[key] = value;
-      }
-    }
-    return sanitized;
-  }
-  
-  if (typeof data === 'string') {
-    return sanitizeStrict(data);
-  }
-  
-  if (typeof data === 'number') {
-    return sanitizeNumber(data);
-  }
-  
-  return data;
-};
-
-
 // ========================================
-// STRUCTURE DES RESOLVERS
+// WRAPPER SECURE RESOLVER
 // ========================================
 
 /**
@@ -362,6 +527,7 @@ const sanitizeRecursive = (data) => {
   export const withSecureResolver = (resolverFn, config = {}) => {
   const {
     structureSchema = null,
+    specificSchema = null,
     sortingSchema = null,
     orderSchema = null,
     logAction = 'UNKNOWN_ACTION',
@@ -369,22 +535,44 @@ const sanitizeRecursive = (data) => {
     requiresAdmin = false,
     getResourceUserId = null,
     errorMessage = 'Erreur lors de l\'opération',
+    blockOnInjection = true,
+    validateOutput = false,
   } = config;
 
 
   return withErrorHandling(
     withOutputSanitization(
+      async (parent, args, context, info) => {
+        // =============================================
+        // 0. DÉTECTION HONEYPOT (AVANT TOUT)
+        // =============================================
+        const honeypotTriggered = await detectHoneypotUsage(context);
+        
+        if (honeypotTriggered) {
+          // Ne pas révéler qu'on a détecté la manipulation
+          // Retourner une erreur générique pour ne pas alerter l'attaquant
+          throw new GraphQLError('Accès refusé', {
+            extensions: { code: 'FORBIDDEN', httpStatus: 403 }
+          });
+        }
+      
       // =============================================
       // 1. VERIFIER DES AUTORISATIONS 
       // =============================================
-      async (parent, args, context, info) => {
         if (requiresAdmin) {
-          requireAdmin(context);
+          await requireAdmin(context);
         } else if (getResourceUserId) {
           const resourceUserId = typeof getResourceUserId === 'function' 
-            ? getResourceUserId(args, context)
+            ? await Promise.resolve(getResourceUserId(args, context))
             : args[getResourceUserId];
-          requireOwnershipOrAdmin(resourceUserId, context);
+          
+          if (!resourceUserId) {
+            throw new GraphQLError('Impossible de déterminer le propriétaire', {
+              extensions: { code: 'INTERNAL_SERVER_ERROR', httpStatus: 500 }
+            });
+          }
+          
+          await requireOwnershipOrAdmin(resourceUserId, context);
         } else if (requiresAuth) {
           requireAuth(context);
         }
@@ -398,7 +586,8 @@ const sanitizeRecursive = (data) => {
             ...validatedDataInput, 
             ...validateWithJoi(structureSchema, args.input || args) 
           };
-        }        
+        }
+        
         if (sortingSchema) {
           const sorting = validateWithJoi(sortingSchema, {
             limit: args.limit,
@@ -412,10 +601,15 @@ const sanitizeRecursive = (data) => {
           const order = validateWithJoi(orderSchema, { order: args.order });
           validatedDataInput = { ...validatedDataInput, ...order };
         }
+
+        if (specificSchema) {
+          const specificData = validateWithJoi(specificSchema, args || {});
+          validatedDataInput = { ...validatedDataInput, ...specificData };
+        }
         // =============================================
         // 3. DÉTECTION DES PATTERNS MALVEILLANTS (AVANT SANITIZATION)
         // =============================================
-        const hasInjectionAttempt = validateAgainstInjection(validatedDataInput);
+        const hasInjectionAttempt = detectMaliciousPatterns(validatedDataInput);
         
         if (hasInjectionAttempt) {
           // Log l'attaque avec les données brutes (non sanitizées)
@@ -431,15 +625,15 @@ const sanitizeRecursive = (data) => {
         }
 
         // =============================================
-        // 4. SANITIZATION (si pas de malice détectée)
+        // 4. SANITIZATION 
         // =============================================
         const sanitizedData = sanitizeRecursive(validatedDataInput);
 
         // Log les données après sanitization (pour comparaison)
-        await logSuspiciousActivity(`SEND__${logAction}__SANITIZED`, {
-          original: validatedDataInput,
-          sanitized: sanitizedData
-        }, context);
+          await logSuspiciousActivity(`SEND__${logAction}__SANITIZED`, {
+            original: validatedDataInput,
+            sanitized: sanitizedData
+          }, context);
 
         // =============================================
         // 5. EXÉCUTION DU RESOLVER
@@ -450,40 +644,45 @@ const sanitizeRecursive = (data) => {
         // 6. VALIDATION DES OUTPUTS (contre les injections de second ordre)
         // =============================================
 
-        if (result) {
-          // Détecter les patterns malveillants dans les données de la BDD
-          const hasInjectionInDB = validateAgainstInjection(result);
-          
-          if (hasInjectionInDB) {
-            // 🚨 ALERTE CRITIQUE : Injection de second ordre détectée !
-            await logSuspiciousActivity(`RECOVER__${logAction}__SECOND_ORDER_INJECTION`, {
+        if (!result) {
+          return result; // null, undefined, false, etc.
+        }          
+        // Détecter les patterns malveillants dans les données de la BDD
+        const hasInjectionInDB = detectMaliciousPatterns(result);
+        
+        if (hasInjectionInDB) {
+          // 🚨 ALERTE CRITIQUE : Injection de second ordre détectée !
+          await logSuspiciousActivity(
+            `RECOVER__${logAction}__SECOND_ORDER_INJECTION`, 
+            {
               action: logAction,
-              user: context.user?.id_user,
+              user: context.user?.id_user || 'anonymous',
               data: result,
               warning: '🔥 DONNÉES CORROMPUES DÉTECTÉES EN BASE DE DONNÉES'
-            }, context);
-            
-            // Option 1 : Bloquer la réponse (recommandé)
-            throw new GraphQLError('Erreur de sécurité : données corrompues détectées', {
-              extensions: { 
-                code: 'DATA_INTEGRITY_ERROR', 
-                httpStatus: 500 
-              }
-            });
-            
+            }, 
+            context
+          );
+          
+          // Bloquer la réponse (recommandé en production)
+          throw new GraphQLError('Erreur de sécurité : données corrompues détectées', {
+            extensions: { 
+              code: 'DATA_INTEGRITY_ERROR', 
+              httpStatus: 500 
             }
-            let validatedOutput = result;
-            if (validatedOutput && structureSchema) {
-              try {
-                validatedOutput = validateWithJoi(structureSchema, result);
-              } catch (error) {
-                // Si la validation échoue, logger mais ne pas bloquer
-                console.warn(`⚠️ Output validation failed for ${logAction}:`, error.message);
-                validatedOutput = result; // Garder les données originales
-              }
-            }
+          });
+        }
 
+        // Validation de structure output 
+        let validatedOutput = result;
+        if (validateOutput && structureSchema) {
+          try {
+            validatedOutput = validateWithJoi(structureSchema, result);
+          } catch (error) {
+            // Si la validation échoue, logger mais ne pas bloquer
+            console.warn(`⚠️ Output validation failed for ${logAction}:`, error.message);
+            validatedOutput = result; // Garder les données originales
           }
+        }          
 
           // Note: withOutputSanitization se charge déjà de la sanitization des données de sortie
 
@@ -681,7 +880,7 @@ Tu veux que j’applique ces améliorations maintenant (édition des fichiers), 
 "name":"Alice Dupont",
 "pseudo":"petit poisson"}
 
-si_tu_arrive_a_lire_ca_tu_es_un_genie
+
 
 
 */

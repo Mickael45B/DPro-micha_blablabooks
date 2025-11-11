@@ -13,6 +13,7 @@ Table "autorisations" {
 
 Table "avis" {
   "id_avis"        VARCHAR(42) [pk, NOT NULL]
+  "titre_avis"     VARCHAR(42)
   "note"           VARCHAR(42)
   "commentaire"    VARCHAR(42)
   "id_utilisateur" VARCHAR(42) [NOT NULL]
@@ -53,18 +54,48 @@ Table "livre_bibliothèque" {
   }
 }
 
+Table "messages" {
+  "id_message"       VARCHAR(42) [pk, NOT NULL]
+  "expediteur"       VARCHAR(42)
+  "destinataire"     VARCHAR(42)
+  "sujet"            VARCHAR(42)
+  "contenu"          VARCHAR(42)
+  "id_utilisateur 1" VARCHAR(42) [NOT NULL]
+  "id_utilisateur 2" VARCHAR(42) [NOT NULL]
+}
+
+Table "rapport" {
+  "id_rapport"       VARCHAR(42) [pk, NOT NULL]
+  "dénociateur"      VARCHAR(42)
+  "dénoncé"          VARCHAR(42)
+  "type"             VARCHAR(42)
+  "raison"           VARCHAR(42)
+  "détail"           VARCHAR(42)
+  "état"             VARCHAR(42)
+  "id_utilisateur 1" VARCHAR(42) [NOT NULL]
+  "id_utilisateur 2" VARCHAR(42) [NOT NULL]
+}
+
 Table "roles" {
   "id_roles" VARCHAR(42) [pk, NOT NULL]
   "nom"      VARCHAR(42)
 }
 
+Table "status" {
+  "id_status" VARCHAR(42) [pk, NOT NULL]
+  "nom"       VARCHAR(42)
+}
+
 Table "utilisateur" {
-  "id_utilisateur" VARCHAR(42) [pk, NOT NULL]
-  "nom"            VARCHAR(42)
-  "email"          VARCHAR(42)
-  "pseudo"         VARCHAR(42)
-  "mot_de_passe"   VARCHAR(42)
-  "id_roles"       VARCHAR(42) [NOT NULL]
+  "id_utilisateur"     VARCHAR(42) [pk, NOT NULL]
+  "nom"                VARCHAR(42)
+  "email"              VARCHAR(42)
+  "pseudo"             VARCHAR(42)
+  "mot_de_passe"       VARCHAR(42)
+  "token"              VARCHAR(42)
+  "derniere_connexion" VARCHAR(42)
+  "id_roles"           VARCHAR(42) [NOT NULL]
+  "id_status"          VARCHAR(42) [NOT NULL]
 }
 
 Ref:"Affecter"."id_autorisations" > "autorisations"."id_autorisations"
@@ -74,4 +105,7 @@ Ref:"avis"."id_livre" > "livre"."id_livre"
 Ref:"bibliothèque"."id_utilisateur" > "utilisateur"."id_utilisateur"
 Ref:"livre_bibliothèque"."id_livre" > "livre"."id_livre"
 Ref:"livre_bibliothèque"."code_bibliotheque" > "bibliothèque"."code_bibliotheque"
+Ref:"messages".("id_utilisateur 1", "id_utilisateur 2") > "utilisateur".("id_utilisateur", "id_utilisateur")
+Ref:"rapport".("id_utilisateur 1", "id_utilisateur 2") > "utilisateur".("id_utilisateur", "id_utilisateur")
 Ref:"utilisateur"."id_roles" > "roles"."id_roles"
+Ref:"utilisateur"."id_status" > "status"."id_status"

@@ -160,24 +160,37 @@ Personnage: id personnage [VARCHAR(20)], nom [VARCHAR(100)], âge [INTEGER], gen
 # MCD à compléter
 
 ```mocodo
-autorisations: id_autorisations [?], nom [?]
-Affecter, 0N autorisations, 1N roles
+messages :id_message [?], expediteur [?], destinataire [?], sujet [?], contenu [?]
+dénoncer, 11 rapport, 0N utilisateur
+rapport : id_rapport [?], dénociateur [?],dénoncé [?], type [?], raison [?], détail [?], état [?]
 roles: id_roles [?], nom [?]
+Affecter, 0N autorisations, 1N roles
+autorisations: id_autorisations [?], nom [?]
 
-:
-:
+
+adresser, 11 messages, 0N utilisateur
+recevoir, 11 messages, 0N utilisateur
+suspecter, 11 rapport, 0N utilisateur
 attribuer, 0N roles, 11 utilisateur
-
+:
+:
 
 Ajouter, 0N utilisateur, 11 bibliothèque
-utilisateur: id_utilisateur [?], nom [?], email [?], pseudo [?], mot_de_passe [?]
+utilisateur: id_utilisateur [?], nom [?], email [?], pseudo [?], mot_de_passe [?], token [?], derniere_connexion [?], 
 Ecrire, 0N utilisateur, 11 avis
 
 bibliothèque: code_bibliotheque [?], nom [?], est_modifiable [?] 
+conditionner, 11 utilisateur, 0N status
+avis: id_avis [?], titre_avis [?], note [?], commentaire [?]
+
 :
-avis: id_avis [?], note [?], commentaire [?]
+:
+status : id_status [?], nom [?]
+:
+:
+:
 
 livre_bibliothèque, 0N livre, 0N bibliothèque
 livre: id_livre [?], isbn [?], genre [?], titre [?], auteur [?], editeur [?], date_publication [?], image_vignette [?],image [?], description [?], age_limite [?], serie [?], est_dans_favoris [?], est_dans_bibliotheque [?],nombre_avis [?], moyenne_note [?]
-virtuelement_posseder, 0N livre, 11 avis
+posseder, 0N livre, 11 avis
 ```
