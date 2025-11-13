@@ -50,18 +50,21 @@ jobs:
         run: npm ci --prefix ./backend
       - name: Wait for Redis to be ready
         run: |
+          if [ "${{ env.DISABLE_REDIS }}" = "true" ] || [ "${DISABLE_REDIS}" = "true" ]; then
+            echo "DISABLE_REDIS=true -> skip waiting for Redis"
+            exit 0
+          fi
           echo "Waiting for Redis on redis:6379 (max 60s)..."
           for i in $(seq 1 60); do
-            # test port using bash /dev/tcp (no external tools)
-           if bash -c "cat < /dev/tcp/redis/6379" >/dev/null 2>&1; then
+            if bash -c "cat < /dev/tcp/redis/6379" >/dev/null 2>&1; then
               echo "Redis ready"
-             exit 0
+              exit 0
             fi
             echo "Waiting for redis... ($i)"
             sleep 1
           done
           echo "::error::Redis did not start in time"
-          exit 1
+          exit 1      
       - name: List tests directory (debug)
         run: |
           echo "Listing backend/test:"
