@@ -1,12 +1,10 @@
 name: Deploy Frontend to GitHub Pages
 
-on: push
-
-
-  # push:
-  #   branches:
-  #     - main
-  # workflow_dispatch: {}
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch: {}
 
 jobs:
   build:
@@ -18,6 +16,20 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: List repository root (debug)
+        run: |
+          echo "PWD: $(pwd)"
+          echo "Listing root:"
+          ls -la
+
+      - name: Ensure frontend directory exists
+        run: |
+          if [ ! -d "./frontend" ]; then
+            echo "::error file=deploy.yml::Le dossier ./frontend est introuvable dans le repo root. Vérifie son emplacement (ex: backend/frontend) et ajuste working-directory ou déplace le workflow sous .github/workflows à la racine."
+            ls -la
+            exit 1
+          fi
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
