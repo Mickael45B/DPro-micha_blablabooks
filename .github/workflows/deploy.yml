@@ -41,23 +41,7 @@ jobs:
         run: npm ci
       - name: Install backend dependencies
         run: npm ci --prefix ./backend
-      - name: Wait for Redis to be ready
-        run: |
-          if [ "${{ env.DISABLE_REDIS }}" = "true" ] || [ "${DISABLE_REDIS}" = "true" ]; then
-            echo "DISABLE_REDIS=true -> skip waiting for Redis"
-            exit 0
-          fi
-          echo "Waiting for Redis on redis:6379 (max 60s)..."
-          for i in $(seq 1 60); do
-            if bash -c "cat < /dev/tcp/redis/6379" >/dev/null 2>&1; then
-              echo "Redis ready"
-              exit 0
-            fi
-            echo "Waiting for redis... ($i)"
-            sleep 1
-          done
-          echo "::error::Redis did not start in time"
-          exit 1      
+    
       - name: List tests directory (debug)
         run: |
           echo "Listing backend/test:"
@@ -65,6 +49,10 @@ jobs:
       - name: Run backend/unit tests
         # lance tous les tests node dans backend/test (ajuste si tu utilises npm test)
         run: node --test ./backend/test/unit
+        env:
+          # ✅ S'assurer que DISABLE_REDIS est bien défini
+          DISABLE_REDIS: 'true'
+          NODE_ENV: 'test'      
       - name: List repository root (debug)
         run: |
           echo "PWD: $(pwd)"
