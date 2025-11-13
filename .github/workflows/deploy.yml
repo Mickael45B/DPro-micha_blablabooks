@@ -23,10 +23,10 @@ jobs:
           echo "Listing root:"
           ls -la
 
-      - name: Ensure frontend directory exists
+      - name: Ensure Frontend directory exists
         run: |
-          if [ ! -d "./frontend" ]; then
-            echo "::error file=deploy.yml::Le dossier ./frontend est introuvable dans le repo root. Vérifie son emplacement (ex: backend/frontend) et ajuste working-directory ou déplace le workflow sous .github/workflows à la racine."
+          if [ ! -d "./Frontend" ]; then
+            echo "::error file=deploy.yml::Le dossier ./Frontend est introuvable dans le repo root. Vérifie son emplacement (ex: backend/Frontend) et ajuste working-directory ou déplace le workflow sous .github/workflows à la racine."
             ls -la
             exit 1
           fi
@@ -38,15 +38,15 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        working-directory: ./frontend
+        working-directory: ./Frontend
         run: npm ci
 
       - name: Build project
-        working-directory: ./frontend
+        working-directory: ./Frontend
         run: npm run build --if-present
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./frontend/dist
+          publish_dir: ./Frontend/dist
