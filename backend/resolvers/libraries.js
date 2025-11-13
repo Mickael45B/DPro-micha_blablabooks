@@ -35,7 +35,7 @@ export default {
     
     /**
      * Récupère toutes les bibliothèques avec pagination
-     * 🔓 Route publique
+     * 🔓 Route privée (admin uniquement)
      * @returns {object} { libraries, totalCount, hasNextPage }
      */
     getLibraries: withSecureResolver(
@@ -57,7 +57,14 @@ export default {
         // ========================================
         // RECUPERER LES DONNEES NESSESAIRES
         // ======================================== 
-        
+        try {
+          console.log('DEBUG resolver addLibrary - start');
+          console.log('context keys:', Object.keys(context || {}));
+          console.log('context (short):', JSON.stringify(context && { userId: context.userId, id_user: context.id_user, user: context.user }, null, 2));
+          console.log('validated:', context.user.id_user);
+        } catch (e) {
+          console.error('DEBUG log error', e);
+        }
         const { limit = 50, offset = 0, order = 'created_at', direction = 'ASC' } = validated;
         const validOrders = ['name', 'created_at', 'id_library', 'is_editable', 'id_user'];
         const { order: safeOrder, direction: safeDirection } = validateOrderParams(
@@ -73,7 +80,7 @@ export default {
           FROM libraries
           ORDER BY ${safeOrder} ${safeDirection}
           LIMIT $1 OFFSET $2
-        `, [cleanLimit, cleanOffset]);
+        `, [limit, offset]);
         
         const countResult = await db.query('SELECT COUNT(*)::int as count FROM libraries');
         const totalCount = countResult.rows[0].count;
@@ -83,16 +90,17 @@ export default {
         return {
           libraries: result.rows,
           totalCount,
-          hasNextPage: cleanOffset + cleanLimit < totalCount,
+          hasNextPage: offset + limit < totalCount,
           httpStatus: 200,
         };    
         
       },
       {
+        structureSchema: generalLibrarySchema,
         sortingSchema: generalSortingSchema,
         orderSchema: generalOrderLibrarySchema,
         logAction: 'GET_ALL_LIBRARY',
-        requiresAuth: true,
+        requiresAdmin: true,
         errorMessage: 'Erreur lors de la récupération des bibliothèques'
       }
     ),
@@ -104,7 +112,7 @@ export default {
      * @returns {array} Liste des bibliothèques
      */
     getUserLibraries: withSecureResolver(
-      async (_, { id_user, validated }, context) => {
+      async (_, args, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
           userId: "uuid-of-user",
@@ -115,6 +123,18 @@ export default {
        /*exemple de requête :
         query  getUserLibraries($id_user: ID!) {getUserLibraries(id_user: $id_user) {id_library,name }}
 
+query GetUserLibraries {
+  getUserLibraries {
+    libraries {
+      id_library
+      name
+      is_editable
+    }
+    totalCount
+    hasNextPage
+    httpStatus
+  }
+}        
         */
         /* Exemple variables :
         {"id_user": "55530935-6301-4320-9ec9-85e8db741583"}
@@ -122,24 +142,106 @@ export default {
         // ========================================
         // RECUPERER LES DONNEES NESSESAIRES
         // ======================================== 
-        const cleanId = sanitizeStrict(id_user);
+        const { validated = {} } = args;
+
+
+
+
+ // Détecter si l'appelant est admin
+        const currentRole =
+          context?.user?.role ||
+          context?.user?.role_name ||
+          context?.user?.roleName ||
+          null;
+        const isAdmin = currentRole === 'admin' || !!context?.user?.isAdmin;
+
+        // Si admin : peut fournir validated.id_user ou args.id_user ; sinon on prend l'id du contexte
+        const requestedId = (isAdmin ? (validated.id_user || args.id_user) : null) || (context?.user?.id_user || context?.user?.id || null);
+
+        if (!requestedId) {
+          throw new GraphQLError(
+            isAdmin ? 'Pour un administrateur l\'id_user est requis' : 'Utilisateur non authentifié',
+            { extensions: { code: 'UNAUTHENTICATED', httpStatus: 401 } }
+          );
+        }
+
+
+
+
+
+
+
+
+
+
+
+
+
+        const rawUserId =
+          context?.user?.id_user ||
+          context?.user?.id ||
+          context?.req?.user?.id ||
+          null;
+
+        if (!rawUserId) {
+          throw new GraphQLError('Utilisateur non authentifié', {
+            extensions: { code: 'UNAUTHENTICATED', httpStatus: 401 }
+          });
+        }
+
+        const cleanUser = sanitizeStrict(rawUserId);
+
+        const { limit = 50, offset = 0, order = 'created_at', direction = 'ASC' } = validated;
+        const validOrders = ['name', 'created_at', 'id_library', 'is_editable', 'id_user'];
+        const { order: safeOrder, direction: safeDirection } = validateOrderParams(order, direction, validOrders);
+
+        console.log('cleanUser', context.user);
 
         // ========================================
         // REQUETES BASE DE DONNEES
         // ======================================== 
-          const result = await db.query(
-              'SELECT id_library, name, is_editable, id_user, created_at, updated_at FROM libraries WHERE id_user = $1',
-              [cleanId]
-            );
+          const result = await db.query(`
+              SELECT id_library, name, is_editable, id_user, created_at, updated_at FROM libraries WHERE id_user = $1
+            ORDER BY ${safeOrder} ${safeDirection}
+          LIMIT $2 OFFSET $3
+        `, [cleanUser, limit, offset]);
+
+        const countResult = await db.query(`
+        SELECT COUNT(*)::int as count FROM libraries WHERE id_user = $1
+        `, [cleanUser]);
         // ========================================
         // DONNEES RECUPEREES
         // ========================================        
+        const totalCount = countResult.rows[0].count;
+
         if (context?.res?.status) context.res.status(200);
-        return bookLibrary;        
+
+        return {
+          libraries: result.rows,
+          totalCount,
+          hasNextPage: offset + limit < totalCount,
+          httpStatus: 200,
+        };        
       },
       {
+        structureSchema: generalLibrarySchema,
+        sortingSchema: generalSortingSchema,
+        orderSchema: generalOrderLibrarySchema,
         logAction: 'GET_ONE_LIBRARY_OF_USER',
         requiresAuth: true,
+
+        getResourceUserId: (args, context) => {
+          return (
+            context?.user?.id_user ||
+            context?.user?.id ||
+            context?.userId ||
+            context?.id_user ||
+            context?.decoded?.id_user ||
+            context?.decoded?.id ||
+            (context?.req?.user && (context.req.user.id_user || context.req.user.id)) ||
+            null
+          );
+        },        
         errorMessage: "Erreur lors de la récupération de la bibliothèque de l'utilisateur"
       }
     ),
@@ -185,6 +287,9 @@ export default {
         return library;
       },
       {
+        structureSchema: generalLibrarySchema,
+        sortingSchema: generalSortingSchema,
+        orderSchema: generalOrderLibrarySchema,
         logAction: 'GET_ONE_LIBRARY',
         requiresAuth: true,
         errorMessage: 'Erreur lors de la récupération du livre en bibliothèque'
@@ -263,9 +368,10 @@ export default {
         };
       },
       {
+        structureSchema: generalLibrarySchema,
         sortingSchema: generalSortingSchema,
         orderSchema: generalOrderLibrarySchema,
-        inputSchema: searchLibrariesSchema,
+        specificSchema: searchLibrariesSchema,
         logAction: 'SEARCH_LIBRARIES',
         requiresAuth: true,
         errorMessage: 'Erreur lors de la recherche de la bibliothèque'
@@ -318,7 +424,7 @@ export default {
             extensions: { code: 'BAD_REQUEST', httpStatus: 400 }
           });
         }
-
+        console.log('cleanIdUser', context);
         const user = await findUserOrThrow(cleanIdUser);
         // ========================================
         // REQUETES BASE DE DONNEES
@@ -351,6 +457,9 @@ export default {
     
       },
       {
+        structureSchema: generalLibrarySchema,
+        sortingSchema: generalSortingSchema,
+        orderSchema: generalOrderLibrarySchema,
         logAction: 'ADD_BOOK_TO_LIBRARY',
         requiresAuth: true,
         errorMessage: 'Erreur lors de l\'ajout du livre'
@@ -418,6 +527,9 @@ export default {
     
       },
       {
+        structureSchema: generalLibrarySchema,
+        sortingSchema: generalSortingSchema,
+        orderSchema: generalOrderLibrarySchema,
         logAction: 'UPDATE_LIBRARY',
         requiresAuth: true,
         errorMessage: 'Erreur lors de la mise à jour de la bibliothèque'
@@ -475,6 +587,9 @@ export default {
     
       },
       {
+        structureSchema: generalLibrarySchema,
+        sortingSchema: generalSortingSchema,
+        orderSchema: generalOrderLibrarySchema,
         logAction: 'DELETE_LIBRARY_FROM_USER',
         requiresAuth: true,
         errorMessage: 'Erreur lors de la suppression de la bibliothèques de l\'utilisateur'
@@ -531,6 +646,9 @@ export default {
     
       },
       {
+        structureSchema: generalLibrarySchema,
+        sortingSchema: generalSortingSchema,
+        orderSchema: generalOrderLibrarySchema,
         logAction: 'DELETE_LIBRARY',
         requiresAuth: true,
         errorMessage: 'Erreur lors de la suppression de la bibliothèque'

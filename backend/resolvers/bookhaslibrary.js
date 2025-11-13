@@ -96,6 +96,7 @@ export default {
         };
       },
       {
+        structureSchema: generalBookHasLibrarySchema,
         sortingSchema: generalSortingSchema,
         orderSchema: generalOrderBookHasLibrarySchema,
         logAction: 'ADMIN_GET_ALL_BOOKS_ALL_LIBRARIES',

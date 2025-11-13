@@ -469,7 +469,7 @@ console.log('titleOrAuthor:', titleOrAuthor);
           if (cleanIsbn) {
             const existing = await db.query(
               'SELECT id_book FROM books WHERE isbn = $1 AND id_book != $2',
-              [cleanIsbn, cleanIdBook]
+              [cleanIsbn, cleanIdBook.id]
             );
             if (existing.rows.length > 0) {
               throw new GraphQLError('Cet ISBN est déjà utilisé par un autre livre', {

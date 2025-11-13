@@ -613,8 +613,30 @@ export const withRateLimit = (fn, options = {}) => {
         
         if (hasInjectionAttempt) {
           // Log l'attaque avec les données brutes (non sanitizées)
-          await logSuspiciousActivity(`SEND__${logAction}__BLOCKED`, validatedDataInput, context);
-          
+
+        try {
+          console.error('[SECURITY_DEBUG] entering suspicious-check. keys(args):', Object.keys(args || {}));
+          console.error('[SECURITY_DEBUG] context keys:', Object.keys(context || {}));
+          // affiche un extrait des données à tester
+
+          try { 
+            // validatedDataInput est défini juste avant le test d'injection
+            const sample = typeof validatedDataInput !== 'undefined' ? validatedDataInput : args || {};
+            console.error('[SECURITY_DEBUG] data sample:', JSON.stringify(sample, null, 2).slice(0, 1000)); 
+          } catch(e){ 
+            console.error('cant stringify data', e); 
+          }
+          // appel sécurisé à la fonction de logging
+          try {
+            await logSuspiciousActivity(`SEND__${logAction}__BLOCKED`, validatedDataInput, context);
+            console.error('[SECURITY_DEBUG] logSuspiciousActivity completed successfully');
+          } catch (err) {
+            console.error('[SECURITY_DEBUG] logSuspiciousActivity threw:', err);
+          }
+        } catch (outerErr) {
+          console.error('[SECURITY_DEBUG] unexpected error around suspicious-check:', outerErr);
+        }
+
           // Bloquer la requête
           throw new GraphQLError('Contenu suspect détecté dans la requête', {
             extensions: { 
@@ -652,6 +674,39 @@ export const withRateLimit = (fn, options = {}) => {
         
         if (hasInjectionInDB) {
           // 🚨 ALERTE CRITIQUE : Injection de second ordre détectée !
+
+          try {
+            console.error('[SECURITY_DEBUG] entering suspicious-check. keys(args):', Object.keys(args || {}));
+            console.error('[SECURITY_DEBUG] context keys:', Object.keys(context || {}));
+            // affiche un extrait des données à tester
+
+          try { 
+            // validatedDataInput est défini juste avant le test d'injection
+            const sample = typeof validatedDataInput !== 'undefined' ? validatedDataInput : args || {};
+            console.error('[SECURITY_DEBUG] data sample:', JSON.stringify(sample, null, 2).slice(0, 1000)); 
+          } catch(e){ 
+            console.error('cant stringify data', e); 
+          }
+            // appel sécurisé à la fonction de logging
+            try {
+                  await logSuspiciousActivity(
+                    `RECOVER__${logAction}__SECOND_ORDER_INJECTION`, 
+                    {
+                      action: logAction,
+                      user: context.user?.id_user || 'anonymous',
+                      data: result,
+                      warning: '🔥 DONNÉES CORROMPUES DÉTECTÉES EN BASE DE DONNÉES'
+                    }, 
+                    context
+                  );
+              console.error('[SECURITY_DEBUG] logSuspiciousActivity completed successfully');
+            } catch (err) {
+              console.error('[SECURITY_DEBUG] logSuspiciousActivity threw:', err);
+            }
+          } catch (outerErr) {
+            console.error('[SECURITY_DEBUG] unexpected error around suspicious-check:', outerErr);
+          }
+
           await logSuspiciousActivity(
             `RECOVER__${logAction}__SECOND_ORDER_INJECTION`, 
             {

@@ -15,7 +15,12 @@ extend type Query {        # Type pour les résultats de recherche paginés
         ): PaginatedLibraries
 
         # Récupérer un livre de la bibliothèque par son ID
-        getUserLibraries(id_user: ID!): [Library!]! 
+        getUserLibraries(
+            limit: Int, 
+            offset: Int, 
+            order: String = "created_at", # Colonne par défaut pour le tri
+            direction: String = "ASC" # Direction par défaut pour le tri (ASC ou DESC)
+        ): PaginatedLibraries 
 
         # Récupérer un livre de la bibliothèque par son ID (sans restriction d'utilisateur)
         getLibrary(id_library: ID!): Library

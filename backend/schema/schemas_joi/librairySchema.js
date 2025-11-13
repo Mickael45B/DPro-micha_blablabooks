@@ -6,10 +6,10 @@ import Joi from "joi";
 //-----------------------------------------------------------
 
 export const generalLibrarySchema = Joi.object({
-	id_library: Joi.string().min(34).max(36).required(), // UUIDv4
-	name: Joi.string().min(1).max(255).required(), // Nom de la bibliothèque
+	id_library: Joi.string().min(34).max(36), // UUIDv4
+	name: Joi.string().min(1).max(255), // Nom de la bibliothèque
 	is_editable: Joi.boolean().default(false),
-	id_user: Joi.string().min(34).max(36).required(), // UUIDv4
+	id_user: Joi.string().min(34).max(36), // UUIDv4
 });
 export const generalOrderLibrarySchema = Joi.object({
 	order: Joi.string().valid('name', 'created_at', 'id_library', 'is_editable', 'id_user').default('created_at'),

@@ -17,8 +17,8 @@ const { validate } = pkg;
   * @returns {object} Livre trouvé 
   * @throws {GraphQLError} Si le livre n'est pas trouvé (404) 
  */
-export const findBookOrThrow = async (bookId) => {
-  const result = await db.query(
+export const findBookOrThrow = async (bookId, _db = db) => {
+  const result = await _db.query(
     'SELECT * FROM books WHERE id_book = $1',
     [bookId]
   );
