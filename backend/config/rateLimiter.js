@@ -4,14 +4,19 @@ import RedisStore from 'rate-limit-redis';
 import Redis from 'ioredis';
 
 // Configuration Redis avec gestion d'erreur
+// Eviter la connexion Redis en CI/tests si demandé
 let redis;
-const redisConfig = {
-  host: process.env.REDIS_HOST || 'localhost',
-  port: parseInt(process.env.REDIS_PORT) || 6379,
-  password: process.env.REDIS_PASSWORD || undefined,
-  retryStrategy: (times) => Math.min(times * 50, 2000),
-  maxRetriesPerRequest: 3,
-};
+if (!process.env.DISABLE_REDIS && process.env.NODE_ENV !== 'test') {
+ redis = new Redis({
+    host: process.env.REDIS_HOST || 'localhost',
+    port: process.env.REDIS_PORT || 6379,
+    password: process.env.REDIS_PASSWORD || undefined,
+    retryStrategy: (times) => {100},
+    maxRetriesPerRequest: 3,
+  });
+} else {
+  console.log('[REDIS] disabled in this environment (DISABLE_REDIS=true or NODE_ENV=test)');
+}
 
 // Essayer d'instancier Redis avec la config fournie.
 // Si la résolution DNS échoue immédiatement (ex: host 'redis' en local),

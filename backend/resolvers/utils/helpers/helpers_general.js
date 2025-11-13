@@ -4,16 +4,18 @@ import Redis from 'ioredis';
 import db from '../../../db/connect_DB.js';
 import {withOutputSanitization, logSuspiciousActivity, detectMaliciousPatterns} from '../helpers/helpers_securite.js';
 
-const redis = new Redis({
-  host: process.env.REDIS_HOST || 'localhost',
-  port: process.env.REDIS_PORT || 6379,
-  password: process.env.REDIS_PASSWORD || undefined, // ✅ Utiliser le mot de passe
-  retryStrategy: (times) => {
-    const delay = Math.min(times * 50, 2000);
-    return delay;
-  },
-  maxRetriesPerRequest: 3,
-});
+let redis;
+if (!process.env.DISABLE_REDIS && process.env.NODE_ENV !== 'test') {
+ redis = new Redis({
+    host: process.env.REDIS_HOST || 'localhost',
+    port: process.env.REDIS_PORT || 6379,
+    password: process.env.REDIS_PASSWORD || undefined,
+    retryStrategy: (times) => {100},
+    maxRetriesPerRequest: 3,
+  });
+} else {
+  console.log('[REDIS] disabled in this environment (DISABLE_REDIS=true or NODE_ENV=test)');
+}
 
 redis.on('error', (err) => {
   console.error('❌ Redis error:', err.message);
