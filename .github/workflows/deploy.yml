@@ -11,6 +11,19 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    # Démarrer un service Redis pour les tests
+    services:
+      redis:
+        image: redis:6
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 2s
+          --health-retries 5
+    env:
+      REDIS_HOST: redis
+      REDIS_PORT: '6379'
+
     permissions:
       contents: write
       pages: write
@@ -34,6 +47,18 @@ jobs:
         run: npm ci
       - name: Install backend dependencies
         run: npm ci --prefix ./backend
+      - name: Wait for Redis to be ready
+        run: |
+          for i in $(seq 1 20); do
+            if timeout 1 bash -c "echo PING | nc redis 6379 >/dev/null 2>&1"; then
+              echo "Redis ready"
+              exit 0
+            fi
+            echo "Waiting for redis... ($i)"
+            sleep 1
+          done
+          echo "::error::Redis did not start in time"
+          exit 1
       - name: List tests directory (debug)
         run: |
           echo "Listing backend/test:"
