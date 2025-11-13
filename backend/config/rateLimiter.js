@@ -4,54 +4,47 @@ import RedisStore from 'rate-limit-redis';
 import Redis from 'ioredis';
 
 // Configuration Redis avec gestion d'erreur
-// Eviter la connexion Redis en CI/tests si demandé
 let redis = null;
+
 if (!process.env.DISABLE_REDIS && process.env.NODE_ENV !== 'test') {
- redis = new Redis({
+  const redisConfig = {
     host: process.env.REDIS_HOST || 'localhost',
-    port: process.env.REDIS_PORT || 6379,
+    port: parseInt(process.env.REDIS_PORT) || 6379,
     password: process.env.REDIS_PASSWORD || undefined,
-    retryStrategy: (times) => {100},
+    retryStrategy: (times) => {
+      const MAX_RETRIES = 10;
+      if (times > MAX_RETRIES) return null; // Stop après 10 tentatives
+      return Math.min(times * 50, 2000);
+    },
     maxRetriesPerRequest: 3,
-  });
+  };
+
+  try {
+    redis = new Redis(redisConfig);
+    
+    // ✅ Event listeners SEULEMENT si Redis est créé
+    redis.on('error', (err) => {
+      console.error('❌ Redis connection error:', err.message);
+    });
+
+    redis.on('connect', () => {
+      console.log('✅ Redis connected successfully');
+    });
+
+    redis.on('ready', () => {
+      console.log('✅ Redis ready to accept commands');
+    });
+    
+  } catch (err) {
+    console.error('❌ Redis initialisation failed:', err.message);
+    redis = null; // Fallback
+  }
 } else {
   console.log('[REDIS] disabled in this environment (DISABLE_REDIS=true or NODE_ENV=test)');
 }
 
-// Essayer d'instancier Redis avec la config fournie.
-// Si la résolution DNS échoue immédiatement (ex: host 'redis' en local),
-// retomber sur 127.0.0.1 pour permettre un démarrage en local sans Docker.
-try {
-  redis = new Redis(redisConfig);
-} catch (err) {
-  console.error('❌ Redis initialisation failed with host', redisConfig.host, err && err.message ? err.message : err);
-  // Fallback to localhost loopback
-  try {
-    redis = new Redis({ ...redisConfig, host: '127.0.0.1' });
-    console.warn('⚠️ Redis fallback to 127.0.0.1');
-  } catch (err2) {
-    console.error('❌ Redis fallback also failed', err2 && err2.message ? err2.message : err2);
-    // As last resort, create a Redis instance with default options to keep the app running
-    redis = new Redis();
-  }
-}
-
-// Gestion des erreurs Redis
-redis.on('error', (err) => {
-  console.error('❌ Redis connection error:', err);
-});
-
-redis.on('connect', () => {
-  console.log('✅ Redis connected successfully');
-});
-
-redis.on('ready', () => {
-  console.log('✅ Redis ready to accept commands');
-});
-
 // Fallback si Redis n'est pas disponible
 const createLimiter = (options) => {
-  // extraire prefix pour l'utiliser uniquement avec RedisStore
   const { prefix, ...rateLimitOptions } = options || {};
 
   const baseConfig = {
@@ -60,8 +53,8 @@ const createLimiter = (options) => {
     ...rateLimitOptions,
   };
 
-  // Utiliser Redis Store si disponible, sinon fallback sur memory store
-  if (redis.status === 'ready' || redis.status === 'connect') {
+  // ✅ Vérifier que redis existe ET est connecté
+  if (redis && (redis.status === 'ready' || redis.status === 'connect')) {
     return rateLimit({
       ...baseConfig,
       store: new RedisStore({

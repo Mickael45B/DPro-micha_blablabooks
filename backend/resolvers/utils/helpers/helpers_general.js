@@ -6,28 +6,29 @@ import {withOutputSanitization, logSuspiciousActivity, detectMaliciousPatterns} 
 
 let redis = null;
 if (!process.env.DISABLE_REDIS && process.env.NODE_ENV !== 'test') {
- redis = new Redis({
+  redis = new Redis({
     host: process.env.REDIS_HOST || 'localhost',
     port: process.env.REDIS_PORT || 6379,
     password: process.env.REDIS_PASSWORD || undefined,
-    retryStrategy: (times) => {100},
+    retryStrategy: (times) => Math.min(times * 50, 2000),
     maxRetriesPerRequest: 3,
+  });
+
+  // ✅ Event listeners SEULEMENT si Redis est activé
+  redis.on('error', (err) => {
+    console.error('❌ Redis error:', err.message);
+  });
+
+  redis.on('connect', () => {
+    console.log('✅ Redis connected');
+  });
+
+  redis.on('ready', () => {
+    console.log('✅ Redis ready');
   });
 } else {
   console.log('[REDIS] disabled in this environment (DISABLE_REDIS=true or NODE_ENV=test)');
 }
-
-redis.on('error', (err) => {
-  console.error('❌ Redis error:', err.message);
-});
-
-redis.on('connect', () => {
-  console.log('✅ Redis connected');
-});
-
-redis.on('ready', () => {
-  console.log('✅ Redis ready');
-});
 // ========================================
 // HELPERS D'AUTHENTIFICATION
 // ========================================
