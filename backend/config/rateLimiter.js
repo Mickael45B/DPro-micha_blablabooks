@@ -5,7 +5,7 @@ import Redis from 'ioredis';
 
 // Configuration Redis avec gestion d'erreur
 // Eviter la connexion Redis en CI/tests si demandé
-let redis;
+let redis = null;
 if (!process.env.DISABLE_REDIS && process.env.NODE_ENV !== 'test') {
  redis = new Redis({
     host: process.env.REDIS_HOST || 'localhost',

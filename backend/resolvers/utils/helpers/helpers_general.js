@@ -4,7 +4,7 @@ import Redis from 'ioredis';
 import db from '../../../db/connect_DB.js';
 import {withOutputSanitization, logSuspiciousActivity, detectMaliciousPatterns} from '../helpers/helpers_securite.js';
 
-let redis;
+let redis = null;
 if (!process.env.DISABLE_REDIS && process.env.NODE_ENV !== 'test') {
  redis = new Redis({
     host: process.env.REDIS_HOST || 'localhost',
