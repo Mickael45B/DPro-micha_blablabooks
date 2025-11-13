@@ -1,11 +1,13 @@
 name: Deploy Frontend to GitHub Pages
 
+# déclencheur
 on:
   push:
     branches:
       - main
   workflow_dispatch: {}
 
+  # runner
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -13,6 +15,7 @@ jobs:
       contents: write
       pages: write
 
+      # Etapes
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -20,6 +23,20 @@ jobs:
           # expliciter l'utilisation du token injecté par GitHub Actions
           token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 0
+
+      - name: Setup Node.js (for tests)
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          cache: 'npm'
+
+      - name: Install root dependencies (for tests)
+        run: npm ci
+
+      - name: Run backend/unit tests
+        # run: npm test # Option A: use npm test if package.json.test est défini
+        run: node test/unit/testUnit_resolver-utils-helpers-helperbook_FindBookOrTrow.test.js # Option B (alternative) : node --test ./test
+
       - name: List repository root (debug)
         run: |
           echo "PWD: $(pwd)"
