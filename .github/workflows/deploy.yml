@@ -33,10 +33,13 @@ jobs:
       - name: Install root dependencies (for tests)
         run: npm ci
 
+      - name: List tests directory (debug)
+        run: |
+          echo "Listing backend/test:"
+          ls -la backend/test || true
       - name: Run backend/unit tests
-        # run: npm test # Option A: use npm test if package.json.test est défini
-        run: node test/unit/testUnit_resolver-utils-helpers-helperbook_FindBookOrTrow.test.js # Option B (alternative) : node --test ./test
-
+        # lance tous les tests node dans backend/test (ajuste si tu utilises npm test)
+        run: node --test ./backend/test/unit
       - name: List repository root (debug)
         run: |
           echo "PWD: $(pwd)"
