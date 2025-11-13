@@ -46,11 +46,17 @@ redis.on('ready', () => {
     const cacheKey = `user_verify:${id_user}:${pseudo}:${name}`;
     
     // Tenter de récupérer depuis le cache
-    const cached = await redis.get(cacheKey);
-    if (cached) {
-      return JSON.parse(cached);
+let cached = null;
+    if (redis && typeof redis.get === 'function') {
+      try {
+        cached = await redis.get(cacheKey);
+      } catch (e) {
+        console.warn('[REDIS] get failed, continuing without cache', e && e.message);
+      }
     }
-    
+    if (cached) {
+      try { return JSON.parse(cached); } catch(e){ /* ignore parse error */ }
+    }    
     // Sinon, vérifier en BDD
     const result = await db.query(`
       SELECT u.id_user, u.pseudo, u.name, r.role_name
