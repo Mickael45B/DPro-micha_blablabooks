@@ -32,7 +32,8 @@ jobs:
 
       - name: Install root dependencies (for tests)
         run: npm ci
-
+      - name: Install backend dependencies
+        run: npm ci --prefix ./backend
       - name: List tests directory (debug)
         run: |
           echo "Listing backend/test:"
