@@ -14,13 +14,14 @@ import { isAuthenticated, requireAuth, requireAdmin, requireOwnershipOrAdmin, sa
 import { clean } from "semver";
 
 import { validateWithJoi } from './utils/helpers/helpers_securite.js';
+import { findBy1ParameterOrThrow } from './utils/helper.js';
 
 
 
 // Importer les helpers généralistes
 import { withSecureResolver } from './utils/helpers/helpers_general.js';
 // Importer les helpers spécifiques
-import { findStatusOrThrow, validateStatusInput, existingStatusInput} from './utils/helpers/helpers_status.js';
+import { validateStatusInput, existingStatusInput} from './utils/helpers/helpers_status.js';
 
 // Importer le schema Joi genéral
 import { generalSortingSchema } from '../schema/schemas_joi/generalSchema.js';
@@ -164,12 +165,12 @@ export default {
         // ========================================
         // REQUETES BASE DE DONNEES
         // ======================================== 
-            const status = await findStatusOrThrow(cleanIdStatus);
+            const status = await findBy1ParameterOrThrow('status', 'id_status', cleanIdStatus, 'Statut non trouvé');
         // ========================================
         // DONNEES RECUPEREES
         // ========================================        
             if (context?.res?.status) context.res.status(200);
-            return status;
+            return status.data;
       },
       {
         logAction: 'GET_ONE_STATUS',
@@ -467,7 +468,7 @@ export default {
                     const cleanIdStatus = sanitizeString(validatedInput.id_status);
 
                     // Vérification de l'existence du statut
-                    await findStatusOrThrow(cleanIdStatus);
+                    await findBy1ParameterOrThrow('status', 'id_status', cleanIdStatus, 'Statut non trouvé');
         // ========================================
         // REQUETES BASE DE DONNEES
         // ======================================== 

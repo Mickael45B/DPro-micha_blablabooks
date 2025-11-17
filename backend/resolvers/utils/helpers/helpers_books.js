@@ -12,27 +12,6 @@ const { validate } = pkg;
 
 
 
-/**
- * @param {object} bookId 
-  * @returns {object} Livre trouvé 
-  * @throws {GraphQLError} Si le livre n'est pas trouvé (404) 
- */
-export const findBookOrThrow = async (bookId, _db = db) => {
-  const result = await _db.query(
-    'SELECT * FROM books WHERE id_book = $1',
-    [bookId]
-  );
-  if (!result.rows[0]) {
-    throw new GraphQLError('Livre non trouvé', {
-      extensions: { 
-        code: 'NOT_FOUND',
-        httpStatus: 404
-      },
-    });
-  }
-  
-  return result.rows[0];
-};
 
 /**
  * Valide les champs d'un livre

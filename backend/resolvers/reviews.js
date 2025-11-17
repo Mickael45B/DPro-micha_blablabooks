@@ -14,7 +14,9 @@ import { console } from "node:inspector";
 // Importer les helpers généralistes
 import { withSecureResolver } from './utils/helpers/helpers_general.js';
 // Importer les helpers spécifiques
-import { findReviewOrThrow, validateReviewInput} from './utils/helpers/helpers_Reviews.js';
+import { validateReviewInput} from './utils/helpers/helpers_Reviews.js';
+import { findBy1ParameterOrThrow } from './utils/helper.js';
+
 
 // Importer le schema Joi genéral
 import { generalSortingSchema } from '../schema/schemas_joi/generalSchema.js';
@@ -79,17 +81,18 @@ export default {
           FROM reviews
           ORDER BY ${safeOrder} ${safeDirection}
           LIMIT $1 OFFSET $2
-        `, [cleanLimit, cleanOffset]);
+        `, [limit, offset]);
 
         const countResult = await db.query("SELECT COUNT(*)::int as count FROM reviews");
         const totalCount = countResult.rows[0].count;
         // ========================================
         // DONNEES RECUPEREES
         // ======================================== 
+        console.log('getReviews : ',result.rows);
         return {
           reviews: result.rows,
           totalCount,
-          hasNextPage: cleanOffset + cleanLimit < totalCount,
+          hasNextPage: offset + limit < totalCount,
           httpStatus: 200
         };
     
@@ -142,12 +145,12 @@ export default {
         // ========================================
         // REQUETES BASE DE DONNEES
         // ======================================== 
-        const review = await findReviewOrThrow(cleanIdReview);
+        const review = await findBy1ParameterOrThrow('reviews', 'id_review', cleanIdReview, 'Avis non trouvé');
         // ========================================
         // DONNEES RECUPEREES
         // ========================================        
         if (context?.res?.status) context.res.status(200);
-        return review;
+        return review.data;
       },
       {
         logAction: 'GET_ONE_REVIEW',
@@ -312,7 +315,7 @@ export default {
         };
 
         // Vérifier que le livre existe
-        await fetchBookById(cleanInput.id_book);
+        await findBy1ParameterOrThrow('books', 'id_book', cleanInput.id_book, 'Livre non trouvé');
         
         // Validation des données d'entrée
         validateReviewInput(cleanInput);
@@ -387,10 +390,10 @@ export default {
         }
 
         // Vérification de l'existence de l'avis
-        const existingReview = await findReviewOrThrow(cleanIdReview);
+        const existingReview = await findBy1ParameterOrThrow('reviews', 'id_review', cleanIdReview, 'Avis non trouvé');
 
         // Vérification de l'authentification de l'utilisateur
-        requireOwnershipOrAdmin(existingReview.id_user, context);
+        requireOwnershipOrAdmin(existingReview.data.id_user, context);
 
         // Construction SÉCURISÉE de la requête UPDATE avec paramètres positionnels
         const updates = [];
@@ -501,8 +504,6 @@ export default {
         // RECUPERER LES DONNEES NESSESAIRES
         // ======================================== 
         
-        // Vérification de l'authentification de l'utilisateur
-        requireOwnershipOrAdmin(existingReview.id_user, context);
 
         // Sanitize input
         const cleanIdReview = sanitizeString(input.id_review);
@@ -514,7 +515,11 @@ export default {
         }
 
         // Vérification de l'existence de l'avis
-        const existingReview = await findReviewOrThrow(cleanIdReview);
+        const existingReview = await findBy1ParameterOrThrow('reviews', 'id_review', cleanIdReview, 'Avis non trouvé');
+
+        // Vérification de l'authentification de l'utilisateur
+        requireOwnershipOrAdmin(existingReview.data.id_user, context);
+        
         // ========================================
         // REQUETES BASE DE DONNEES
         // ======================================== 
@@ -542,11 +547,15 @@ export default {
 
   Review: {
     user: async (parent) => {
-      return fetchUserById(parent.id_user);
+      //return fetchUserById(parent.id_user);
+      const result = await findBy1ParameterOrThrow('users', 'id_user', parent.id_user, 'Utilisateur non trouvé');
+      return result.data;
     },
 
     book: async (parent) => {
-      return fetchBookById(parent.id_book);
+      //return fetchBookById(parent.id_book);
+      const result = await findBy1ParameterOrThrow('books', 'id_book', parent.id_book, 'Livre non trouvé');
+      return result.data;
     },
   },
 };

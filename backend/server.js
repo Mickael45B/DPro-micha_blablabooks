@@ -173,6 +173,7 @@ return {
 };
       } catch (error) {
         // JWT invalide ou expiré
+        //A FAIRE: LOGGING SI "invalid token"
         console.error('❌ JWT verification failed:', error.message);
 
         return {

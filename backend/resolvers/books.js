@@ -15,7 +15,7 @@ import { validate as uuidValidate } from 'uuid';
 // Importer les helpers généralistes
 import { withSecureResolver } from './utils/helpers/helpers_general.js';
 // Importer les helpers spécifiques
-import { findBookOrThrow, validateBookInput} from './utils/helpers/helpers_books.js';
+import { validateBookInput} from './utils/helpers/helpers_books.js';
 
 // Importer le schema Joi genéral
 import { generalSortingSchema } from '../schema/schemas_joi/generalSchema.js';
@@ -25,7 +25,7 @@ import { generalBookSchema, generalOrderBookSchema, searchBooksSchema} from '../
 // Importer les wrappers et helpers de sécurité
 import { sanitizeStrict} from './utils/helpers/helpers_securite.js';
 
-
+import { findBy1ParameterOrThrow } from './utils/helper.js';
 
 
 // ========================================
@@ -144,13 +144,12 @@ export default {
         // ========================================
         // REQUETES BASE DE DONNEES
         // ======================================== 
-        const book = await findBookOrThrow(cleanId  );
-
+        const book = await findBy1ParameterOrThrow('books', 'id_book', cleanId, 'Livre non trouvé');
         // ========================================
         // DONNEES RECUPEREES
         // ========================================        
         if (context?.res?.status) context.res.status(200);
-        return book;
+        return book.data;
 
       },
       {
@@ -585,8 +584,8 @@ console.log('titleOrAuthor:', titleOrAuthor);
         const { id_book } = input;  
 
         const cleanIdBook = sanitizeStrict(id_book);
-        const existingBook = await findBookOrThrow(cleanIdBook);
-        if (!existingBook) {
+        const existingBook = await findBy1ParameterOrThrow('books', 'id_book', cleanIdBook, 'Livre non trouvé');
+        if (!existingBook.data) {
           throw new GraphQLError('Livre non trouvé', {
             extensions: { code: 'NOT_FOUND', httpStatus: 404 },
           });

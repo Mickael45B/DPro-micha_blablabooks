@@ -18,7 +18,7 @@ import { isAuthenticated, requireAuth, requireAdmin, requireOwnershipOrAdmin, sa
 // Importer les helpers généralistes
 import { withSecureResolver } from './utils/helpers/helpers_general.js';
 // Importer les helpers spécifiques
-import { findRolePermissionOrThrow, validateRolePermissionInput} from './utils/helpers/helpers_RolePermissions.js';
+import { validateRolePermissionInput} from './utils/helpers/helpers_RolePermissions.js';
 
 // Importer le schema Joi genéral
 import { generalSortingSchema } from '../schema/schemas_joi/generalSchema.js';
@@ -28,6 +28,7 @@ import { generalRolesHasPermissionsSchema, generalOrderRolesHasPermissionsSchema
 // Importer les wrappers et helpers de sécurité
 import { sanitizeStrict} from './utils/helpers/helpers_securite.js';
 
+import { findBy1ParameterOrThrow } from './utils/helper.js';
 
 
 export default {
@@ -53,7 +54,7 @@ export default {
         }
         */
         /*exemple de requête :
-        query {getPermissionsRoles{roleHasPermissions{id_rolehaspermission, role{role_name}, permissions{permission_name}, created_at, updated_at}, totalCount}}
+        query {getPermissionsRoles{roleHasPermissions{id_rolehaspermission, permissions{permission_name}, role{role_name}}}}
         */
         /* Exemple variables :
         {
@@ -76,6 +77,7 @@ export default {
           sanitizeStrict(direction), 
           validOrders
         );
+
         // ========================================
         // REQUETES BASE DE DONNEES
         // ======================================== 
@@ -89,16 +91,19 @@ export default {
         
         const countResult = await db.query('SELECT COUNT(*)::int as count FROM rolehaspermissions');
         const totalCount = countResult.rows[0].count;
+
         // ========================================
         // DONNEES RECUPEREES
         // ======================================== 
+
+        // Normaliser created_at/updated_at en ISO string (ou null) pour le scalar Date
+        const normalizedRows=result.rows;
         return {
           roleHasPermissions: result.rows,
           totalCount,
           hasNextPage: cleanOffset + cleanLimit < totalCount,
           httpStatus: 200
-        };
-    
+        };    
       },
       {
         sortingSchema: generalSortingSchema,
@@ -152,12 +157,12 @@ export default {
         // REQUETES BASE DE DONNEES
         // ======================================== 
         // Vérifie si la relation existe et le retourne
-        const rolePermission  = await findRolePermissionOrThrow(cleanIdRoleHasPermission);
+        const rolePermission  = await findBy1ParameterOrThrow('rolehaspermissions', 'id_rolehaspermission', cleanIdRoleHasPermission, 'Relation rôle-permission non trouvée');
         // ========================================
         // DONNEES RECUPEREES
         // ========================================        
         if (context?.res?.status) context.res.status(200);
-        return rolePermission;
+        return rolePermission.data;
     
       },
       {
@@ -325,11 +330,11 @@ export default {
         validateRolePermissionInput(cleanInput);
 
         // Vérifier que le rôle existe
-        await fetchRoleById(cleanInput.id_role);
+        await findBy1ParameterOrThrow('roles', 'id_role', cleanInput.id_role, 'Rôle non trouvé');
         
         // Vérifier que la permission existe
-        await fetchPermissionById(cleanInput.id_permission);
-        
+        await findBy1ParameterOrThrow('permissions', 'id_permission', cleanInput.id_permission, 'Permission non trouvée');
+
         // Vérifier qu'il n'y a pas déjà cette relation
         const existingRelation = await db.query(
           'SELECT id_rolehaspermission FROM rolehaspermissions WHERE id_role = $1 AND id_permission = $2',
@@ -417,7 +422,7 @@ export default {
         const cleanIdRoleHasPermission = sanitizeString(input.id_rolehaspermission);
 
         // Vérifier que la relation existe
-        await findRolePermissionOrThrow(input.id_rolehaspermission);
+        await findBy1ParameterOrThrow('rolehaspermissions', 'id_rolehaspermission', cleanIdRoleHasPermission, 'Relation rôle-permission non trouvée');
 
         const updates = [];
         const values = [];
@@ -427,7 +432,7 @@ export default {
           const cleanIdRole = sanitizeString(input.id_role);
           
           // Vérifier que le rôle existe
-          await fetchRoleById(cleanIdRole);
+          await findBy1ParameterOrThrow('roles', 'id_role', cleanIdRole, 'Rôle non trouvé');
           
           updates.push(`id_role = $${paramIndex++}`);
           values.push(cleanIdRole);
@@ -437,7 +442,7 @@ export default {
           const cleanIdPermission = sanitizeString(input.id_permission);
           
           // Vérifier que la permission existe
-          await fetchPermissionById(cleanIdPermission);
+          await findBy1ParameterOrThrow('permissions', 'id_permission', cleanIdPermission, 'Permission non trouvée');
           
           updates.push(`id_permission = $${paramIndex++}`);
           values.push(cleanIdPermission);
@@ -521,7 +526,7 @@ export default {
         }
         
         // Vérifier que la relation existe
-        await findRolePermissionOrThrow(cleanIdRoleHasPermission);
+        await findBy1ParameterOrThrow('rolehaspermissions', 'id_rolehaspermission', cleanIdRoleHasPermission, 'Relation rôle-permission non trouvée');
         // ========================================
         // REQUETES BASE DE DONNEES
         // ======================================== 
@@ -565,14 +570,38 @@ export default {
 
   RoleHasPermissions: {
     role: async (parent) => {
-      return fetchRoleById(parent.id_role);
+    if (!parent?.id_role) return null;
+
+    // findBy1ParameterOrThrow peut renvoyer { data, httpStatus } ou la row directement
+    const roleResult = await findBy1ParameterOrThrow('roles', 'id_role', parent.id_role, 'Rôle non trouvé');
+
+    // Normaliser la forme: preferer roleResult.data sinon roleResult
+    const roleRow = roleResult?.data ?? roleResult;
+
+    if (!roleRow) {
+      throw new GraphQLError('Rôle non trouvé', { extensions: { code: 'NOT_FOUND', httpStatus: 404 } });
+    }
+
+    return roleRow;
+
     },
 
     permissions: async (parent) => {
-      const perm = await fetchPermissionById(parent.id_permission);
-      // Schema defines `permission: [Permission!]!` (array), so return an array
-      //return perm ? [perm] : [];
-      return fetchPermissionById(parent.id_permission);
+
+    if (!parent?.id_permission) return null;
+
+    // findBy1ParameterOrThrow peut renvoyer { data, httpStatus } ou la row directement
+    const permResult = await findBy1ParameterOrThrow('permissions', 'id_permission', parent.id_permission, 'Permission non trouvée');
+
+    // Normaliser la forme: preferer permResult.data sinon permResult
+    const permRow = permResult?.data ?? permResult;
+
+    if (!permRow) {
+      throw new GraphQLError('Permission non trouvée', { extensions: { code: 'NOT_FOUND', httpStatus: 404 } });
+    }
+
+    return permRow;
+
     },
   },
 };

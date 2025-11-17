@@ -21,12 +21,13 @@ import { validateAgainstInjection, withOutputSanitization} from './utils/helpers
 
 import {generateAccessToken, generateRefreshToken, verifyToken, decodeToken} from './utils/utils_authentification.js';
 
+import { findBy1ParameterOrThrow } from './utils/helper.js';
 
 
 // Importer les helpers généralistes
 import { withSecureResolver } from './utils/helpers/helpers_general.js';
 // Importer les helpers spécifiques
-import { findUserOrThrow, validateUserInput, validatePasswordInput} from './utils/helpers/helpers_Users.js';
+import { validateUserInput, validatePasswordInput} from './utils/helpers/helpers_Users.js';
 
 // Importer le schema Joi genéral
 import { generalSortingSchema } from '../schema/schemas_joi/generalSchema.js';
@@ -96,7 +97,7 @@ export default {
         // ======================================== 
 
         // Extraction et validation des paramètres de pagination et de tri
-        const { limit = 70, offset = 0, order = 'created_at', direction = 'DESC' } = args;
+        const { limit = 70, offset = 0, order = 'created_at', direction = 'DESC' } = validated;
 
         // Sanitize inputs
         // const cleanLimit = Math.min(Math.max(parseInt(limit) || 50, 1), 100);
@@ -115,18 +116,18 @@ export default {
           FROM users
           ORDER BY ${safeOrder} ${safeDirection}
           LIMIT $1 OFFSET $2
-          RETURNING id_user, name, email, pseudo, id_role, id_status, created_at, updated_at
-        `, [cleanLimit, cleanOffset]);
+        `, [limit, offset]);
         
         const countResult = await db.query('SELECT COUNT(*)::int as count FROM users');
         const totalCount = countResult.rows[0].count;
         // ========================================
         // DONNEES RECUPEREES
         // ======================================== 
+        console.log('getUsers : ',result.rows);
         return {
           users: result.rows,
           totalCount,
-          hasNextPage: cleanOffset + cleanLimit < totalCount,
+          hasNextPage: offset + limit < totalCount,
           httpStatus: 200
         };
       },
@@ -180,12 +181,12 @@ export default {
         // ========================================
         // REQUETES BASE DE DONNEES
         // ======================================== 
-        const user = await findUserOrThrow(cleanIdUser);
+        const user = await findBy1ParameterOrThrow('users', 'id_user', cleanIdUser, 'Utilisateur non trouvé');
         // ========================================
         // DONNEES RECUPEREES
         // ========================================        
         if (context?.res?.status) context.res.status(200);
-        return user;
+        return user.data;
       },
       {
         logAction: 'GET_ONE_USER',
@@ -666,7 +667,7 @@ export default {
         requireOwnershipOrAdmin(cleanIdUser, context);
 
         // Vérification de l'existence de l'utilisateur
-        await findUserOrThrow(cleanIdUser);
+        await findBy1ParameterOrThrow('users', 'id_user', cleanIdUser, 'Utilisateur non trouvé');
         // ========================================
         // REQUETES BASE DE DONNEES
         // ======================================== 
@@ -763,7 +764,7 @@ export default {
         }
 
         // Vérifier que l'utilisateur existe
-        await findUserOrThrow(cleanIdUser);
+        await findBy1ParameterOrThrow('users', 'id_user', cleanIdUser, 'Utilisateur non trouvé');
         // ========================================
         // REQUETES BASE DE DONNEES
         // ======================================== 
@@ -835,7 +836,7 @@ export default {
           const cleanNewPassword = sanitizeString(newPassword);
 
           // Vérification de l'existence de l'utilisateur
-          const existingUser = await findUserOrThrow(cleanIdUser);
+          const existingUser = await findBy1ParameterOrThrow('users', 'id_user', cleanIdUser, 'Utilisateur non trouvé');
 
           if (!existingUser) {
             throw new GraphQLError('Utilisateur non trouvé', {
@@ -1134,12 +1135,39 @@ export default {
   User: {
 
     // Ajoutez des résolveurs de champ personnalisés si nécessaire
-    role: async (parent) => {
-      return fetchRoleById(parent.id_role);
-    },
+  role: async (parent) => {
+    // Si pas d'id de rôle, retourner null (ou lever selon ton schéma)
+    if (!parent?.id_role) return null;
 
-    status: (parent) => {
-      return fetchStatusById(parent.id_status);
+    // findBy1ParameterOrThrow peut renvoyer { data, httpStatus } ou la row directement
+    const roleResult = await findBy1ParameterOrThrow('roles', 'id_role', parent.id_role, 'Rôle non trouvé');
+
+    // Normaliser la forme: preferer roleResult.data sinon roleResult
+    const roleRow = roleResult?.data ?? roleResult;
+
+    if (!roleRow) {
+      throw new GraphQLError('Rôle non trouvé', { extensions: { code: 'NOT_FOUND', httpStatus: 404 } });
+    }
+
+    return roleRow;
+  },
+    status: async (parent) => {
+
+    // Si pas d'id de statut, retourner null (ou lever selon ton schéma)
+    if (!parent?.id_status) return null;
+
+    // findBy1ParameterOrThrow peut renvoyer { data, httpStatus } ou la row directement
+    const statusResult = await findBy1ParameterOrThrow('status', 'id_status', parent.id_status, 'Statut non trouvé');
+
+    // Normaliser la forme: preferer statusResult.data sinon statusResult
+    const statusRow = statusResult?.data ?? statusResult;
+
+    if (!statusRow) {
+      throw new GraphQLError('Statut non trouvé', { extensions: { code: 'NOT_FOUND', httpStatus: 404 } });
+    }
+
+    return statusRow;
+
     },
   },
 };

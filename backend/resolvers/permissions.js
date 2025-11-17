@@ -11,12 +11,11 @@ import { isAuthenticated, requireAuth, requireAdmin, requireOwnershipOrAdmin, sa
 
 import { console } from "inspector";
 
+import { findBy1ParameterOrThrow } from './utils/helper.js';
 
 
 // Importer les helpers généralistes
 import { withSecureResolver } from './utils/helpers/helpers_general.js';
-// Importer les helpers spécifiques
-import { findPermissionsOrThrow, validatePermissionInput} from './utils/helpers/helpers_permissions.js';
 
 // Importer le schema Joi genéral
 import { generalSortingSchema } from '../schema/schemas_joi/generalSchema.js';
@@ -149,14 +148,14 @@ export default {
         // ========================================
         // REQUETES BASE DE DONNEES
         // ======================================== 
-        const permission = await findPermissionsOrThrow(cleanIdPermission);
+        const permission = await findBy1ParameterOrThrow('permissions', 'id_permission', cleanIdPermission, 'Permission non trouvée');
 
         // ========================================
         // DONNEES RECUPEREES
         // ========================================        
 
         if (context?.res?.status) context.res.status(200);
-        return permission;
+        return permission.data;
     
       },
       {
@@ -372,7 +371,7 @@ export default {
         }
 
         // Vérification de l'existence de la permission
-        await findPermissionsOrThrow(cleanIdPermission);
+        await findBy1ParameterOrThrow('permissions', 'id_permission', cleanIdPermission, 'Permission non trouvée');
 
         // Validation des données d'entrée
         validatePermissionInput(cleanName);
@@ -445,7 +444,7 @@ export default {
         }
 
         // Vérification de l'existence de la permission
-        await findPermissionsOrThrow(cleanIdPermission);
+        await findBy1ParameterOrThrow('permissions', 'id_permission', cleanIdPermission, 'Permission non trouvée');
         // ========================================
         // REQUETES BASE DE DONNEES
         // ======================================== 

@@ -9,13 +9,14 @@ import fetchLibraryById from './utils/utils_librairies.js';
 
 import { isAuthenticated, requireAuth, requireAdmin, requireOwnershipOrAdmin, sanitizeString, sanitizeInput, flattenEdges, makePageInfo, makeEdgeFromBook, withErrorHandling } from './utils/helpers/helpers_general.js';
 
+import { findBy1ParameterOrThrow } from './utils/helper.js';
 
 
 
 // Importer les helpers généralistes
 import { withSecureResolver } from './utils/helpers/helpers_general.js';
 // Importer les helpers spécifiques
-import { findBookLibraryOrThrow, requireEditableLibrary, verifyUserOwnsLibrary} from './utils/helpers/helpers_bookhaslibrary.js';
+import { requireEditableLibrary, verifyUserOwnsLibrary} from './utils/helpers/helpers_bookhaslibrary.js';
 
 // Importer le schema Joi genéral
 import { generalSortingSchema } from '../schema/schemas_joi/generalSchema.js';
@@ -82,17 +83,18 @@ export default {
           FROM reports
           ORDER BY ${safeOrder} ${safeDirection}
           LIMIT $1 OFFSET $2
-        `, [cleanLimit, cleanOffset]);
+        `, [limit, offset]);
         
         const countResult = await db.query('SELECT COUNT(*)::int as count FROM reports');
         const totalCount = countResult.rows[0].count;
         // ========================================
         // DONNEES RECUPEREES
         // ======================================== 
+        console.log('Fetched reports:', result.rows);
         return {
           reports: result.rows,
           totalCount,
-          hasNextPage: cleanOffset + cleanLimit < totalCount,
+          hasNextPage: offset + limit < totalCount,
           httpStatus: 200
         };
     
@@ -145,12 +147,12 @@ export default {
         // ========================================
         // REQUETES BASE DE DONNEES
         // ======================================== 
-            const report = await findReportOrThrow(sanitizedId);
+            const report = await findBy1ParameterOrThrow('reports', 'id_report', sanitizedId, 'Rapport non trouvé');
         // ========================================
         // DONNEES RECUPEREES
         // ========================================        
         if (context?.res?.status) context.res.status(200);
-        return report;
+        return report.data;
       },
       {
         logAction: 'GET_ONE_REPORT',
@@ -715,7 +717,7 @@ export default {
         }
 
         // Vérifier que le rapport existe
-        await findReportOrThrow(cleanIdReport);
+        await findBy1ParameterOrThrow('reports', 'id_report', cleanIdReport, 'Rapport non trouvé');
 
         // Construction SÉCURISÉE de la requête UPDATE avec paramètres positionnels
         const updates = [];
@@ -838,7 +840,7 @@ export default {
         }
 
         // Vérification de l'existence du rapport
-        await findReportOrThrow(cleanIdReport);
+        await findBy1ParameterOrThrow('reports', 'id_report', cleanIdReport, 'Rapport non trouvé');
         // ========================================
         // REQUETES BASE DE DONNEES
         // ======================================== 
@@ -865,11 +867,29 @@ export default {
 
   Report: {
     whistleblower: async (parent) => {
-      return fetchUserById(parent.id_user);
+      // return fetchUserById(parent.id_user);
+
+      if (!parent?.id_user) return null;
+      try {
+        const result = await findBy1ParameterOrThrow('users', 'id_user', parent.id_user, 'Utilisateur non trouvé');
+        return result?.data ?? result;
+      } catch (err) {
+        // si utilisateur supprimé / non trouvé -> retourner null au lieu d'échouer tout le query
+        if (err && err.extensions && err.extensions.code === 'NOT_FOUND') return null;
+        throw err;
+      }
     },
 
     reported: async (parent) => {
-      return fetchUserById(parent.reported_id);
+      // return fetchUserById(parent.reported_id);
+      if (!parent?.reported_id) return null;
+      try {
+        const result = await findBy1ParameterOrThrow('users', 'id_user', parent.reported_id, 'Utilisateur non trouvé');
+        return result?.data ?? result;
+      } catch (err) {
+        if (err && err.extensions && err.extensions.code === 'NOT_FOUND') return null;
+        throw err;
+      }    
     },
   },
 };

@@ -39,6 +39,7 @@ jobs:
 
       - name: Install root dependencies (for tests)
         run: npm ci
+      
       - name: Install backend dependencies
         run: npm ci --prefix ./backend
     
@@ -46,6 +47,7 @@ jobs:
         run: |
           echo "Listing backend/test:"
           ls -la backend/test || true
+      
       - name: Run backend/unit tests
         # lance tous les tests node dans backend/test (ajuste si tu utilises npm test)
         run: node --test ./backend/test/unit
@@ -53,6 +55,7 @@ jobs:
           # ✅ S'assurer que DISABLE_REDIS est bien défini
           DISABLE_REDIS: 'true'
           NODE_ENV: 'test'      
+      
       - name: List repository root (debug)
         run: |
           echo "PWD: $(pwd)"

@@ -12,7 +12,7 @@ import { isAuthenticated, requireAuth, requireAdmin, requireOwnershipOrAdmin, sa
 // Importer les helpers généralistes
 import { withSecureResolver } from './utils/helpers/helpers_general.js';
 // Importer les helpers spécifiques
-import { findLibraryOrThrow, requireEditableLibrary, findUserOrThrow} from './utils/helpers/helpers_library.js';
+import { requireEditableLibrary} from './utils/helpers/helpers_library.js';
 
 // Importer le schema Joi genéral
 import { generalSortingSchema } from '../schema/schemas_joi/generalSchema.js';
@@ -22,6 +22,7 @@ import { generalLibrarySchema, generalOrderLibrarySchema, searchLibrariesSchema}
 // Importer les wrappers et helpers de sécurité
 import { sanitizeStrict} from './utils/helpers/helpers_securite.js';
 
+import { findBy1ParameterOrThrow } from './utils/helper.js';
 
 
 
@@ -123,18 +124,18 @@ export default {
        /*exemple de requête :
         query  getUserLibraries($id_user: ID!) {getUserLibraries(id_user: $id_user) {id_library,name }}
 
-query GetUserLibraries {
-  getUserLibraries {
-    libraries {
-      id_library
-      name
-      is_editable
-    }
-    totalCount
-    hasNextPage
-    httpStatus
-  }
-}        
+        query GetUserLibraries {
+          getUserLibraries {
+            libraries {
+              id_library
+              name
+              is_editable
+            }
+            totalCount
+            hasNextPage
+            httpStatus
+          }
+        }        
         */
         /* Exemple variables :
         {"id_user": "55530935-6301-4320-9ec9-85e8db741583"}
@@ -143,9 +144,6 @@ query GetUserLibraries {
         // RECUPERER LES DONNEES NESSESAIRES
         // ======================================== 
         const { validated = {} } = args;
-
-
-
 
  // Détecter si l'appelant est admin
         const currentRole =
@@ -166,17 +164,6 @@ query GetUserLibraries {
         }
 
 
-
-
-
-
-
-
-
-
-
-
-
         const rawUserId =
           context?.user?.id_user ||
           context?.user?.id ||
@@ -194,8 +181,6 @@ query GetUserLibraries {
         const { limit = 50, offset = 0, order = 'created_at', direction = 'ASC' } = validated;
         const validOrders = ['name', 'created_at', 'id_library', 'is_editable', 'id_user'];
         const { order: safeOrder, direction: safeDirection } = validateOrderParams(order, direction, validOrders);
-
-        console.log('cleanUser', context.user);
 
         // ========================================
         // REQUETES BASE DE DONNEES
@@ -276,8 +261,7 @@ query GetUserLibraries {
         // ========================================
         // REQUETES BASE DE DONNEES
         // ======================================== 
-        const library = await findLibraryOrThrow(cleanLibraryId);
-
+        const library = await findBy1ParameterOrThrow('libraries', 'id_library', cleanId, 'Bibliothèque non trouvée');
         // ========================================
         // DONNEES RECUPEREES
         // ========================================        
@@ -424,8 +408,8 @@ query GetUserLibraries {
             extensions: { code: 'BAD_REQUEST', httpStatus: 400 }
           });
         }
-        console.log('cleanIdUser', context);
-        const user = await findUserOrThrow(cleanIdUser);
+
+        const user = await findBy1ParameterOrThrow('users', 'id_user', cleanIdUser, 'Utilisateur non trouvé');
         // ========================================
         // REQUETES BASE DE DONNEES
         // ========================================         
@@ -665,7 +649,18 @@ query GetUserLibraries {
      * @returns {object|null} Utilisateur propriétaire
      */
     user: async (parent) => {
-      return fetchUserById(parent.id_user);
+      // return fetchUserById(parent.id_user);
+
+      if (!parent?.id_user) return null;
+      try {
+        const result = await findBy1ParameterOrThrow('users', 'id_user', parent.id_user, 'Utilisateur propriétaire non trouvé');
+        return result?.data ?? result;
+      } catch (err) {
+        // si utilisateur supprimé / non trouvé -> retourner null au lieu d'échouer tout le query
+        if (err && err.extensions && err.extensions.code === 'NOT_FOUND') return null;
+        throw err;
+      }
+      
     },
 
   },

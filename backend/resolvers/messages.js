@@ -11,12 +11,12 @@ import fetchLibraryById from './utils/utils_librairies.js';
 // Import des helpers généraux
 import { isAuthenticated, requireAuth, requireAdmin, requireOwnershipOrAdmin, sanitizeString, sanitizeInput, flattenEdges, makePageInfo, makeEdgeFromBook, withErrorHandling } from './utils/helpers/helpers_general.js';
 
-
+import { findBy1ParameterOrThrow } from './utils/helper.js';
 
 // Importer les helpers généralistes
 import { withSecureResolver } from './utils/helpers/helpers_general.js';
 // Importer les helpers spécifiques
-import { findMessageOrThrow, requireMessageAccess, validateMessageInput} from './utils/helpers/helpers_messages.js';
+import { requireMessageAccess, validateMessageInput} from './utils/helpers/helpers_messages.js';
 
 // Importer le schema Joi genéral
 import { generalSortingSchema } from '../schema/schemas_joi/generalSchema.js';
@@ -74,7 +74,7 @@ export default {
           FROM messages
           ORDER BY ${safeOrder} ${safeDirection}
           LIMIT $1 OFFSET $2
-        `, [cleanLimit, cleanOffset]);
+        `, [limit, offset]);
         
         const countResult = await db.query('SELECT COUNT(*)::int as count FROM messages');
         const totalCount = countResult.rows[0].count;
@@ -86,7 +86,7 @@ export default {
         return {
           messages: result.rows,
           totalCount,
-          hasNextPage: cleanOffset + cleanLimit < totalCount,
+          hasNextPage: offset + limit < totalCount,
           httpStatus: 200
         };
       },
@@ -131,14 +131,14 @@ export default {
         // ========================================
         // REQUETES BASE DE DONNEES
         // ======================================== 
-        const message = await findMessageOrThrow(cleanIdMessage);
+        const message = await findBy1ParameterOrThrow('messages', 'id_message', cleanIdMessage, 'Message non trouvé');
 
         // ========================================
         // DONNEES RECUPEREES
         // ========================================        
 
         if (context?.res?.status) context.res.status(200);
-        return message;
+        return message.data;
     
       },
       {
@@ -451,11 +451,11 @@ export default {
         // ======================================== 
         const cleanIdMessage = sanitizeStrict(input.id_message);
         // Vérifier que le message existe
-        const message = await findMessageOrThrow(cleanIdMessage);
+        const message = await findBy1ParameterOrThrow('messages', 'id_message', cleanIdMessage, 'Message non trouvé');
 
         // Vérifier que l'utilisateur est l'expéditeur
         const userId = context?.user?.id || context?.user?.id_user;
-        if (message.id_sender !== userId && !context.isAdmin) {
+        if (message.data.id_sender !== userId && !context.isAdmin) {
           throw new GraphQLError('Seul l\'expéditeur peut modifier ce message', {
             extensions: { 
               code: 'FORBIDDEN',
@@ -465,7 +465,7 @@ export default {
         }
 
         // Empêcher la modification si déjà lu
-        if (message.is_read && !context.isAdmin) {
+        if (message.data.is_read && !context.isAdmin) {
           throw new GraphQLError('Impossible de modifier un message déjà lu', {
             extensions: { 
               code: 'FORBIDDEN',
@@ -568,11 +568,11 @@ export default {
         const cleanIdMessage = sanitizeStrict(rawId);
 
         // Vérifier que le message existe
-        const message = await findMessageOrThrow(cleanIdMessage);
+        const message = await findBy1ParameterOrThrow('messages', 'id_message', cleanIdMessage, 'Message non trouvé');
 
         // Vérifier que l'utilisateur est le destinataire
         const userId = context?.user?.id || context?.user?.id_user;
-        if (message.id_receiver !== userId && !context.isAdmin) {
+        if (message.data.id_receiver !== userId && !context.isAdmin) {
           throw new GraphQLError('Seul le destinataire peut marquer ce message comme lu', {
             extensions: { 
               code: 'FORBIDDEN',
@@ -634,10 +634,10 @@ export default {
         const cleanIdMessage = sanitizeStrict(input.id_message);
 
         // Vérifier que le message existe
-        const message = await findMessageOrThrow(cleanIdMessage);
+        const message = await findBy1ParameterOrThrow('messages', 'id_message', cleanIdMessage, 'Message non trouvé');
 
         // Vérifier l'accès
-        requireMessageAccess(message, context);
+        requireMessageAccess(message.data, context);
         // ========================================
         // REQUETES BASE DE DONNEES
         // ======================================== 
@@ -663,11 +663,31 @@ export default {
     Message: {
 
     sender: async (parent) => {
-      return fetchUserById(parent.id_sender);
+
+      if (!parent?.id_sender) return null;
+      try {
+        const result = await findBy1ParameterOrThrow('users', 'id_user', parent.id_sender, 'Utilisateur expéditeur non trouvé');
+        return result?.data ?? result;
+      } catch (err) {
+        // si utilisateur supprimé / non trouvé -> retourner null au lieu d'échouer tout le query
+        if (err && err.extensions && err.extensions.code === 'NOT_FOUND') return null;
+        throw err;
+      }
+      
     },
 
     receiver: async (parent) => {
-      return fetchUserById(parent.id_receiver);
+
+      if (!parent?.id_receiver) return null;
+      try {
+        const result = await findBy1ParameterOrThrow('users', 'id_user', parent.id_receiver, 'Utilisateur destinataire non trouvé');
+        return result?.data ?? result;
+      } catch (err) {
+        // si utilisateur supprimé / non trouvé -> retourner null au lieu d'échouer tout le query
+        if (err && err.extensions && err.extensions.code === 'NOT_FOUND') return null;
+        throw err;
+      }
+      
     },
     
   },

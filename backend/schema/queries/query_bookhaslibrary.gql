@@ -6,23 +6,42 @@ type PaginatedBooksInLibrary {
     httpStatus: Int  
 }
 
+
+type LibraryWithBooks {
+  id_library: ID!
+  name: String
+  bookCount: Int!
+  books: [BookHasLibrary!]!
+}
+ type PaginatedBooksInMyLibrary {
+  libraries: [LibraryWithBooks!]!
+}
+
 extend type Query {
     # Récupérer tous les livres en bibliothèque
-    getBooksInLibraries(
+    getAllBooksAllLibrariesForAdmin(
         limit: Int, 
         offset: Int, 
         order: String = "created_at", # Colonne par défaut pour le tri
         direction: String = "ASC" # Direction par défaut pour le tri (ASC ou DESC)
     ): PaginatedBooksInLibrary!
 
-    getMyBooksInLibraries(
+    get_AllBooksAllLibrariesForAdmin(
         limit: Int, 
         offset: Int, 
         order: String = "created_at", # Colonne par défaut pour le tri
         direction: String = "ASC" # Direction par défaut pour le tri (ASC ou DESC)
     ): PaginatedBooksInLibrary!
 
-    getBooksInLibrary(
+    # Récupérer tous les livres de toutes LES bibliothèques de l'utilisateur connecté
+    getAllBooksInAllMyLibraries(
+        limit: Int, 
+        offset: Int, 
+        order: String = "created_at", # Colonne par défaut pour le tri
+        direction: String = "ASC" # Direction par défaut pour le tri (ASC ou DESC)
+    ): PaginatedBooksInMyLibrary!
+
+    getAllBooksIn1Library(
         id_library: ID!, 
         limit: Int, 
         offset: Int, 
@@ -41,4 +60,20 @@ extend type Query {
 
     # Rechercher des livres en bibliothèque par titre ou auteur avec pagination
     searchBooksInLibrary(titleOrAuthor: String!, limit: Int, offset: Int): PaginatedBooksInLibrary!
+
+    getMyBooksInLibraries(
+        limit: Int, 
+        offset: Int, 
+        order: String = "created_at", # Colonne par défaut pour le tri
+        direction: String = "ASC" # Direction par défaut pour le tri (ASC ou DESC
+    ): PaginatedBooksInLibrary!
+
+    getAllBookInLibrariesOfUserForAdmin(
+        id_user: ID!,
+        limit: Int, 
+        offset: Int, 
+        order: String = "created_at", # Colonne par défaut pour le tri
+        direction: String = "ASC" # Direction par défaut pour le tri (ASC ou DESC)
+    ): PaginatedBooksInMyLibrary!
+
 }

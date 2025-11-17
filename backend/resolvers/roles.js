@@ -13,6 +13,8 @@ import { isAuthenticated, requireAuth, requireAdmin, requireOwnershipOrAdmin, sa
 import { withSecureResolver } from './utils/helpers/helpers_general.js';
 // Importer les helpers spécifiques
 import { findRolesOrThrow, validateRolesInput} from './utils/helpers/helpers_Roles.js';
+import { findBy1ParameterOrThrow } from './utils/helper.js';
+
 
 // Importer le schema Joi genéral
 import { generalSortingSchema } from '../schema/schemas_joi/generalSchema.js';
@@ -142,12 +144,12 @@ export default {
         // REQUETES BASE DE DONNEES
         // ======================================== 
         // Vérifie si le rôle existe et le retourne
-        const role = await findRolesOrThrow(cleanIdRole);
+        const role = await findBy1ParameterOrThrow('roles', 'id_role', cleanIdRole, 'Rôle non trouvé');
         // ========================================
         // DONNEES RECUPEREES
         // ========================================        
         if (context?.res?.status) context.res.status(200);
-        return role;
+        return role.data;
     
       },
       {
@@ -375,7 +377,7 @@ export default {
         }
 
         // Vérifier que le rôle existe AVANT de le mettre à jour
-        await findRolesOrThrow(cleanIdRole);
+        await findBy1ParameterOrThrow('roles', 'id_role', cleanIdRole, 'Rôle non trouvé');
 
         // Valider le nouveau nom
         validateRolesInput({ role_name: cleanRoleName });
@@ -458,7 +460,7 @@ export default {
         }
 
         // Vérifier l'existence avant suppression
-        await findRolesOrThrow(cleanIdRole);
+        await findBy1ParameterOrThrow('roles', 'id_role', cleanIdRole, 'Rôle non trouvé');
 
         const result = await db.query(
           'DELETE FROM roles WHERE id_role = $1 RETURNING *',
