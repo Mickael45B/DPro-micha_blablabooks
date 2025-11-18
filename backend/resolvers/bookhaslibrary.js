@@ -739,7 +739,7 @@ export default {
      * @throws {GraphQLError} Si l'utilisateur n'a pas les droits (401 ou 403)
      * @throws {GraphQLError} Si une erreur se produit lors de la récupération des livres (500)
      */
-    updateBookHasLibrary: withSecureResolver(
+    updateLibraryInBookHasLibrary: withSecureResolver(
       async (_, { input, validated }, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
@@ -749,15 +749,14 @@ export default {
         }
         */
         /*exemple de requête :
-        mutation UpdateBookHasLibrary($input: UpdateBookHasLibraryInput!) { updateBookHasLibrary(input: $input) {__typename }}
+        mutation updateLibraryInBookHasLibrary($input: UpdateLibraryInBookHasLibraryInput!) { updateLibraryInBookHasLibrary(input: $input) {__typename }}
 
         */
         /* Exemple variables :
         { "input": 
         {"bookId": "2g3h4i5j-6k7l-8m9n-0o1p-2q3r4s5t6u7v",
           "id_bookhaslibrary" :"0147539a-db17-44cc-90ab-9d2f524f32c6",
-          "is_read": true
-        }
+          "id_library": "1bd2f719-a89a-4231-aa6d-dd1df163eee6"}
         }       
         */
     
@@ -772,51 +771,44 @@ export default {
           });
         }
 
-        const cleanId = sanitizeStrict(id_bookhaslibrary);
-        const bookLibrary = await findBy1ParameterOrThrow('bookhaslibrary', 'id_bookhaslibrary', cleanId, 'Livre en bibliothèque non trouvé');
+        const cleanIdBookHasLibrary = sanitizeStrict(id_bookhaslibrary);
+        const cleanIdLibrary = sanitizeStrict(id_library);
+        const bookLibrary = await findBy1ParameterOrThrow('bookhaslibrary', 'id_bookhaslibrary', cleanIdBookHasLibrary, 'Livre en bibliothèque non trouvé');
 
-        // Vérifier l'accès
-        await verifyUserOwnsLibrary(bookLibrary.data.id_library, context);
+        //avec l'id_library retourné par la requête précédente, vérifier que l'utilisateur a accès à cette bibliothèque
+        const ownerLibrary = await findBy1ParameterOrThrow('libraries', 'id_library', bookLibrary.data.id_library, 'Bibliothèque non trouvée');
+        await verifyUserOwnsLibrary(ownerLibrary.id_library, context);
 
-        // Construire la requête dynamique
-        const updates = [];
-        const values = [];
-        let paramIndex = 1;
-
-        if (id_book) {
-          updates.push(`id_book = $${paramIndex++}`);
-          values.push(sanitizeStrict(id_book));
-        }
+        let result;
+        // vérifier si la bibliothèque de destination (cleanIdLibrary) existe, puis vérifier l'accès de l'accès à cette bibliothèque
         if (id_library) {
-          updates.push(`id_library = $${paramIndex++}`);
-          values.push(sanitizeStrict(id_library));
-        }
-        if (is_read !== undefined) {
-          updates.push(`is_read = $${paramIndex++}`);
-          values.push(Boolean(is_read));
-        }
-        if (is_favorite !== undefined) {
-          updates.push(`is_favorite = $${paramIndex++}`);
-          values.push(Boolean(is_favorite));
+          const targetLibrary = await findBy1ParameterOrThrow('libraries', 'id_library', cleanIdLibrary, 'Bibliothèque de destination non trouvée');
+          await verifyUserOwnsLibrary(targetLibrary.id_library, context);
         }
 
-        if (updates.length === 0) {
-          throw new GraphQLError('Aucun champ à mettre à jour', {
-            extensions: { code: 'BAD_REQUEST', httpStatus: 400 }
-          });
-        }
-
+        // si la bibliothèque de destination est identique à l'actuelle, retourner un message indiquant qu'aucune modification n'est nécessaire, et un statut http de non-modification
+        if (cleanIdLibrary && bookLibrary.data.id_library === cleanIdLibrary) {
+          return {
+            result:{ ...bookLibrary.data },
+            message: 'Aucune modification nécessaire, le livre est déjà dans cette bibliothèque.',
+            httpStatus: 304
+          };
+        }else {
         // ========================================
         // REQUETES BASE DE DONNEES
         // ======================================== 
-        values.push(cleanId); // Pour le WHERE
-        const result = await db.query(`
-          UPDATE bookhaslibrary
-          SET ${updates.join(', ')}, updated_at = NOW()
-          WHERE id_bookhaslibrary = $${paramIndex}
-          RETURNING *
-        `, values);
-
+          const result = await db.query(`
+            UPDATE bookhaslibrary
+            SET 
+                id_library = COALESCE($1, id_library),
+                updated_at = NOW()
+            WHERE id_bookhaslibrary = $2
+            RETURNING *
+          `, [
+            id_library ? cleanIdLibrary : null,
+            cleanIdBookHasLibrary
+          ]);
+        }
         // ========================================
         // DONNEES RECUPEREES
         // ========================================         
@@ -838,7 +830,131 @@ export default {
         errorMessage: 'Erreur lors de la mise à jour'
       }
     ),
-    
+
+    /**
+     * Met à jour le statut "lu" d'un livre dans une bibliothèque (marquer comme lu/non lu)
+     * 🔒 Route protégée - L'utilisateur ne peut modifier que dans ses propres bibliothèques (sauf admin)
+     * @param {object} input L'ID du livre en bibliothèque à modifier
+     * @returns {object} { data, httpStatus: 200 }
+     * @throws {GraphQLError} Si les données d'entrée sont invalides (400)
+     * @throws {GraphQLError} Si le livre en bibliothèque ou la bibliothèque n'existe pas (404)
+     * @throws {GraphQLError} Si l'utilisateur n'a pas les droits (401 ou 403)
+     * @throws {GraphQLError} Si une erreur se produit lors de la récupération des livres (500)
+     */
+    updateReadStatusInBookHasLibrary: withSecureResolver(
+      async (_, { input, validated }, context) => {
+        const { id_bookhaslibrary } = input;
+
+        if (!id_bookhaslibrary) {
+          throw new GraphQLError('id_bookhaslibrary requis', {
+            extensions: { code: 'BAD_REQUEST', httpStatus: 400 }
+          });
+        }
+
+        const cleanIdBookHasLibrary = sanitizeStrict(id_bookhaslibrary);
+        const bookLibrary = await findBy1ParameterOrThrow('bookhaslibrary', 'id_bookhaslibrary', cleanIdBookHasLibrary, 'Livre en bibliothèque non trouvé');
+
+        // Vérifier l'accès
+        await verifyUserOwnsLibrary(bookLibrary.data.id_library, context);
+
+        // ========================================
+        // REQUETES BASE DE DONNEES
+        // ======================================== 
+        // si "is_read" est false, le passer à true, et inversement
+        const result = await db.query(`
+          UPDATE bookhaslibrary
+          SET is_read = NOT is_read, updated_at = NOW()
+          WHERE id_bookhaslibrary = $1
+          RETURNING *
+        `, [cleanIdBookHasLibrary]);
+
+        // ========================================
+        // DONNEES RECUPEREES
+        // ======================================== 
+        if (result.rows.length === 0) {
+          throw new GraphQLError('Livre en bibliothèque non trouvé', {
+            extensions: { code: 'NOT_FOUND', httpStatus: 404 }
+          });
+        }
+        if (context?.res?.status) context.res.status(201);
+        return {
+          data: result.rows[0],
+          message: `Le statut 'lu' a été mis à jour avec succès.`,
+          httpStatus: 201
+        };
+      },
+      {
+        structureSchema: generalBookHasLibrarySchema,
+        specificSchema: updateBookHasLibrarySchema,
+        sortingSchema: generalSortingSchema,
+        orderSchema: generalOrderBookHasLibrarySchema,
+        logAction: 'UPDATE_BOOK_IN_LIBRARY',
+        requiresAuth: true,
+        errorMessage: 'Erreur lors de la mise à jour'
+      }
+    ),
+
+    /**
+     * Met à jour le statut "favori" d'un livre dans une bibliothèque (marquer comme favori/non favori)
+     * 🔒 Route protégée - L'utilisateur ne peut modifier que dans ses propres bibliothèques (sauf admin
+     * @param {object} input L'ID du livre en bibliothèque à modifier
+     * @returns {object} { data, httpStatus: 200 }
+     * @throws {GraphQLError} Si les données d'entrée sont invalides (400)
+     * @throws {GraphQLError} Si le livre en bibliothèque ou la bibliothèque n'existe pas (404)
+     * @throws {GraphQLError} Si l'utilisateur n'a pas les droits (401 ou 403)
+     * @throws {GraphQLError} Si une erreur se produit lors de la récupération des livres (500)
+     */
+    updateFavoriteStatusInBookHasLibrary: withSecureResolver(
+      async (_, { input, validated }, context) => {
+        const { id_bookhaslibrary } = input;  
+        if (!id_bookhaslibrary) {
+          throw new GraphQLError('id_bookhaslibrary requis', {
+            extensions: { code: 'BAD_REQUEST', httpStatus: 400 }
+          });
+        }
+        // ========================================
+        // RECUPERER LES DONNEES NESSESAIRES
+        // ========================================
+        
+        const cleanIdBookHasLibrary = sanitizeStrict(id_bookhaslibrary);
+        const bookLibrary = await findBy1ParameterOrThrow('bookhaslibrary', 'id_bookhaslibrary', cleanIdBookHasLibrary, 'Livre en bibliothèque non trouvé');
+        // Vérifier l'accès
+        await verifyUserOwnsLibrary(bookLibrary.data.id_library, context);
+        // ========================================
+        // REQUETES BASE DE DONNEES
+        // ========================================
+        const result = await db.query(`
+          UPDATE bookhaslibrary
+          SET is_favorite = NOT is_favorite, updated_at = NOW()
+          WHERE id_bookhaslibrary = $1
+          RETURNING *
+        `, [cleanIdBookHasLibrary]);
+        // ========================================
+        // DONNEES RECUPEREES
+        // ========================================
+        if (result.rows.length === 0) {
+          throw new GraphQLError('Livre en bibliothèque non trouvé', {
+            extensions: { code: 'NOT_FOUND', httpStatus: 404 }
+          });
+        }
+        if (context?.res?.status) context.res.status(201);
+        return {
+          data: result.rows[0],
+          message: `Le statut 'favori' a été mis à jour avec succès.`,
+          httpStatus: 201
+        };
+      },
+      {
+        structureSchema: generalBookHasLibrarySchema,
+        specificSchema: updateBookHasLibrarySchema,
+        sortingSchema: generalSortingSchema,
+        orderSchema: generalOrderBookHasLibrarySchema,
+        logAction: 'UPDATE_BOOK_IN_LIBRARY',
+        requiresAuth: true,
+        errorMessage: 'Erreur lors de la mise à jour'
+      }
+    ),
+
     /**
      * Supprime un livre d'une bibliothèque
      * 🔒 Route protégée - L'utilisateur ne peut supprimer que dans ses propres bibliothèques (sauf admin)

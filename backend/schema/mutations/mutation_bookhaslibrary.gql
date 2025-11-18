@@ -8,7 +8,13 @@ extend type Mutation {
     addBookHasLibrary(input: CreateBookHasLibraryInput!): BookHasLibrary!
 
     # Mettre à jour une relation existante
-    updateBookHasLibrary(input: UpdateBookHasLibraryInput!): BookHasLibrary!
+    updateLibraryInBookHasLibrary(input: UpdateLibraryInBookHasLibraryInput!): BookHasLibrary!
+
+    # Mettre à jour le statut "lu" d'un livre dans une bibliothèque
+    updateReadStatusInBookHasLibrary(input: UpdateReadStatusInBookHasLibraryInput!): BookHasLibrary!
+
+    # Mettre à jour le statut "favori" d'un livre dans une bibliothèque
+    updateFavoriteStatusInBookHasLibrary(input: UpdateFavoriteStatusInBookHasLibraryInput!): BookHasLibrary!
 
     # Supprimer une relation par son ID
     deleteBookHasLibrary(input: DeleteBookHasLibraryInput!): Boolean!

@@ -5,12 +5,18 @@ input CreateBookHasLibraryInput {
 }
 
 # Mettre à jour une association livre-bibliothèque
-input UpdateBookHasLibraryInput {
+input UpdateLibraryInBookHasLibraryInput {
   id_bookhaslibrary: ID
-  bookId: ID
   libraryId: ID
-  is_read: Boolean
-  is_favorite: Boolean
+}
+
+# Mettre à jour le statut "lu" d'un livre dans une bibliothèque
+input UpdateReadStatusInBookHasLibraryInput {
+  id_bookhaslibrary: ID!
+}
+# Mettre à jour le statut "favori" d'un livre dans une bibliothèque
+input UpdateFavoriteStatusInBookHasLibraryInput {
+  id_bookhaslibrary: ID!
 }
 
 # Supprimer une association livre-bibliothèque
