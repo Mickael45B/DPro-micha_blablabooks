@@ -10,7 +10,7 @@ import { GraphQLError } from 'graphql';
 import fetchBookById from './utils/utils_books.js';
 import fetchLibraryById from './utils/utils_librairies.js';
 
-import { isAuthenticated, requireAuth, requireAdmin, requireOwnershipOrAdmin, sanitizeString, sanitizeInput, flattenEdges, makePageInfo, makeEdgeFromBook, withErrorHandling, withRateLimit } from './utils/helpers/helpers_general.js';
+import { isAuthenticated, requireAuth, requireAdmin, requireOwnershipOrAdmin, sanitizeInput, flattenEdges, makePageInfo, makeEdgeFromBook, withErrorHandling, withRateLimit } from './utils/helpers/helpers_general.js';
 
 import { clean } from "semver";
 
@@ -21,16 +21,12 @@ import { validateAgainstInjection, withOutputSanitization} from './utils/helpers
 
 import {generateAccessToken, generateRefreshToken, verifyToken, decodeToken} from './utils/utils_authentification.js';
 
-import { findBy1ParameterOrThrow } from './utils/helper.js';
+import { findBy1ParameterOrThrow, generalSortingSchema } from './utils/helper.js';
 
 
 // Importer les helpers généralistes
 import { withSecureResolver } from './utils/helpers/helpers_general.js';
-// Importer les helpers spécifiques
-import { validateUserInput, validatePasswordInput} from './utils/helpers/helpers_Users.js';
 
-// Importer le schema Joi genéral
-import { generalSortingSchema } from '../schema/schemas_joi/generalSchema.js';
 // Importer les schemas Joi spécifiques
 import { generalUserSchema, generalOrderUserSchema, searchUsersSchema} from '../schema/schemas_joi/userSchema.js';
 
@@ -104,8 +100,8 @@ export default {
         // const cleanOffset = Math.max(parseInt(offset) || 0, 0);
         const validOrders = ['created_at', 'name', 'email', 'pseudo', 'id_role', 'id_user'];
         const { order: safeOrder, direction: safeDirection } = validateOrderParams(
-          sanitizeString(order), 
-          sanitizeString(direction), 
+          sanitizeStrict(order), 
+          sanitizeStrict(direction), 
           validOrders
         );
         // ========================================
@@ -536,10 +532,10 @@ export default {
         }
 
         // Sanitize inputs
-        const cleanIdUser = sanitizeString(id_user);
-        const cleanName = name !== undefined ? sanitizeString(name) : undefined;
-        const cleanEmail = email !== undefined ? sanitizeString(email) : undefined;
-        const cleanPseudo = pseudo !== undefined ? sanitizeString(pseudo) : undefined;
+        const cleanIdUser = sanitizeStrict(id_user);
+        const cleanName = name !== undefined ? sanitizeStrict(name) : undefined;
+        const cleanEmail = email !== undefined ? sanitizeStrict(email) : undefined;
+        const cleanPseudo = pseudo !== undefined ? sanitizeStrict(pseudo) : undefined;
 
         requireOwnershipOrAdmin(cleanIdUser, context);
 
@@ -661,7 +657,7 @@ export default {
         }
 
         // Sanitize inputs
-        const cleanIdUser = sanitizeString(id_user);
+        const cleanIdUser = sanitizeStrict(id_user);
 
         // Vérification des droits d'accès
         requireOwnershipOrAdmin(cleanIdUser, context);
@@ -754,8 +750,8 @@ export default {
           });
         }
 
-        const cleanIdUser = sanitizeString(id_user);
-        const cleanNewPassword = sanitizeString(newPassword);
+        const cleanIdUser = sanitizeStrict(id_user);
+        const cleanNewPassword = sanitizeStrict(newPassword);
 
         if (typeof cleanNewPassword !== 'string' || cleanNewPassword.length < 6) {
           throw new GraphQLError('Le mot de passe doit contenir au moins 6 caractères', {
@@ -831,9 +827,9 @@ export default {
           requireOwnershipOrAdmin(id_user, context);
 
           // Sanitize inputs
-          const cleanIdUser = sanitizeString(id_user);
-          const cleanOldPassword = sanitizeString(oldPassword);
-          const cleanNewPassword = sanitizeString(newPassword);
+          const cleanIdUser = sanitizeStrict(id_user);
+          const cleanOldPassword = sanitizeStrict(oldPassword);
+          const cleanNewPassword = sanitizeStrict(newPassword);
 
           // Vérification de l'existence de l'utilisateur
           const existingUser = await findBy1ParameterOrThrow('users', 'id_user', cleanIdUser, 'Utilisateur non trouvé');
@@ -933,8 +929,8 @@ export default {
         const { emailOrPseudo, password, rememberMe = false } = input;
         
         // Sanitize
-        const cleanLogin = sanitizeString(emailOrPseudo);
-        const cleanPassword = sanitizeString(password);
+        const cleanLogin = sanitizeStrict(emailOrPseudo);
+        const cleanPassword = sanitizeStrict(password);
         
         if (!cleanLogin || !cleanPassword) {
           throw new GraphQLError('Email/pseudo et mot de passe requis', {
@@ -1171,3 +1167,115 @@ export default {
     },
   },
 };
+
+/** * Valide les données d'un Utilisateur
+ * @param {object} input - Données de l'utilisateur
+ * @throws {GraphQLError} Si la validation échoue
+ */
+export const validateUserInput = (input) => {
+  // Validation du nom
+  if (!input.name || typeof input.name !== 'string' || input.name.trim().length < 3) {
+    throw new GraphQLError('Nom invalide (3-100 caractères)', {
+      extensions: { code: 'BAD_USER_INPUT', httpStatus: 400 }
+    });
+  }
+
+  if (input.name.length > 100) {
+    throw new GraphQLError('Le nom ne peut pas dépasser 100 caractères', {
+      extensions: { code: 'BAD_USER_INPUT', httpStatus: 400 }
+    });
+  }
+
+  // Validation de l'email
+  if (!input.email || typeof input.email !== 'string') {
+    throw new GraphQLError('Email invalide', {
+      extensions: { code: 'BAD_USER_INPUT', httpStatus: 400 }
+    });
+  }
+
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(input.email)) {
+    throw new GraphQLError('Format d\'email invalide', {
+      extensions: { code: 'BAD_USER_INPUT', httpStatus: 400 }
+    });
+  }
+
+  // Validation du pseudo
+  if (!input.pseudo || typeof input.pseudo !== 'string' || input.pseudo.trim().length < 3) {
+    throw new GraphQLError('Pseudo invalide (3-32 caractères)', {
+      extensions: { code: 'BAD_USER_INPUT', httpStatus: 400 }
+    });
+  }
+
+  if (input.pseudo.length > 32) {
+    throw new GraphQLError('Le pseudo ne peut pas dépasser 32 caractères', {
+      extensions: { code: 'BAD_USER_INPUT', httpStatus: 400 }
+    });
+  }
+
+  // Validation du mot de passe (si fourni)
+  if (input.password) {
+    if (typeof input.password !== 'string' || input.password.length < 6) {
+      throw new GraphQLError('Le mot de passe doit contenir au moins 6 caractères', {
+        extensions: { code: 'BAD_USER_INPUT', httpStatus: 400 }
+      });
+    }
+
+    if (input.password.length > 72) {
+      throw new GraphQLError('Le mot de passe ne peut pas dépasser 72 caractères', {
+        extensions: { code: 'BAD_USER_INPUT', httpStatus: 400 }
+      });
+    }
+  }
+};
+
+/**
+    * Valide les données d'un mot de passe
+    * @param {object} input - Données du mot de passe
+    * @param {string} input.cleanNewPassword - Nouveau mot de passe nettoyé
+    * @param {string} input.cleanOldPassword - Ancien mot de passe nettoyé
+    * @param {string} input.userId - ID de l'utilisateur
+    * @throws {GraphQLError} Si la validation échoue
+    */
+export const validatePasswordInput = async (input) => {
+  const { cleanNewPassword, cleanOldPassword, userId } = input;
+
+  // Récupérer l'utilisateur
+  const result = await db.query(`
+    SELECT password FROM users WHERE id_user = $1
+  `, [userId]);
+
+  if (result.rows.length === 0) {
+    throw new GraphQLError('Utilisateur non trouvé', {
+      extensions: { code: 'NOT_FOUND', httpStatus: 404 }
+    });
+  }
+
+  // Validation du nouveau mot de passe
+  if (typeof cleanNewPassword !== 'string' || cleanNewPassword.length < 6) {
+    throw new GraphQLError('Le mot de passe doit contenir au moins 6 caractères', {
+      extensions: { code: 'BAD_USER_INPUT', httpStatus: 400 }
+    });
+  }
+
+  if (cleanNewPassword.length > 32) {
+    throw new GraphQLError('Le mot de passe ne peut pas dépasser 32 caractères', {
+      extensions: { code: 'BAD_USER_INPUT', httpStatus: 400 }
+    });
+  }
+
+  // Validation de l'ancien mot de passe
+  if (!cleanOldPassword || typeof cleanOldPassword !== 'string') {
+    throw new GraphQLError('Ancien mot de passe invalide', {
+      extensions: { code: 'BAD_USER_INPUT', httpStatus: 400 }
+    });
+  }
+    /*
+    // Contrôle si l'ancien mot de passe et le nouveau mot de passe sont identiques
+    if (cleanOldPassword === cleanNewPassword) {
+        throw new GraphQLError('Le nouveau mot de passe doit être différent de l\'ancien', {
+        extensions: { code: 'BAD_USER_INPUT', httpStatus: 400 }
+        });
+    }
+    */
+}

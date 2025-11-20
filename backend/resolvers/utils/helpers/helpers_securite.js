@@ -2,6 +2,8 @@ import { GraphQLError } from 'graphql';
 import sanitizeHtml from 'sanitize-html';
 import fs from 'fs/promises';
 import path from 'path';
+import e from "express";
+import Joi from "joi";
 
 // ========================================
 // CONFIGURATION
@@ -17,6 +19,89 @@ const MAX_LOG_SIZE = 10 * 1024 * 1024; // 10 MB
     console.error('❌ Impossible de créer le dossier de logs de sécurité:', err);
   }
 })();
+
+
+
+
+
+
+
+
+
+
+
+
+
+// ========================================
+// VALIDATION JOI
+// ========================================
+
+/**
+ * Valide les données avec un schéma Joi
+ */
+export const validateWithJoi = (schema, data) => {
+  const { error, value } = schema.validate(data, {
+    abortEarly: false,
+    stripUnknown: true,
+  });
+
+  if (error) {
+    const messages = error.details.map(detail => detail.message).join(', ');
+    throw new GraphQLError(messages, {
+      extensions: { 
+        code: 'BAD_REQUEST',
+        httpStatus: 400,
+        originalError: error.message
+      },
+    });
+  }
+
+  return value;
+};
+
+export const generalSortingSchema = Joi.object({
+    limit: Joi.number().integer().min(1).max(100).default(50),
+    offset: Joi.number().integer().min(0).default(0),
+    direction: Joi.string().valid('ASC', 'DESC').default('DESC'),
+});
+
+
+// ========================================
+// HELPERS DE SANITIZATION
+// ========================================
+
+/**
+ * Sanitize strict : Supprime TOUT le HTML
+ */
+export const sanitizeStrict = (input) => {
+  if (!input || typeof input !== 'string') return input;
+  
+  const cleaned = sanitizeHtml(input.trim(), {
+    allowedTags: [],
+    allowedAttributes: {},
+    disallowedTagsMode: 'discard',
+  });
+  
+  const dangerousPatterns = [
+    /<script/gi,
+    /javascript:/gi,
+    /onerror=/gi,
+    /onload=/gi,
+    /<iframe/gi,
+    /eval\(/gi,
+    /expression\(/gi,
+  ];
+  
+  for (const pattern of dangerousPatterns) {
+    if (pattern.test(cleaned)) {
+      throw new GraphQLError('Contenu suspect détecté', {
+        extensions: { code: 'MALICIOUS_CONTENT', httpStatus: 400 }
+      });
+    }
+  }
+  
+  return cleaned;
+};
 
 /**
  * Sanitize récursif pour objets et tableaux
@@ -65,43 +150,25 @@ export const sanitizeRecursive = (data) => {
   // Autres types (boolean, Date, etc.)
   return data;
 };
-// ========================================
-// HELPERS DE SANITIZATION
-// ========================================
 
 /**
- * Sanitize strict : Supprime TOUT le HTML
+ * Nettoie un objet d'input
+ * @param {object} input - Objet à nettoyer
+ * @returns {object} Objet nettoyé
  */
-export const sanitizeStrict = (input) => {
-  if (!input || typeof input !== 'string') return input;
+export const sanitizeInput = (input) => {
+  if (!input || typeof input !== 'object') return input;
   
-  const cleaned = sanitizeHtml(input.trim(), {
-    allowedTags: [],
-    allowedAttributes: {},
-    disallowedTagsMode: 'discard',
-  });
-  
-  const dangerousPatterns = [
-    /<script/gi,
-    /javascript:/gi,
-    /onerror=/gi,
-    /onload=/gi,
-    /<iframe/gi,
-    /eval\(/gi,
-    /expression\(/gi,
-  ];
-  
-  for (const pattern of dangerousPatterns) {
-    if (pattern.test(cleaned)) {
-      throw new GraphQLError('Contenu suspect détecté', {
-        extensions: { code: 'MALICIOUS_CONTENT', httpStatus: 400 }
-      });
+  const sanitized = {};
+  for (const [key, value] of Object.entries(input)) {
+    if (typeof value === 'string') {
+      sanitized[key] = sanitizeString(value);
+    } else {
+      sanitized[key] = value;
     }
   }
-  
-  return cleaned;
+  return sanitized;
 };
-
 
 /**
  * Sanitize pour le contenu riche (reviews, descriptions)
@@ -115,6 +182,40 @@ export const sanitizeRichText = (input) => {
     disallowedTagsMode: 'discard',
   });
 };
+
+
+/**
+ * Sanitize strict pour les nombres
+ * Empêche NaN, Infinity, valeurs trop grandes
+ */
+export const sanitizeNumber = (input) => {
+  if (input === null || input === undefined) return input;
+  
+  const num = Number(input);
+  
+  if (isNaN(num)) {
+    throw new GraphQLError('Valeur numérique invalide', {
+      extensions: { code: 'BAD_REQUEST', httpStatus: 400 }
+    });
+  }
+  
+  if (!isFinite(num)) {
+    throw new GraphQLError('Nombre infini non autorisé', {
+      extensions: { code: 'BAD_REQUEST', httpStatus: 400 }
+    });
+  }
+  
+  // Vérifier les limites raisonnables (ajustez selon vos besoins)
+  const MAX_SAFE_INTEGER = Number.MAX_SAFE_INTEGER;
+  if (Math.abs(num) > MAX_SAFE_INTEGER) {
+    throw new GraphQLError('Nombre trop grand', {
+      extensions: { code: 'BAD_REQUEST', httpStatus: 400 }
+    });
+  }
+  
+  return num;
+};
+
 
 /**
  * Encoder les entités HTML (dernier rempart)
@@ -418,101 +519,33 @@ export const withOutputSanitization = (resolverFn) => {
   };
 };
 
-// ========================================
-// VALIDATION JOI
-// ========================================
+
+
+
 
 /**
- * Valide les données avec un schéma Joi
+ * Détecte si quelqu'un tente d'utiliser le honeypot isAdmin
  */
-export const validateWithJoi = (schema, data) => {
-  const { error, value } = schema.validate(data, {
-    abortEarly: false,
-    stripUnknown: true,
-  });
-
-  if (error) {
-    const messages = error.details.map(detail => detail.message).join(', ');
-    throw new GraphQLError(messages, {
-      extensions: { 
-        code: 'BAD_REQUEST',
-        httpStatus: 400,
-        originalError: error.message
-      },
-    });
+export const detectHoneypotUsage = async (context) => {
+  if (context.isAdmin === true) {
+    context._honeypotTriggered = true;
+    
+    await logSuspiciousActivity('HONEYPOT__ADMIN_FLAG_MANIPULATION', {
+      user: context.user?.id_user || 'anonymous',
+      email: context.user?.email || 'unknown',
+      pseudo: context.user?.pseudo || 'unknown',
+      ip: context.req?.ip || context.req?.connection?.remoteAddress, 
+      userAgent: context.req?.headers?.['user-agent'],
+      method: context.req?.method,
+      operationName: context.req?.body?.operationName,
+      query: context.req?.body?.query?.substring(0, 500),
+      variables: JSON.stringify(context.req?.body?.variables),
+      warning: '🚨 TENTATIVE DE MANIPULATION DU FLAG isAdmin DÉTECTÉE',
+      timestamp: new Date().toISOString(),
+    }, context);    
+    
+    return true;
   }
-
-  return value;
+  
+  return false;
 };
-
-// ========================================
-// VALIDATION Sanitize 
-// ========================================
-
-/**
- * Sanitize strict pour les nombres
- * Empêche NaN, Infinity, valeurs trop grandes
- */
-export const sanitizeNumber = (input) => {
-  if (input === null || input === undefined) return input;
-  
-  const num = Number(input);
-  
-  if (isNaN(num)) {
-    throw new GraphQLError('Valeur numérique invalide', {
-      extensions: { code: 'BAD_REQUEST', httpStatus: 400 }
-    });
-  }
-  
-  if (!isFinite(num)) {
-    throw new GraphQLError('Nombre infini non autorisé', {
-      extensions: { code: 'BAD_REQUEST', httpStatus: 400 }
-    });
-  }
-  
-  // Vérifier les limites raisonnables (ajustez selon vos besoins)
-  const MAX_SAFE_INTEGER = Number.MAX_SAFE_INTEGER;
-  if (Math.abs(num) > MAX_SAFE_INTEGER) {
-    throw new GraphQLError('Nombre trop grand', {
-      extensions: { code: 'BAD_REQUEST', httpStatus: 400 }
-    });
-  }
-  
-  return num;
-};
-
-/**
- * Nettoie une chaîne de caractères pour éviter les attaques XSS
- * @param {string} input - Chaîne à nettoyer
- * @returns {string} Chaîne nettoyée
- */
-export const sanitizeString = (input) => {
-  if (!input || typeof input !== 'string') return input;
-  return sanitizeHtml(input.trim(), {
-    allowedTags: [],
-    allowedAttributes: {},
-  });
-};
-
-/**
- * Nettoie un objet d'input
- * @param {object} input - Objet à nettoyer
- * @returns {object} Objet nettoyé
- */
-export const sanitizeInput = (input) => {
-  if (!input || typeof input !== 'object') return input;
-  
-  const sanitized = {};
-  for (const [key, value] of Object.entries(input)) {
-    if (typeof value === 'string') {
-      sanitized[key] = sanitizeString(value);
-    } else {
-      sanitized[key] = value;
-    }
-  }
-  return sanitized;
-};
-
-
-
-

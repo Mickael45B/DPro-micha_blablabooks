@@ -6,26 +6,22 @@ import { GraphQLError } from 'graphql';
 import fetchBookById from './utils/utils_books.js';
 import fetchLibraryById from './utils/utils_librairies.js';
 // import { flattenEdges, makePageInfo, makeEdgeFromBook } from '../utils/helpers_books.js';
-// import { isAuthenticated, requireAuth, requireAdmin, requireOwnershipOrAdmin, sanitizeString, sanitizeInput } from './utils/helpers/helpers_general.js';
-import { isAuthenticated, requireAuth, requireAdmin, requireOwnershipOrAdmin, sanitizeString, sanitizeInput, flattenEdges, makePageInfo, makeEdgeFromBook, withErrorHandling  } from './utils/helpers/helpers_general.js';
+// import { isAuthenticated, requireAuth, requireAdmin, requireOwnershipOrAdmin, sanitizeInput } from './utils/helpers/helpers_general.js';
+import { isAuthenticated, requireAuth, requireAdmin, requireOwnershipOrAdmin, sanitizeInput, flattenEdges, makePageInfo, makeEdgeFromBook, withErrorHandling  } from './utils/helpers/helpers_general.js';
 
 
 import { validate as uuidValidate } from 'uuid';
 
 // Importer les helpers généralistes
 import { withSecureResolver } from './utils/helpers/helpers_general.js';
-// Importer les helpers spécifiques
-import { validateBookInput} from './utils/helpers/helpers_books.js';
 
-// Importer le schema Joi genéral
-import { generalSortingSchema } from '../schema/schemas_joi/generalSchema.js';
 // Importer les schemas Joi spécifiques
 import { generalBookSchema, generalOrderBookSchema, searchBooksSchema} from '../schema/schemas_joi/bookSchema.js';
 
 // Importer les wrappers et helpers de sécurité
 import { sanitizeStrict} from './utils/helpers/helpers_securite.js';
 
-import { findBy1ParameterOrThrow } from './utils/helper.js';
+import { findBy1ParameterOrThrow, generalSortingSchema } from './utils/helper.js';
 
 
 // ========================================
@@ -463,7 +459,7 @@ console.log('titleOrAuthor:', titleOrAuthor);
           values.push(sanitizeInput(input.genre));
         }
         if (input.isbn !== undefined) {
-          const cleanIsbn = sanitizeString(input.isbn);
+          const cleanIsbn = sanitizeStrict(input.isbn);
           // Vérifier que l'ISBN n'est pas déjà utilisé par un autre livre
           if (cleanIsbn) {
             const existing = await db.query(

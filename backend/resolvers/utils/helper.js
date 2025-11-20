@@ -1,5 +1,19 @@
 import db from "../../db/connect_DB.js";
 import { GraphQLError } from 'graphql';
+import { withOutputSanitization, validateWithJoi, detectMaliciousPatterns, sanitizeRecursive, detectHoneypotUsage, logSuspiciousActivity } 
+from '../utils/helpers/helpers_securite.js';
+import { initializeRedis } from "../../utils.js";// Initialiser Redis 
+const redis = initializeRedis();
+import e from "express";
+import Joi from "joi";
+
+
+
+
+
+
+
+
 
 //=========================================================
 // DONNÉES D'INITIALISATION
@@ -11,6 +25,17 @@ export const initialization = {
         user: "sommaire"
     },
 };
+
+// Définitions des schémas Joi (pagination)
+export const generalSortingSchema = Joi.object({
+    limit: Joi.number().integer().min(1).max(100).default(50),
+    offset: Joi.number().integer().min(0).default(0),
+    direction: Joi.string().valid('ASC', 'DESC').default('DESC'),
+});
+
+
+
+
 
 //=========================================================
 // FONCTIONS DE RECHERCHE 
@@ -524,32 +549,6 @@ export const withErrorHandling = (resolverFn, errorMessage) => {
     errorMessage
   );
 };
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 //=========================================================
 // 

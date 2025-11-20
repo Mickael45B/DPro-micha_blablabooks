@@ -4,15 +4,11 @@ import { GraphQLError } from 'graphql';
 import { validateOrderParams, handleDbError } from '../utils/validators.js';
 
 // Importer les fonctions de vérification de l'existence du livre et de la bibliothèque
-import { findBy1ParameterOrThrow } from './utils/helper.js';
+import { findBy1ParameterOrThrow, generalSortingSchema } from './utils/helper.js';
 
 // Importer les helpers généralistes
 import { withSecureResolver, verifyUserInDB } from './utils/helpers/helpers_general.js';
-// Importer les helpers spécifiques
-import { requireEditableLibrary, verifyUserOwnsLibrary} from './utils/helpers/helpers_bookhaslibrary.js';
 
-// Importer le schema Joi genéral
-import { generalSortingSchema } from '../schema/schemas_joi/generalSchema.js';
 // Importer les schemas Joi spécifiques
 import { generalBookHasLibrarySchema, generalOrderBookHasLibrarySchema, searchBooksInLibrary, addBookHasLibrarySchema, updateBookHasLibrarySchema, deleteBookHasLibrarySchema, addBooksToLibrarySchema, removeBooksFromLibrarySchema} from '../schema/schemas_joi/bookhaslibrarySchema.js';
 
@@ -1251,3 +1247,46 @@ export default {
   },
 };
 
+
+/**
+ * Vérifie qu'une bibliothèque est modifiable
+ * @param {object} library - Objet bibliothèque
+ * @throws {GraphQLError} Si non modifiable
+ */
+export const requireEditableLibrary = (library) => {
+  if (!library.is_editable) {
+    throw new GraphQLError('Cette bibliothèque n\'est pas modifiable', {
+      extensions: { 
+        code: 'FORBIDDEN',
+        httpStatus: 403
+      },
+    });
+  }
+};
+
+/**
+ * Vérifie que l'utilisateur peut accéder à cette bibliothèque
+ */
+export const verifyUserOwnsLibrary = async (libraryId, context) => {
+  const library = await fetchLibraryById(libraryId);
+  
+  if (!library) {
+    throw new GraphQLError('Bibliothèque non trouvée', {
+      extensions: { code: 'NOT_FOUND', httpStatus: 404 }
+    });
+  }
+  
+  // Admin = accès total
+  if (context.user?.role === 'admin' || context.isAdmin) {
+    return library;
+  }
+  
+  // Utilisateur normal = uniquement ses bibliothèques
+  if (library.id_user !== context.user?.id_user) {
+    throw new GraphQLError('Vous ne pouvez accéder qu\'à vos propres bibliothèques', {
+      extensions: { code: 'FORBIDDEN', httpStatus: 403 }
+    });
+  }
+  
+  return library;
+};

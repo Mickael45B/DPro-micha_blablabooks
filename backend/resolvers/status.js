@@ -9,22 +9,18 @@ import { GraphQLError } from 'graphql';
 import fetchBookById from './utils/utils_books.js';
 import fetchLibraryById from './utils/utils_librairies.js';
 
-import { isAuthenticated, requireAuth, requireAdmin, requireOwnershipOrAdmin, sanitizeString, sanitizeInput, flattenEdges, makePageInfo, makeEdgeFromBook, withErrorHandling } from './utils/helpers/helpers_general.js';
+import { isAuthenticated, requireAuth, requireAdmin, requireOwnershipOrAdmin, sanitizeInput, flattenEdges, makePageInfo, makeEdgeFromBook, withErrorHandling } from './utils/helpers/helpers_general.js';
 
 import { clean } from "semver";
 
 import { validateWithJoi } from './utils/helpers/helpers_securite.js';
-import { findBy1ParameterOrThrow } from './utils/helper.js';
+import { findBy1ParameterOrThrow, generalSortingSchema } from './utils/helper.js';
 
 
 
 // Importer les helpers généralistes
 import { withSecureResolver } from './utils/helpers/helpers_general.js';
-// Importer les helpers spécifiques
-import { validateStatusInput, existingStatusInput} from './utils/helpers/helpers_status.js';
 
-// Importer le schema Joi genéral
-import { generalSortingSchema } from '../schema/schemas_joi/generalSchema.js';
 // Importer les schemas Joi spécifiques
 import { generalStatusSchema, generalOrderStatusSchema, searchStatusesSchema} from '../schema/schemas_joi/statusSchema.js';
 
@@ -465,7 +461,7 @@ export default {
                     });
 
                     // Sanitize inputs => 2ème couche - défense en profondeur
-                    const cleanIdStatus = sanitizeString(validatedInput.id_status);
+                    const cleanIdStatus = sanitizeStrict(validatedInput.id_status);
 
                     // Vérification de l'existence du statut
                     await findBy1ParameterOrThrow('status', 'id_status', cleanIdStatus, 'Statut non trouvé');
@@ -497,3 +493,43 @@ export default {
     Status: {}
 
 };
+
+export const validateStatusInput = (input) => {
+  const { status_name } = input;
+
+  if (!status_name || typeof status_name !== 'string' || status_name.trim().length === 0) {
+    throw new GraphQLError('Nom de statut invalide', {
+      extensions: { code: 'BAD_USER_INPUT', httpStatus: 400 }
+    });
+  }
+
+  if (status_name.length < 3 || status_name.length > 100) {
+    throw new GraphQLError('Le nom doit contenir entre 3 et 100 caractères', {
+      extensions: { code: 'BAD_USER_INPUT', httpStatus: 400 }
+    });
+  }
+
+  return {
+    status_name: status_name.trim()
+  };
+};
+
+export const existingStatusInput = async(input) => {
+  const { status_name } = input;
+  if (!status_name) return false;
+  const result = await db.query(
+    'SELECT COUNT(*)::int as count FROM status WHERE LOWER(status_name) = LOWER($1)',
+    [status_name]
+  );
+
+  const count = result.rows[0]?.count || 0;
+  if (count > 0) {
+    throw new GraphQLError('Ce statut existe déjà', {
+      extensions: { code: 'BAD_USER_INPUT', httpStatus: 400 }
+    });
+  }
+
+  return false;
+};
+
+

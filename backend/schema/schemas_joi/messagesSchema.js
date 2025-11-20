@@ -25,15 +25,6 @@ export const generalOrderMessagesSchema = Joi.object({
 //QUERIES 
 //-----------------------------------------------------------
 
-export const getMessagesSchema = Joi.object({
-});
-
-export const getMessageSchema = Joi.object({
-});
-
-export const getUserMessagesSchema = Joi.object({
-});
-
 export const searchMessagesSchema = Joi.object({
     subjectOrContent: Joi.string().min(1).max(255).required(),// Terme de recherche
 });
@@ -41,18 +32,6 @@ export const searchMessagesSchema = Joi.object({
 //-----------------------------------------------------------
 //MUTATIONS
 //-----------------------------------------------------------
-
-export const addMessageSchema = Joi.object({
-});
-
-export const updateMessageSchema = Joi.object({
-});
-
-export const markMessageAsReadSchema = Joi.object({
-});
-
-export const deleteMessageSchema = Joi.object({
-});
 
 /*
 -----------------------------------------------------------

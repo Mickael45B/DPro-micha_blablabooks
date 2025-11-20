@@ -7,17 +7,13 @@ import sanitizeHtml from 'sanitize-html';
 import { GraphQLError } from 'graphql';
 import fetchLibraryById from './utils/utils_librairies.js';
 
-import { isAuthenticated, requireAuth, requireAdmin, requireOwnershipOrAdmin, sanitizeString, sanitizeInput, flattenEdges, makePageInfo, makeEdgeFromBook, withErrorHandling } from './utils/helpers/helpers_general.js';
+import { isAuthenticated, requireAuth, requireAdmin, requireOwnershipOrAdmin, sanitizeInput, flattenEdges, makePageInfo, makeEdgeFromBook, withErrorHandling } from './utils/helpers/helpers_general.js';
 
 // Importer les helpers généralistes
 import { withSecureResolver } from './utils/helpers/helpers_general.js';
-// Importer les helpers spécifiques
-import { findRolesOrThrow, validateRolesInput} from './utils/helpers/helpers_Roles.js';
-import { findBy1ParameterOrThrow } from './utils/helper.js';
+import { findBy1ParameterOrThrow, generalSortingSchema } from './utils/helper.js';
 
 
-// Importer le schema Joi genéral
-import { generalSortingSchema } from '../schema/schemas_joi/generalSchema.js';
 // Importer les schemas Joi spécifiques
 import { generalRoleSchema, generalOrderRoleSchema, searchRolesSchema} from '../schema/schemas_joi/roleSchema.js';
 
@@ -451,7 +447,7 @@ export default {
         requireAdmin(context);
 
         // Sanitize input
-        const cleanIdRole = sanitizeString(input.id_role || '');
+        const cleanIdRole = sanitizeStrict(input.id_role || '');
 
         if (!cleanIdRole) {
           throw new GraphQLError('ID du rôle requis', {
@@ -482,3 +478,36 @@ export default {
   Role: {},
 };
 
+
+/** * Valide les données d'un rôle
+ * @param {object} input - Données du rôle
+ * @throws {GraphQLError} Si la validation échoue
+ */
+export const validateRolesInput = (input) => {
+  const { role_name } = input;
+
+  if (!role_name || typeof role_name !== 'string') {
+    throw new GraphQLError('Nom de rôle invalide', {
+      extensions: { code: 'BAD_USER_INPUT', httpStatus: 400 }
+    });
+  }
+
+  if (role_name.trim().length < 3) {
+    throw new GraphQLError('Le nom du rôle doit contenir au moins 3 caractères', {
+      extensions: { 
+        code: 'BAD_REQUEST',
+        httpStatus: 400
+      },
+    });
+  }
+  
+  if (role_name.length > 100) {
+    throw new GraphQLError('Le nom du rôle ne peut pas dépasser 100 caractères', {
+      extensions: { 
+        code: 'BAD_REQUEST',
+        httpStatus: 400
+      },
+    });
+  }
+  // ✅ Ne rien retourner (juste valider)
+};

@@ -9,7 +9,7 @@ import sanitizeHtml from 'sanitize-html';
 import { GraphQLError } from 'graphql';
 import fetchLibraryById from './utils/utils_librairies.js';
 
-import { isAuthenticated, requireAuth, requireAdmin, requireOwnershipOrAdmin, sanitizeString, sanitizeInput, flattenEdges, makePageInfo, makeEdgeFromBook, withErrorHandling } from './utils/helpers/helpers_general.js';
+import { isAuthenticated, requireAuth, requireAdmin, requireOwnershipOrAdmin, sanitizeInput, flattenEdges, makePageInfo, makeEdgeFromBook, withErrorHandling } from './utils/helpers/helpers_general.js';
 
 
 //Revoir le "searchPermissionsRoles" une fois que la colonne name sera dispo dans la table rolehaspermissions
@@ -17,18 +17,14 @@ import { isAuthenticated, requireAuth, requireAdmin, requireOwnershipOrAdmin, sa
 
 // Importer les helpers généralistes
 import { withSecureResolver } from './utils/helpers/helpers_general.js';
-// Importer les helpers spécifiques
-import { validateRolePermissionInput} from './utils/helpers/helpers_RolePermissions.js';
 
-// Importer le schema Joi genéral
-import { generalSortingSchema } from '../schema/schemas_joi/generalSchema.js';
 // Importer les schemas Joi spécifiques
 import { generalRolesHasPermissionsSchema, generalOrderRolesHasPermissionsSchema, searchPermissionsRolesSchema} from '../schema/schemas_joi/RoleshaspermissionSchema.js'
 
 // Importer les wrappers et helpers de sécurité
 import { sanitizeStrict} from './utils/helpers/helpers_securite.js';
 
-import { findBy1ParameterOrThrow } from './utils/helper.js';
+import { findBy1ParameterOrThrow, generalSortingSchema } from './utils/helper.js';
 
 
 export default {
@@ -322,8 +318,8 @@ export default {
 
         // Sanitize inputs AVANT validation
         const cleanInput = {
-          id_role: sanitizeString(input.id_role),
-          id_permission: sanitizeString(input.id_permission),
+          id_role: sanitizeStrict(input.id_role),
+          id_permission: sanitizeStrict(input.id_permission),
         };
 
         // Validation des données d'entrée
@@ -419,7 +415,7 @@ export default {
         }
 
         // Sanitize inputs
-        const cleanIdRoleHasPermission = sanitizeString(input.id_rolehaspermission);
+        const cleanIdRoleHasPermission = sanitizeStrict(input.id_rolehaspermission);
 
         // Vérifier que la relation existe
         await findBy1ParameterOrThrow('rolehaspermissions', 'id_rolehaspermission', cleanIdRoleHasPermission, 'Relation rôle-permission non trouvée');
@@ -429,7 +425,7 @@ export default {
         let paramIndex = 1;
 
         if (input.id_role !== undefined) {
-          const cleanIdRole = sanitizeString(input.id_role);
+          const cleanIdRole = sanitizeStrict(input.id_role);
           
           // Vérifier que le rôle existe
           await findBy1ParameterOrThrow('roles', 'id_role', cleanIdRole, 'Rôle non trouvé');
@@ -439,7 +435,7 @@ export default {
         }
 
         if (input.id_permission !== undefined) {
-          const cleanIdPermission = sanitizeString(input.id_permission);
+          const cleanIdPermission = sanitizeStrict(input.id_permission);
           
           // Vérifier que la permission existe
           await findBy1ParameterOrThrow('permissions', 'id_permission', cleanIdPermission, 'Permission non trouvée');
@@ -516,7 +512,7 @@ export default {
         // ======================================== 
 
         // Sanitize input
-        const cleanIdRoleHasPermission = sanitizeString(input.id_rolehaspermission);
+        const cleanIdRoleHasPermission = sanitizeStrict(input.id_rolehaspermission);
 
         if (!cleanIdRoleHasPermission) {
           throw new GraphQLError('ID de la relation manquant', {
@@ -604,4 +600,25 @@ export default {
 
     },
   },
+};
+
+/** 
+ * Valide les données d'un rôle
+ * @param {object} input - Données de la relation
+ * @throws {GraphQLError} Si la validation échoue
+ */
+export const validateRolePermissionInput = (input) => {
+  // Validation des IDs requis
+  if (!input.id_role || input.id_role.trim().length === 0) {
+    throw new GraphQLError('ID du rôle requis', {
+      extensions: { code: 'BAD_USER_INPUT', httpStatus: 400 }
+    });
+  }
+
+  if (!input.id_permission || input.id_permission.trim().length === 0) {
+    throw new GraphQLError('ID de la permission requis', {
+      extensions: { code: 'BAD_USER_INPUT', httpStatus: 400 }
+    });
+  }
+
 };

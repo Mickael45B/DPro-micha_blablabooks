@@ -7,19 +7,16 @@ import { GraphQLError } from 'graphql';
 import fetchBookById from './utils/utils_books.js';
 import fetchLibraryById from './utils/utils_librairies.js';
 
-import { isAuthenticated, requireAuth, requireAdmin, requireOwnershipOrAdmin, sanitizeString, sanitizeInput, flattenEdges, makePageInfo, makeEdgeFromBook, withErrorHandling } from './utils/helpers/helpers_general.js';
+import { isAuthenticated, requireAuth, requireAdmin, requireOwnershipOrAdmin, sanitizeInput, flattenEdges, makePageInfo, makeEdgeFromBook, withErrorHandling } from './utils/helpers/helpers_general.js';
 
-import { findBy1ParameterOrThrow } from './utils/helper.js';
+import { findBy1ParameterOrThrow, generalSortingSchema} from './utils/helper.js';
 
 
 
 // Importer les helpers généralistes
 import { withSecureResolver } from './utils/helpers/helpers_general.js';
 // Importer les helpers spécifiques
-import { requireEditableLibrary, verifyUserOwnsLibrary} from './utils/helpers/helpers_bookhaslibrary.js';
 
-// Importer le schema Joi genéral
-import { generalSortingSchema } from '../schema/schemas_joi/generalSchema.js';
 // Importer les schemas Joi spécifiques
 import { generalReportSchema, generalOrderReportSchema, searchReportsByUserSchema, searchReportsByStatusSchema, searchReportsByDetailsOrReasonSchema, searchReportsSchema} from '../schema/schemas_joi/reportSchema.js';
 
@@ -297,11 +294,11 @@ export default {
         // const cleanOffset = Math.max(parseInt(offset) || 0, 0);
         const validOrders = ['created_at', 'status', 'updated_at'];
         const { order: safeOrder, direction: safeDirection } = validateOrderParams(
-          sanitizeString(order),
-          sanitizeString(direction),
+          sanitizeStrict(order),
+          sanitizeStrict(direction),
           validOrders
         );
-        const cleanStatus = sanitizeString(status || '');
+        const cleanStatus = sanitizeStrict(status || '');
 
         // Build and run queries with correct parameter bindings depending on presence of status
         let result, countResult;
@@ -708,7 +705,7 @@ export default {
         // RECUPERER LES DONNEES NESSESAIRES
         // ======================================== 
         // Sanitize inputs
-        const cleanIdReport = sanitizeString(input.id_report);
+        const cleanIdReport = sanitizeStrict(input.id_report);
 
         if (!cleanIdReport) {
           throw new GraphQLError('ID de rapport invalide', {
@@ -726,7 +723,7 @@ export default {
 
         if (input.status !== undefined) {
           const validStatuses = ['pending', 'reviewed', 'resolved'];
-          const cleanStatus = sanitizeString(input.status);
+          const cleanStatus = sanitizeStrict(input.status);
           
           if (!validStatuses.includes(cleanStatus)) {
             throw new GraphQLError('Statut invalide', {
@@ -739,14 +736,14 @@ export default {
         }
 
         if (input.details !== undefined) {
-          const cleanDetails = input.details ? sanitizeString(input.details) : null;
+          const cleanDetails = input.details ? sanitizeStrict(input.details) : null;
           updates.push(`details = $${paramIndex++}`);
           values.push(cleanDetails);
         }
 
         if (input.reportType !== undefined) {
           const validReportTypes = ['user', 'comment', 'book', 'review', 'message'];
-          const cleanReportType = sanitizeString(input.reportType);
+          const cleanReportType = sanitizeStrict(input.reportType);
           
           if (!validReportTypes.includes(cleanReportType)) {
             throw new GraphQLError('Type de rapport invalide', {
@@ -892,4 +889,71 @@ export default {
       }    
     },
   },
+};
+
+/**
+ * Valide les données d'un rapport 
+ * @param {object} input - Données du rapport
+ * @throws {GraphQLError} Si validation échoue
+ */
+export const validateReportInput = (input) => {
+ 
+  if (!input.reason || input.reason.trim().length < 3) {
+    throw new GraphQLError('La raison du rapport doit contenir au moins 3 caractères', {
+      extensions: { 
+        code: 'BAD_REQUEST',
+        httpStatus: 400
+      },
+    });
+  }
+    
+  if (input.reason.length > 200) {
+    throw new GraphQLError('La raison ne peut pas dépasser 200 caractères', {
+      extensions: { 
+        code: 'BAD_REQUEST',
+        httpStatus: 400
+      },
+    });
+  }
+
+  // Validation des détails (optionnel mais avec limite)
+  if (input.details && input.details.length > 1000) {
+    throw new GraphQLError('Les détails ne peuvent pas dépasser 1000 caractères', {
+      extensions: { 
+        code: 'BAD_REQUEST',
+        httpStatus: 400
+      },
+    });
+  }
+
+  // Validation du type de rapport
+  const validReportTypes = ['user', 'comment', 'book', 'review', 'message'];
+  if (!input.report_type || !validReportTypes.includes(input.report_type.toLowerCase())) {
+    throw new GraphQLError('Type de rapport invalide', {
+      extensions: { 
+        code: 'BAD_REQUEST',
+        httpStatus: 400
+      },
+    });
+  }
+
+  // Validation des IDs requis
+  if (!input.id_user || input.id_user.trim().length === 0) {
+    throw new GraphQLError('ID utilisateur manquant', {
+      extensions: { 
+        code: 'BAD_REQUEST',
+        httpStatus: 400
+      },
+    });
+  }
+
+  if (!input.reported_id || input.reported_id.trim().length === 0) {
+    throw new GraphQLError('ID de l\'élément signalé manquant', {
+      extensions: { 
+        code: 'BAD_REQUEST',
+        httpStatus: 400
+      },
+    });
+  }
+
 };

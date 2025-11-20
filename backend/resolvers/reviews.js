@@ -7,19 +7,15 @@ import sanitizeHtml from 'sanitize-html';
 import { GraphQLError } from 'graphql';
 import fetchLibraryById from './utils/utils_librairies.js';
 
-import { isAuthenticated, requireAuth, requireAdmin, requireOwnershipOrAdmin, sanitizeString, sanitizeInput, flattenEdges, makePageInfo, makeEdgeFromBook, withErrorHandling } from './utils/helpers/helpers_general.js';
+import { isAuthenticated, requireAuth, requireAdmin, requireOwnershipOrAdmin, sanitizeInput, flattenEdges, makePageInfo, makeEdgeFromBook, withErrorHandling } from './utils/helpers/helpers_general.js';
 
 import { console } from "node:inspector";
 
 // Importer les helpers généralistes
 import { withSecureResolver } from './utils/helpers/helpers_general.js';
-// Importer les helpers spécifiques
-import { validateReviewInput} from './utils/helpers/helpers_Reviews.js';
-import { findBy1ParameterOrThrow } from './utils/helper.js';
+import { findBy1ParameterOrThrow, generalSortingSchema } from './utils/helper.js';
 
 
-// Importer le schema Joi genéral
-import { generalSortingSchema } from '../schema/schemas_joi/generalSchema.js';
 // Importer les schemas Joi spécifiques
 import { generalReviewSchema, generalOrderReviewSchema, searchReviewsSchema} from '../schema/schemas_joi/reviewSchema.js';
 
@@ -198,11 +194,11 @@ export default {
         const cleanOffset = Math.max(parseInt(offset) || 0, 0);
         const validOrders = ['created_at', 'rating', 'updated_at', 'title_rating'];
         const { order: safeOrder, direction: safeDirection } = validateOrderParams(
-          sanitizeString(order), 
-          sanitizeString(direction), 
+          sanitizeStrict(order), 
+          sanitizeStrict(direction), 
           validOrders
         );
-        const cleanComment = sanitizeString(content || '');
+        const cleanComment = sanitizeStrict(content || '');
 
         if (!cleanComment) {
           throw new GraphQLError('Commentaire manquant', {
@@ -401,7 +397,7 @@ export default {
         let paramIndex = 1;
 
         if (input.title_rating !== undefined) {
-          const cleanTitle = sanitizeString(input.title_rating);
+          const cleanTitle = sanitizeStrict(input.title_rating);
           if (cleanTitle.trim().length < 3 || cleanTitle.length > 100) {
             throw new GraphQLError('Titre invalide (3-100 caractères)', {
               extensions: { code: 'BAD_USER_INPUT', httpStatus: 400 }
@@ -423,7 +419,7 @@ export default {
         }
 
         if (input.comment !== undefined) {
-          const cleanComment = sanitizeString(input.comment || '');
+          const cleanComment = sanitizeStrict(input.comment || '');
           if (cleanComment.length > 2000) {
             throw new GraphQLError('Commentaire trop long (max 2000)', {
               extensions: { code: 'BAD_USER_INPUT', httpStatus: 400 }
@@ -506,7 +502,7 @@ export default {
         
 
         // Sanitize input
-        const cleanIdReview = sanitizeString(input.id_review);
+        const cleanIdReview = sanitizeStrict(input.id_review);
 
         if (!cleanIdReview) {
           throw new GraphQLError('ID de l\'avis manquant', {
@@ -558,4 +554,70 @@ export default {
       return result.data;
     },
   },
+};
+
+
+
+/**
+ * Valide les données d'un avis 
+ * @param {object} input - Données de l'avis
+ * @throws {GraphQLError} Si validation échoue
+ */
+export const validateReviewInput = (input) => {
+ 
+  if (!input.title_rating || input.title_rating.trim().length < 3) {    
+    throw new GraphQLError('Le titre de l\'avis doit contenir au moins 3 caractères', {
+      extensions: { 
+        code: 'BAD_REQUEST',
+        httpStatus: 400
+      },
+    });
+  }
+  
+  if (input.title_rating.length > 100) {
+    throw new GraphQLError('Le titre de l\'avis ne peut pas dépasser 100 caractères', {
+      extensions: { 
+        code: 'BAD_REQUEST',
+        httpStatus: 400
+      },
+    });
+  }
+  
+  if (typeof input.rating !== 'number' || input.rating < 1 || input.rating > 5) {
+    throw new GraphQLError('La note doit être un nombre entre 1 et 5', {
+      extensions: {
+        code: 'BAD_REQUEST',
+        httpStatus: 400
+      },
+    });
+  }
+
+  //  Validation du commentaire (optionnel mais limité)
+  if (input.comment && input.comment.length > 2000) {
+    throw new GraphQLError('Le commentaire ne peut pas dépasser 2000 caractères', {
+      extensions: {
+        code: 'BAD_REQUEST',
+        httpStatus: 400
+      },
+    });
+  }
+
+  // Validation des IDs requis
+  if (!input.id_user || input.id_user.trim().length === 0) {
+    throw new GraphQLError('ID utilisateur manquant', {
+      extensions: {
+        code: 'BAD_REQUEST',
+        httpStatus: 400
+      },
+    });
+  }
+
+  if (!input.id_book || input.id_book.trim().length === 0) {
+    throw new GraphQLError('ID du livre manquant', {
+      extensions: {
+        code: 'BAD_REQUEST',
+        httpStatus: 400
+      },
+    });
+  }
 };

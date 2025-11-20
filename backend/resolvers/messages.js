@@ -1,30 +1,18 @@
 import db from "../db/connect_DB.js";
 import { v4 as uuidv4 } from 'uuid';
-import { validateOrderParams, handleDbError } from '../utils/validators.js';
-import { fetchUserById } from './utils/utils_users.js';
+import { validateOrderParams } from '../utils/validators.js';
 
-import sanitizeHtml from 'sanitize-html';
 import { GraphQLError } from 'graphql';
-import fetchBookById from './utils/utils_books.js';
-import fetchLibraryById from './utils/utils_librairies.js';
 
-// Import des helpers généraux
-import { isAuthenticated, requireAuth, requireAdmin, requireOwnershipOrAdmin, sanitizeString, sanitizeInput, flattenEdges, makePageInfo, makeEdgeFromBook, withErrorHandling } from './utils/helpers/helpers_general.js';
-
-import { findBy1ParameterOrThrow } from './utils/helper.js';
-
-// Importer les helpers généralistes
-import { withSecureResolver } from './utils/helpers/helpers_general.js';
-// Importer les helpers spécifiques
-import { requireMessageAccess, validateMessageInput} from './utils/helpers/helpers_messages.js';
-
-// Importer le schema Joi genéral
-import { generalSortingSchema } from '../schema/schemas_joi/generalSchema.js';
-// Importer les schemas Joi spécifiques
-import { generalMessagesSchema, generalOrderMessagesSchema, searchMessagesSchema} from '../schema/schemas_joi/messagesSchema.js';
-
+import { findBy1ParameterOrThrow, withSecureResolver, generalSortingSchema} from './utils/helper.js';
 // Importer les wrappers et helpers de sécurité
 import { sanitizeStrict} from './utils/helpers/helpers_securite.js';
+
+// Importer les schemas Joi spécifiques
+import { generalOrderMessagesSchema, searchMessagesSchema, generalMessagesSchema} from '../schema/schemas_joi/messagesSchema.js';
+
+// Validation des ordres valides pour les messages
+const generalValidationOrder = ['created_at', 'id_message', 'id_sender', 'id_receiver', 'is_read', 'updated_at'];
 
 export default {
   Query: {
@@ -59,7 +47,7 @@ export default {
         // RECUPERER LES DONNEES NESSESAIRES
         // ======================================== 
         const { limit = 50, offset = 0, order = 'created_at', direction = 'DESC' } = validated;
-        const validOrders = ['created_at', 'id_message', 'id_sender', 'id_receiver', 'is_read', 'updated_at'];
+        const validOrders = generalValidationOrder;
         const { order: safeOrder, direction: safeDirection } = validateOrderParams(
           order,
           direction,
@@ -91,10 +79,12 @@ export default {
         };
       },
       {
+        structureSchema: generalMessagesSchema,
         sortingSchema: generalSortingSchema,
         orderSchema: generalOrderMessagesSchema,
         logAction: 'GET_ALL_MESSAGES',
         requiresAuth: true,
+        requiresAdmin: true,
         errorMessage: 'Erreur lors de la récupération des messages'
       }
     ),
@@ -136,15 +126,18 @@ export default {
         // ========================================
         // DONNEES RECUPEREES
         // ========================================        
-
+        requireMessageAccess(message.data, context);
         if (context?.res?.status) context.res.status(200);
         return message.data;
     
       },
       {
-        logAction: 'GET_ONE_BOOK_IN_LIBRARY',
+        structureSchema: generalMessagesSchema,
+        sortingSchema: generalSortingSchema,
+        orderSchema: generalOrderMessagesSchema,
+        logAction: 'GET_ONE_MESSAGE',
         requiresAuth: true,
-        errorMessage: 'Erreur lors de la récupération du livre en bibliothèque'
+        errorMessage: 'Erreur lors de la récupération du message'
       }
     ),
     
@@ -179,7 +172,7 @@ export default {
 
         const cleanUserId = sanitizeStrict(userId);
 
-        const validOrders = ['created_at', 'id_message', 'id_sender', 'id_receiver', 'is_read', 'updated_at'];
+        const validOrders = generalValidationOrder;
         const { order: safeOrder, direction: safeDirection } = validateOrderParams(
           order,
           direction,
@@ -212,6 +205,9 @@ export default {
     
       },
       {
+        structureSchema: generalMessagesSchema,
+        sortingSchema: generalSortingSchema,
+        orderSchema: generalOrderMessagesSchema,
         logAction: 'GET_MESSAGES_OF_USER',
         requiresAuth: true,
         errorMessage: 'Erreur lors de la récupération des messages de l\'utilisateur'
@@ -261,7 +257,7 @@ export default {
 
         const searchPattern = `%${cleanQuery}%`;
 
-        const validOrders = ['id_book', 'created_at', 'updated_at'];
+        const validOrders = generalValidationOrder;
         const { order: safeOrder, direction: safeDirection } = validateOrderParams(
           order,
           direction,
@@ -296,6 +292,7 @@ export default {
         
       },
       {
+        structureSchema: generalMessagesSchema,
         sortingSchema: generalSortingSchema,
         orderSchema: generalOrderMessagesSchema,
         inputSchema: searchMessagesSchema,
@@ -410,6 +407,9 @@ export default {
     
       },
       {
+        structureSchema: generalMessagesSchema,
+        sortingSchema: generalSortingSchema,
+        orderSchema: generalOrderMessagesSchema,
         logAction: 'ADD_MESSAGE',
         requiresAuth: true,
         errorMessage: 'Erreur lors de l\'ajout du message'
@@ -424,7 +424,7 @@ export default {
        * @throws {GraphQLError} Si l'utilisateur n'a pas les droits (401 ou 403)  
        * @throws {GraphQLError} Si une erreur se produit lors de la récupération des messages (500)
      */
-    updateMessage: withErrorHandling(
+    updateMessage: withSecureResolver(
       async (_, { input, validated }, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
@@ -479,7 +479,7 @@ export default {
         let paramIndex = 1;
 
         if (input.subject !== undefined) {
-          const cleanSubject = sanitizeString(input.subject);
+          const cleanSubject = sanitizeStrict(input.subject);
           if (cleanSubject.trim().length < 3) {
             throw new GraphQLError('Le sujet doit contenir au moins 3 caractères', {
               extensions: { code: 'BAD_REQUEST', httpStatus: 400 },
@@ -490,7 +490,7 @@ export default {
         }
 
         if (input.content !== undefined) {
-          const cleanContent = sanitizeString(input.content);
+          const cleanContent = sanitizeStrict(input.content);
           if (cleanContent.trim().length < 10) {
             throw new GraphQLError('Le contenu doit contenir au moins 10 caractères', {
               extensions: { code: 'BAD_REQUEST', httpStatus: 400 },
@@ -532,6 +532,10 @@ export default {
     
       },
       {
+        structureSchema: generalMessagesSchema,
+        sortingSchema: generalSortingSchema,
+        orderSchema: generalOrderMessagesSchema,
+        requireAuth: true,
         logAction: 'UPDATE_MESSAGE',
         requiresAuth: true,
         errorMessage: 'Erreur lors de la mise à jour du message'
@@ -546,7 +550,7 @@ export default {
        * @throws {GraphQLError} Si l'utilisateur n'a pas les droits (401 ou 403)  
        * @throws {GraphQLError} Si une erreur se produit lors de la récupération des messages (500)
      */
-    markMessageAsRead: withErrorHandling(
+    markMessageAsRead: withSecureResolver(
       async (_, { input, validated }, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
@@ -598,6 +602,9 @@ export default {
     
       },
       {
+        structureSchema: generalMessagesSchema,
+        sortingSchema: generalSortingSchema,
+        orderSchema: generalOrderMessagesSchema,
         logAction: 'MARK_MESSAGE_AS_READ',
         requiresAuth: true,
         errorMessage: 'Erreur lors du marquage du message comme lu'
@@ -612,7 +619,7 @@ export default {
        * @throws {GraphQLError} Si l'utilisateur n'a pas les droits (401 ou 403)  
        * @throws {GraphQLError} Si une erreur se produit lors de la récupération des messages (500)
      */
-    deleteMessage: withErrorHandling(
+    deleteMessage: withSecureResolver(
       async (_, { input, validated }, context) => {
         /* exemple context JWT décodé ( à revoir):
         {
@@ -653,6 +660,9 @@ export default {
         return true ;
       },
       {
+        structureSchema: generalMessagesSchema,
+        sortingSchema: generalSortingSchema,
+        orderSchema: generalOrderMessagesSchema,
         logAction: 'DELETE_MESSAGE',
         requiresAuth: true,
         errorMessage: 'Erreur lors de la suppression du message'
@@ -691,4 +701,66 @@ export default {
     },
     
   },
+};
+
+
+
+
+/**
+ * Vérifie que l'utilisateur peut accéder au message
+ * @param {object} message - Objet message
+ * @param {object} context - Contexte GraphQL
+ * @throws {GraphQLError} Si accès refusé
+ */
+export const requireMessageAccess = (message, context) => {
+  
+  const userId = context?.user?.id || context?.user?.id_user;
+  
+  // L'utilisateur doit être l'expéditeur, le destinataire, ou admin
+  if (
+    message.id_sender !== userId && 
+    message.id_receiver !== userId && 
+    !context.isAdmin
+  ) {
+    throw new GraphQLError('Vous n\'avez pas accès à ce message', {
+      extensions: { 
+        code: 'FORBIDDEN',
+        httpStatus: 403
+      },
+    });
+  }
+};
+
+/**
+ * Valide les données d'un message
+ * @param {object} input - Données du message
+ * @throws {GraphQLError} Si validation échoue
+ */
+export const validateMessageInput = (input) => {
+  if (!input.subject || input.subject.trim().length < 3) {
+    throw new GraphQLError('Le sujet doit contenir au moins 3 caractères', {
+      extensions: { 
+        code: 'BAD_REQUEST',
+        httpStatus: 400
+      },
+    });
+  }
+  
+  if (!input.content || input.content.trim().length < 10) {
+    throw new GraphQLError('Le contenu doit contenir au moins 10 caractères', {
+      extensions: { 
+        code: 'BAD_REQUEST',
+        httpStatus: 400
+      },
+    });
+  }
+  
+  if (input.content.length > 5000) {
+    throw new GraphQLError('Le contenu ne peut pas dépasser 5000 caractères', {
+      extensions: { 
+        code: 'BAD_REQUEST',
+        httpStatus: 400
+      },
+    });
+  }
 };

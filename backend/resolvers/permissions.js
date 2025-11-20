@@ -7,18 +7,16 @@ import { GraphQLError } from 'graphql';
 import fetchBookById from './utils/utils_books.js';
 import fetchLibraryById from './utils/utils_librairies.js';
 
-import { isAuthenticated, requireAuth, requireAdmin, requireOwnershipOrAdmin, sanitizeString, sanitizeInput, flattenEdges, makePageInfo, makeEdgeFromBook, withErrorHandling } from './utils/helpers/helpers_general.js';
+import { isAuthenticated, requireAuth, requireAdmin, requireOwnershipOrAdmin, sanitizeInput, flattenEdges, makePageInfo, makeEdgeFromBook, withErrorHandling } from './utils/helpers/helpers_general.js';
 
 import { console } from "inspector";
 
-import { findBy1ParameterOrThrow } from './utils/helper.js';
+import { findBy1ParameterOrThrow, generalSortingSchema } from './utils/helper.js';
 
 
 // Importer les helpers généralistes
 import { withSecureResolver } from './utils/helpers/helpers_general.js';
 
-// Importer le schema Joi genéral
-import { generalSortingSchema } from '../schema/schemas_joi/generalSchema.js';
 // Importer les schemas Joi spécifiques
 import { generalPermissionSchema, generalOrderPermissionSchema, searchPermissionsSchema} from '../schema/schemas_joi/permissionsSchema.js';
 
@@ -355,8 +353,8 @@ export default {
         // ======================================== 
 
         // Sanitize input
-        const cleanIdPermission = sanitizeString(input.id_permission);
-        const cleanName = sanitizeString(input.name);
+        const cleanIdPermission = sanitizeStrict(input.id_permission);
+        const cleanName = sanitizeStrict(input.name);
 
 
         if (!cleanIdPermission) {
@@ -435,7 +433,7 @@ export default {
         // ======================================== 
 
         // Sanitize input
-        const cleanIdPermission = sanitizeString(input.id_permission);
+        const cleanIdPermission = sanitizeStrict(input.id_permission);
 
         if (!cleanIdPermission) {
           throw new GraphQLError('ID de la permission manquant', {
@@ -471,4 +469,36 @@ export default {
   },
 
   Permission: {},
+};
+
+
+
+
+
+
+
+
+/**
+ * Valide les données d'un message
+ * @param {object} input - Données du message
+ * @throws {GraphQLError} Si validation échoue
+ */
+export const validatePermissionInput = (name) => {
+if (!name || name.trim().length < 3) {
+    throw new GraphQLError('La permission doit contenir au moins 3 caractères', {
+      extensions: { 
+        code: 'BAD_REQUEST',
+        httpStatus: 400
+      },
+    });
+  }
+    
+  if (name.length > 100) {
+    throw new GraphQLError('La permission ne peut pas dépasser 100 caractères', {
+      extensions: { 
+        code: 'BAD_REQUEST',
+        httpStatus: 400
+      },
+    });
+  }
 };
