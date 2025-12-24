@@ -62,7 +62,7 @@ export default {
           validOrders
         );
         //vérifier si id_user existe en BDD sinon erreur 401
-        const user = await verifyUserInDB(context); console.log('User from context:', user);
+        const user = await verifyUserInDB(context); 
         
         let query, countQuery;
 
@@ -635,6 +635,7 @@ export default {
     ),
 
   },
+
   Mutation: {
     /**
      * Ajoute un livre à une bibliothèque
@@ -1230,7 +1231,6 @@ export default {
 
   BookHasLibrary: {
     book: async (parent) => {
-      // return fetchBookById(parent.id_book); 
 
       const book = await findBy1ParameterOrThrow('books', 'id_book', parent.id_book, 'Livre non trouvé');
       return book.data;
@@ -1239,7 +1239,6 @@ export default {
     },
     
     library: async (parent) => {
-      // return fetchLibraryById(parent.id_library);
 
       const library = await findBy1ParameterOrThrow('libraries', 'id_library', parent.id_library, 'Bibliothèque non trouvée');
       return library.data;
@@ -1268,7 +1267,8 @@ export const requireEditableLibrary = (library) => {
  * Vérifie que l'utilisateur peut accéder à cette bibliothèque
  */
 export const verifyUserOwnsLibrary = async (libraryId, context) => {
-  const library = await fetchLibraryById(libraryId);
+  const library = await findBy1ParameterOrThrow('libraries', 'id_library', libraryId, 'Bibliothèque non trouvée');
+
   
   if (!library) {
     throw new GraphQLError('Bibliothèque non trouvée', {

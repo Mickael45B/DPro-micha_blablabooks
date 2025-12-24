@@ -1,8 +1,9 @@
 /* Styles pour les écrans tablettes */
-@media (min-width: 650px) and (max-width: 1023px) {
+@media (min-width: 900px) and (max-width: 1400px) {
 	html {
 		width: 100vw; /* Largeur maximale de la fenêtre */
 		overflow-x: hidden; /* Empêche le débordement horizontal */
+		font-size: 16px;
 	}
 
 	body {
@@ -28,7 +29,7 @@
 	}
 
 	.logo {
-		width: 45vw;
+		width: 100%; 
 		height: 9vh;
 		padding: 0 0 0 1.5em;
 	}
@@ -37,7 +38,7 @@
 		display: flex;
 		justify-content: center;
 		align-items: center;
-		width: 45%;
+		width: 70vw;
 		height: 100%;
 		padding: 2em;
 	}
@@ -132,17 +133,64 @@
 	.reviews-grid {
 		grid-template-columns: repeat(4, 1fr); /* 4 colonnes pour les tablettes */
 	}
+
+
+    /* Cacher le bouton burger sur desktop */
+    .menu-toggle {
+        display: none;
+    }
+    
+    /* Afficher la navigation dans le menu latéral */
+    .mainContainer__menu nav {
+        display: block;
+        width: 100%;
+        padding-top: 1em;
+    }
+
+    .mainContainer__content {
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-start;
+        align-items: center;
+        width: 60%;
+        min-height: 76vh;
+        border: #2daa4c 2px solid;
+        overflow-x: hidden;
+    }
+    
+    /* Limiter la largeur des carousels dans le contenu principal */
+    .mainContainer__content .carousel_items {
+        width: 100%;
+        max-width: 100%;
+        overflow: hidden;
+    }
+.mainContainer__content section {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        width: 100%;
+        max-width: 100%;
+        overflow: hidden;
+    }
+
+
+
 }
 
-@media (min-width: 1024px) {
+
+
+
+
+
+
+@media (min-width: 1400px) {
 	html {
 		width: 100vw; /* Largeur maximale de la fenêtre */
 		overflow-x: hidden; /* Empêche le débordement horizontal */
+		font-size: 20px;
 	}
 
-	body {
-		font-size: 16px; /* Ajuste la taille de la police pour les grands écrans */
-	}
 
 	.header {
 		display: flex;
@@ -163,7 +211,7 @@
 	}
 
 	.logo {
-		width: 30vw;
+		width: 100%;
 		height: 15vh;
 		padding: 0 .5em;
 	}
@@ -172,7 +220,7 @@
 		display: flex;
 		justify-content: center;
 		align-items: center;
-		width: 40%;
+		width: 70vw;
 		height: 100%;
 		padding: 2em;
 	}
@@ -366,4 +414,135 @@
 		width: 100%;
 		grid-template-columns: repeat(6, 1fr); /* 6 colonnes pour les écrans d'ordinateurs */
 	}
+
+
+.principalContainer {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    width: 100vw;
+    min-height: 100vh;
+        border: #2daa4c 2px solid;
+
+}
+.headerContainer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    height: 12vh;
+    border: #D7355C 2px solid;
+}
+
+.mainContainer {
+    display: flex;
+    justify-content: space-between;
+    width: 100%;
+    min-height: 76vh;
+    align-items: center;
+
+}
+.mainContainer__menu {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    align-items: center;
+    width: 19vw;
+    min-height: 76vh;
+        border: #2daa4c 2px solid;
+
+}
+
+
+.mainContainer__content {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    align-items: center;
+    width: 60vw;
+    min-height: 76vh;
+        border: #2daa4c 2px solid;
+
+}
+.mainContainer__contextualMenu {
+    display: flex;
+    flex-direction: column;
+    width: 19vw;
+    min-height: 76vh;
+    justify-content: space-evenly;
+    align-items: center;
+        border: #D7355C 2px solid;
+
+}
+.contextualMenu__info {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    width: 97%;
+    height: 36vh;
+        border: #2daa4c 2px solid;
+
+}
+.contextualMenu__action {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    width: 97%;
+    height: 36vh;
+        border: #D7355C 2px solid;
+
+}
+
+.footerContainer {
+    display: flex;
+    width: 100%;
+    height: 12vh;
+    justify-content: center;
+    align-items: center;
+        border: #D7355C 2px solid;
+
+}
+
+
+    /* Cacher le bouton burger sur desktop */
+    .menu-toggle {
+        display: none;
+    }
+    
+    /* Afficher la navigation dans le menu latéral */
+    .mainContainer__menu nav {
+        display: block;
+        width: 100%;
+        padding-top: 1em;
+    }
+    .mainContainer__content {
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-start;
+        align-items: center;
+        width: 60%;
+        min-height: 76vh;
+        border: #2daa4c 2px solid;
+        overflow-x: hidden;
+    }
+    
+    /* Limiter la largeur des carousels dans le contenu principal */
+    .mainContainer__content .carousel_items {
+        width: 100%;
+        max-width: 100%;
+        overflow: hidden;
+    }
+.mainContainer__content section {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        width: 100%;
+        max-width: 100%;
+        overflow: hidden;
+    }
+
 }

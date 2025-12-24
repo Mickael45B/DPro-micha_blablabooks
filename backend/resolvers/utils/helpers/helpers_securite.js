@@ -505,6 +505,50 @@ ${logEntry.data}
   }
 };
 
+
+export const logSecurityIncident = async (incident) => {
+  const logDir = path.join(process.cwd(), 'logs', 'security');
+  const logFile = path.join(logDir, 'honeypot-incidents.log');
+  
+  try {
+    await fs.mkdir(logDir, { recursive: true });
+    const timestamp = new Date().toISOString();
+    const logEntry = `[${timestamp}] ${JSON.stringify(incident, null, 2)}\n`;
+    await fs.appendFile(logFile, logEntry, 'utf8');
+    console.error('🚨 SECURITY INCIDENT LOGGED:', incident);
+  } catch (error) {
+    console.error('Erreur lors du logging de sécurité:', error);
+  }
+};
+
+export const blockUserAccount = async (userId, reason) => {
+  try {
+    // Mettre le statut à "blocked_by_admin" (id_status = 2)
+    await db.query(`
+      UPDATE users 
+      SET id_status = (SELECT id_status FROM status WHERE status_name = 'blocked_by_admin' LIMIT 1),
+          updated_at = NOW()
+      WHERE id_user = $1
+    `, [userId]);
+    
+    // Invalider le refresh token
+    await db.query(`
+      UPDATE users SET refresh_token = NULL WHERE id_user = $1
+    `, [userId]);
+    
+    await logSecurityIncident({
+      type: 'USER_BLOCKED',
+      userId,
+      reason,
+      timestamp: new Date().toISOString()
+    });
+    
+    return true;
+  } catch (error) {
+    console.error('Erreur lors du blocage utilisateur:', error);
+    return false;
+  }
+};
 // ========================================
 // WRAPPER OUTPUT SANITIZATION
 // ========================================

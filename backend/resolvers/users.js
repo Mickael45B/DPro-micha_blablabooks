@@ -2,22 +2,18 @@ import db from "../db/connect_DB.js";
 import { v4 as uuidv4 } from 'uuid';
 import bcrypt from 'bcrypt';
 import { validateOrderParams, handleDbError } from '../utils/validators.js';
-import  fetchRoleById  from './utils/utils_roles.js';
-import  fetchStatusById  from './utils/utils_status.js';
-import { fetchUserById } from './utils/utils_users.js';
 import sanitizeHtml from 'sanitize-html';
 import { GraphQLError } from 'graphql';
-import fetchBookById from './utils/utils_books.js';
-import fetchLibraryById from './utils/utils_librairies.js';
 
 import { isAuthenticated, requireAuth, requireAdmin, requireOwnershipOrAdmin, sanitizeInput, flattenEdges, makePageInfo, makeEdgeFromBook, withErrorHandling, withRateLimit } from './utils/helpers/helpers_general.js';
 
 import { clean } from "semver";
+import { hash, verify } from '../utils/scrypt.js';
 
 
 import { log } from "console";
 
-import { validateAgainstInjection, withOutputSanitization} from './utils/helpers/helpers_securite.js';
+import { validateAgainstInjection, withOutputSanitization, logSecurityIncident, blockUserAccount } from './utils/helpers/helpers_securite.js';
 
 import {generateAccessToken, generateRefreshToken, verifyToken, decodeToken} from './utils/utils_authentification.js';
 
@@ -33,15 +29,15 @@ import { generalUserSchema, generalOrderUserSchema, searchUsersSchema} from '../
 // Importer les wrappers et helpers de sécurité
 import { sanitizeStrict} from './utils/helpers/helpers_securite.js';
 
-
-
-
-
-
-
-
-
-// Revoir le resolver "changePassword",
+// ========================================
+// CONFIGURATION DES PIÈGES
+// ========================================
+const HONEYPOT_ROLES = ['admin', 'user']; // Rôles pièges en BDD
+const REAL_ROLE_MAPPING = {
+  'glossaire': 'glossaire',              // Vrai admin
+  'premieredecouverture': 'lecteur',     // Vrai user
+  // Les rôles pièges ne sont PAS dans ce mapping
+};
 
 // ========================================
 // RESOLVERS POUR LES UTILISATEURS
@@ -432,11 +428,25 @@ export default {
             id_user: user.id_user,
             pseudo: user.pseudo,
             name: user.name,
+            // role: "user",
+            groupe: "premieredecouverture", // valeur par défaut pour un nouvel utilisateur, nom obscurci. premieredecouverture= "user"
+            email: user.email,
+            isAdmin: false,
           });
           console.log('createUser - accessToken generated', accessToken);
           const refreshToken = generateRefreshToken({ id_user: user.id_user });
 
           if (context?.res?.status) context.res.status(201);
+
+
+
+
+            // Sécurité : s'assurer qu'un refresh token a bien été généré
+        if (!refreshToken) {
+        throw new GraphQLError('Impossible de générer le refresh token', {
+            extensions: { code: 'INTERNAL_SERVER_ERROR', httpStatus: 500 }
+          });
+        }
 
           // En DEV : on retourne un AuthPayload contenant user + tokens + libraries
           // -> Le schéma a été mis à jour pour createUser: AuthPayload!
@@ -459,11 +469,12 @@ export default {
           const authPayload = {
             user,
             last_login: new Date().toISOString(),
-            refresh_token: refreshToken,
+            refresh_token: refreshToken, // champ attendu par le schéma GraphQL
+            // garder aussi camelCase si d'autres parties du code l'utilisent
+           refreshToken,
             accessToken,
             libraries: createdLibraries
           };
-
           return authPayload;
         } catch (txErr) {
           // rollback et propager erreur
@@ -889,7 +900,7 @@ export default {
         errorMessage: 'Erreur lors de la mise à jour du mot de passe'
       }
     ),
-    
+
 // ========================================
     // CONNEXION & DECONNEXION
 // ========================================
@@ -899,8 +910,7 @@ export default {
      * @param {object} input - Email/pseudo + password + rememberMe
      * @returns {object} { user, accessToken, refreshToken }
      */
-    login: withErrorHandling(
-      withRateLimit(
+    login: withSecureResolver(
       async (_, { input }, context) => {
         /* exemple de requête :
         mutation Login($input: LoginInput!) {
@@ -910,9 +920,8 @@ export default {
               email
               pseudo
               role
+              {role_name}
             }
-            accessToken
-            refreshToken
           }
         }
         */
@@ -926,6 +935,7 @@ export default {
           }
         }
         */
+        
         const { emailOrPseudo, password, rememberMe = false } = input;
         
         // Sanitize
@@ -937,10 +947,12 @@ export default {
             extensions: { code: 'BAD_USER_INPUT', httpStatus: 400 }
           });
         }
-        
-        // Chercher l'utilisateur par email OU pseudo
+
+        // ========================================
+        // 1. CHERCHER L'UTILISATEUR
+        // ========================================
         const result = await db.query(`
-          SELECT u.id_user, u.email, u.pseudo, u.password, u.id_role, u.status,
+          SELECT u.id_user, u.name, u.email, u.pseudo, u.password, u.id_role, u.id_status,
                  r.role_name
           FROM users u
           LEFT JOIN roles r ON u.id_role = r.id_role
@@ -954,62 +966,148 @@ export default {
         }
         
         const user = result.rows[0];
-        
-        // Vérifier le statut du compte (1 = actif)
-        if (user.status !== 1) {
+        console.log('login - user found:', { 
+          id_user: user.id_user, 
+          email: user.email, 
+          pseudo: user.pseudo, 
+          role_name: user.role_name,
+          id_status: user.id_status 
+        });
+
+        // ========================================
+        // 🚨 PIÈGE DE SÉCURITÉ #1 : DÉTECTER LES RÔLES PIÈGES
+        // ========================================
+        if (HONEYPOT_ROLES.includes(user.role_name)) {
+          const incident = {
+            type: 'HONEYPOT_TRIGGERED',
+            honeypot_role: user.role_name,
+            attemptedLogin: cleanLogin,
+            attemptedUser: {
+              id_user: user.id_user,
+              pseudo: user.pseudo,
+              email: user.email,
+            },
+            ip: context.req?.ip || context.req?.connection?.remoteAddress || 'unknown',
+            userAgent: context.req?.headers?.['user-agent'] || 'unknown',
+            timestamp: new Date().toISOString(),
+            reason: `Tentative de connexion avec le rôle piège "${user.role_name}"`,
+            severity: 'CRITICAL',
+            action_taken: 'ACCOUNT_BLOCKED'
+          };
+          
+          // Logger l'incident
+          await logSecurityIncident(incident);
+          
+          // Bloquer le compte
+          await blockUserAccount(
+            user.id_user, 
+            `Honeypot triggered - ${user.role_name} role access attempt`
+          );
+          
+          // 🎭 IMPORTANT : Retourner une erreur GÉNÉRIQUE
+          // Ne pas révéler qu'un piège a été déclenché
+          throw new GraphQLError('Email/pseudo ou mot de passe incorrect', {
+            extensions: { code: 'UNAUTHORIZED', httpStatus: 401 }
+          });
+        }
+
+        // ========================================
+        // 2. VÉRIFIER LE STATUT DU COMPTE
+        // ========================================
+        console.log('login - user :', { user});
+
+        if (user.id_status !== '1') {
+          // Logger aussi les tentatives sur comptes bloqués
+          await logSecurityIncident({
+            type: 'BLOCKED_ACCOUNT_ACCESS_ATTEMPT',
+            attemptedLogin: cleanLogin,
+            userId: user.id_user,
+            ip: context.req?.ip || 'unknown',
+            timestamp: new Date().toISOString()
+          });
+          
           throw new GraphQLError('Votre compte est bloqué', {
             extensions: { code: 'FORBIDDEN', httpStatus: 403 }
           });
         }
         
-        // Vérifier le mot de passe
-        const isPasswordValid = await bcrypt.compare(cleanPassword, user.password);
+        // ========================================
+        // 3. VÉRIFIER LE MOT DE PASSE
+        // ========================================
+        const isPasswordValid = await verify(cleanPassword, user.password);
         
         if (!isPasswordValid) {
+          // Logger les tentatives de mot de passe incorrect
+          await logSecurityIncident({
+            type: 'FAILED_LOGIN_ATTEMPT',
+            attemptedLogin: cleanLogin,
+            userId: user.id_user,
+            ip: context.req?.ip || 'unknown',
+            timestamp: new Date().toISOString()
+          });
+          
           throw new GraphQLError('Email/pseudo ou mot de passe incorrect', {
             extensions: { code: 'UNAUTHORIZED', httpStatus: 401 }
           });
         }
+
+        // ========================================
+        // ✅ 4. AUTHENTIFICATION RÉUSSIE - GÉNÉRER LES TOKENS
+        // ========================================
+        
+        // Mapper le rôle réel vers un nom obscurci pour le JWT
+        const obscuredRole = REAL_ROLE_MAPPING[user.role_name] || 'lecteur';
+        
+        console.log('login - generating token with obscured role:', {
+          real_role: user.role_name,
+          obscured_role: obscuredRole
+        });
         
         // Générer les tokens (durée selon rememberMe)
         const accessToken = generateAccessToken({
           id_user: user.id_user,
-          name: user.name,
-          pseudo: user.pseudo,
-          isAdmin: false,
+          name: user.name ?? null,
+          pseudo: user.pseudo ?? null,
+          groupe: obscuredRole,  // Rôle obscurci dans le JWT
+          isAdmin: false,        // Honeypot toujours à false
         }, rememberMe);
         
         const refreshToken = generateRefreshToken({
           id_user: user.id_user,
         });
         
-        // Stocker le refresh token en BDD
-        // await db.query(`
-        //   UPDATE users 
-        //   SET refresh_token = $1, last_login = NOW() 
-        //   WHERE id_user = $2
-        // `, [refreshToken, user.id_user]);
-        
-        // Retourner sans le mot de passe
+        // Supprimer le mot de passe avant de retourner
         delete user.password;
-        
+
+        // ========================================
+        // 5. RETOURNER LA RÉPONSE
+        // ========================================
         return {
           user: {
             id_user: user.id_user,
             name: user.name,
             pseudo: user.pseudo,
-            isAdmin: false
+            email: user.email,
+            id_role: user.id_role,
+            role: user.role_name
+              ? { id_role: user.id_role, role_name: user.role_name }// <-- renvoyer id_role + role_name
+              : null,
+            isAdmin: false  // Honeypot
           },
           accessToken,
           refreshToken,
+          refresh_token: refreshToken,
         };
       },
-      // Rate limiting pour éviter les attaques par force brute
-      { maxRequests: 60, windowMs: 60000 } // 60 tentatives toutes les 1 minute
-      ),
-      'Erreur lors de la connexion'
+      {
+        structureSchema: generalUserSchema,
+        sortingSchema: generalSortingSchema,
+        orderSchema: generalOrderUserSchema,
+        logAction: 'LOGIN',
+        errorMessage: 'Erreur lors de la connexion'
+      },
     ),
-        
+  
     /**
      * 🔄 REFRESH TOKEN - Renouveler l'access token
      * @param {string} refreshToken - Refresh token
@@ -1060,12 +1158,36 @@ export default {
         }
         
         const user = result.rows[0];
+
+        // 🚨 Vérifier si c'est un rôle piège
+        if (HONEYPOT_ROLES.includes(user.role_name)) {
+          await logSecurityIncident({
+            type: 'HONEYPOT_REFRESH_TOKEN_ATTEMPT',
+            userId: user.id_user,
+            role: user.role_name,
+            ip: context.req?.ip || 'unknown',
+            timestamp: new Date().toISOString()
+          });
+          
+          await blockUserAccount(user.id_user, 'Honeypot role detected on refresh');
+          
+          throw new GraphQLError('Session invalide', {
+            extensions: { code: 'UNAUTHORIZED', httpStatus: 401 }
+          });
+        }
+        
+        // Mapper le rôle vers le nom obscurci
+        const obscuredRole = REAL_ROLE_MAPPING[user.role_name] || 'lecteur';
         
         // Générer un nouveau access token
         const newAccessToken = generateAccessToken({
           id_user: user.id_user,
           email: user.email,
           pseudo: user.pseudo,
+          isAdmin: false,
+          name: user.name,
+          groupe: obscuredRole,  // Rôle obscurci
+          isAdmin: false,        // Honeypot
         });
         
         // Optionnel : Rotation du refresh token (plus sécurisé)
@@ -1131,22 +1253,25 @@ export default {
   User: {
 
     // Ajoutez des résolveurs de champ personnalisés si nécessaire
-  role: async (parent) => {
-    // Si pas d'id de rôle, retourner null (ou lever selon ton schéma)
-    if (!parent?.id_role) return null;
+    role: async (parent) => {
+      // Si le parent contient déjà un objet role, s'assurer qu'il inclut id_role puis le retourner
+      if (parent?.role) {
+        if (!parent.role.id_role && parent?.id_role) parent.role.id_role = parent.id_role;
+        return parent.role;
+      }
 
-    // findBy1ParameterOrThrow peut renvoyer { data, httpStatus } ou la row directement
-    const roleResult = await findBy1ParameterOrThrow('roles', 'id_role', parent.id_role, 'Rôle non trouvé');
+      // Si le parent a role_name (mais pas d'objet role), construire un objet role contenant id_role + role_name
+      if (parent?.role_name) {
+        return { id_role: parent?.id_role ?? null, role_name: parent.role_name };
+      }
 
-    // Normaliser la forme: preferer roleResult.data sinon roleResult
-    const roleRow = roleResult?.data ?? roleResult;
+      // Sinon, si on a un id_role, chercher en BDD
+      if (!parent?.id_role) return null;
+      const roleResult = await findBy1ParameterOrThrow('roles', 'id_role', parent.id_role, 'Rôle non trouvé');
+      const roleRow = roleResult?.data ?? roleResult;
+      return roleRow || null;
+    },
 
-    if (!roleRow) {
-      throw new GraphQLError('Rôle non trouvé', { extensions: { code: 'NOT_FOUND', httpStatus: 404 } });
-    }
-
-    return roleRow;
-  },
     status: async (parent) => {
 
     // Si pas d'id de statut, retourner null (ou lever selon ton schéma)

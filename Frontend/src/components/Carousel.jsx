@@ -1,6 +1,10 @@
 import React, { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
-import axios from "axios";
+import { useQuery } from '@apollo/client';
+import { GET_BOOKS } from './books/queriesBooks';
+import { CREATE_BOOK, UPDATE_BOOK, DELETE_BOOK } from './books/mutationsBooks';
+import apolloClient from '../services/apolloClient';
+import LoadingSpinner from './LoadingSpinner';
 
 import "../css/Carousel.css";
 import "../css/index.css";
@@ -8,6 +12,41 @@ import "../css/index.css";
 // export const bookimages = [
 //   { src: image1, index: 1 }, { src: image3, index: 3 }
 // ];
+
+
+// Helper: décoder entités HTML numériques & nommées, puis normaliser le chemin d'image
+function decodeHtmlEntities(str) {
+  if (!str) return str;
+  let out = str
+    .replace(/&#(\d+);/g, (_, dec) => String.fromCodePoint(Number(dec)))
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => String.fromCodePoint(parseInt(hex, 16)))
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'");
+  return out;
+}
+function normalizeImagePath(raw) {
+  if (!raw) return raw;
+  const decoded = decodeHtmlEntities(raw).trim();
+  // Si c'est une URL complète, garder seulement le pathname (sans slash initial)
+  try {
+    const u = new URL(decoded, window.location.origin);
+    const path = u.pathname.startsWith('/') ? u.pathname.slice(1) : u.pathname;
+    // si query/hash nécessaires, on peut aussi les ajouter : u.search + u.hash
+    return path;
+  } catch (e) {
+    // pas une URL complète : supprimer éventuel host encodé et slash initiaux
+    return decoded.replace(/^https?:\/\/[^/]+/, '').replace(/^\/+/, '');
+  }
+}
+
+
+
+
+
+
 
 /**
  * Composant Carousel qui affiche un carrousel défilant d'images.
@@ -19,95 +58,94 @@ import "../css/index.css";
  * @returns {JSX.Element} Le composant Carousel rendu.
  */
 const Carousel = ({ reverse = false, speedClass = "carousel-speed-2" }) => {
-	const [bookDetails, setBookDetails] = useState(null);
-	const [error, setError] = useState(null);
-	const [loading, setLoading] = useState(true); // Ajout d'un état de chargement
+	// Utiliser Apollo Client pour récupérer les livres
+	const { data, loading, error } = useQuery(GET_BOOKS, {
+		fetchPolicy: 'network-only'
+	});
+	// console.log("Carousel data:", data);
+	// console.log("Carousel loading:", loading);
+	// console.log("Carousel error:", error);
+	const [randomBooks, setRandomBooks] = useState([]);
+
 	useEffect(() => {
-		// Fonction pour récupérer les détails du livre
-		const fetchCaroussel = async () => {
-			try {
-				// Récupérer le token depuis le localStorage
-				const token = localStorage.getItem("token");
+		if (data?.getBooks?.books && data.getBooks.books.length > 0) {
+			const books = data.getBooks.books;
+			const selectedBooks = [];
+			const selectedIndices = new Set();
 
-				// Configurer les en-têtes avec le token
-				const config = {
-					headers: {
-						Authorization: `Bearer ${token}`, // Ajouter le token dans l'en-tête Authorization
-					},
-				};
-
-				// Faire la requête avec les en-têtes
-				const response = await axios.get(
-					`${import.meta.env.VITE_BACKEND_URL}/livres`,//`${import.meta.env.VITE_BACKEND_URL}/livres`,
-					null, // Pas de corps pour une requête POST sans données
-					config,
-				);
-
-				// Met à jour les détails du livre
-				// biome-ignore lint/complexity/useOptionalChain: <explanation>
-				if (response.data && response.data.data && response.data.data[0]) {
-					setBookDetails(response.data.data);
-				} else {
-					setError("Le livre demandé n'existe pas.");
+			while (selectedBooks.length < 15 && selectedBooks.length < books.length) {
+				const randomIndex = Math.floor(Math.random() * books.length);
+				if (!selectedIndices.has(randomIndex)) {
+					selectedIndices.add(randomIndex);
+					selectedBooks.push(books[randomIndex]);
 				}
-			} catch (err) {
-				console.error("Erreur Axios :", err);
-				setError("Erreur lors de la récupération des détails du livre.");
-			} finally {
-				setLoading(false); // Fin du chargement
 			}
-		};
-
-		fetchCaroussel();
-	}, []);
-
-	// Récupérer le "bookDetails" et en choisir 15 au hasard sans doublons
-	const randomBooks = [];
-	const selectedIndices = new Set(); // Utiliser un Set pour suivre les indices déjà choisis
-
-	if (bookDetails) {
-		while (randomBooks.length < 15 && randomBooks.length < bookDetails.length) {
-			const randomIndex = Math.floor(Math.random() * bookDetails.length);
-
-			// Vérifiez si l'indice a déjà été choisi
-			if (!selectedIndices.has(randomIndex)) {
-				selectedIndices.add(randomIndex); // Marquer l'indice comme choisi
-				randomBooks.push(bookDetails[randomIndex]); // Ajouter le livre à la liste
-			}
+			setRandomBooks(selectedBooks);
 		}
-	}
-	// Gestion des états : chargement, erreur ou données
+	}, [data]);
+
 	if (loading) {
-		return <div>Chargement des détails du livre...</div>;
+		return (
+			<div className="carousel-loading">
+				<div className="loading-spinner">Chargement des livres...</div>
+			</div>
+		);
 	}
+
 	if (error) {
-		return <div>{error}</div>;
+		console.error('Erreur GraphQL:', error);
+		return (
+			<div className="carousel-error">
+				<p>Erreur lors de la récupération des livres.</p>
+				<p className="error-detail">{error.message}</p>
+			</div>
+		);
 	}
-	if (!bookDetails) {
-		return <div>Le livre demandé n'existe pas.</div>;
+
+	if (!data?.getBooks?.books || data.getBooks.books.length === 0) {
+		return (
+			<div className="carousel-empty">
+				<p>Aucun livre disponible pour le moment.</p>
+			</div>
+		);
 	}
 
 	return (
-		<div
-			className={`carousel ${reverse ? "carousel-reverse" : ""} ${speedClass}`}
-		>
+		<div className={`carousel ${reverse ? "carousel-reverse" : ""} ${speedClass}`}>
 			<div className="carousel-track">
-				{randomBooks.map((image) => (
-					// biome-ignore lint/a11y/useAnchorContent: <explanation>
+				{randomBooks.map((book) => (
 					<a
-						key={image.id_book}
-						href={`/livres/${image.id_book}`} // Utiliser l'index réel de l'image ${image.index}
+						key={book.id_book}
+						href={`/livres/${book.id_book}`}
 						className="carousel-item"
 						style={{
-							backgroundImage: `url(../../${image.vignetteimage})`,
+							backgroundImage: book.cover_image 
+								? `url(${book.cover_image})` 
+								: 'none',
+							backgroundSize: 'cover',
+							backgroundPosition: 'center',
+							backgroundColor: book.cover_image ? 'transparent' : '#e0e0e0'
 						}}
 					>
-						<span className="sr-only">{image.title || "Voir le livre"}</span>
+						{!book.cover_image && (
+							<div className="carousel-vignette" style={{width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center'}}>
+								{book.vignetteimage ? (
+									<img
+										id={`${book.id_book}`}
+										src={normalizeImagePath(book.vignetteimage)}
+										alt={book.title || `vignette-${book.id_book}`}
+										style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+									/>
+								) : (
+									<div style={{ fontSize: '3rem' }}>📚</div>
+								)}							
+							</div>						
+						)}
+						<span className="sr-only">{book.title || "Voir le livre"}</span>
 					</a>
 				))}
 			</div>
 		</div>
 	);
 };
-
 export default Carousel;

@@ -2,8 +2,10 @@ import db from "../../db/connect_DB.js";
 import { GraphQLError } from 'graphql';
 import { withOutputSanitization, validateWithJoi, detectMaliciousPatterns, sanitizeRecursive, detectHoneypotUsage, logSuspiciousActivity } 
 from '../utils/helpers/helpers_securite.js';
-import { initializeRedis } from "../../utils.js";// Initialiser Redis 
-const redis = initializeRedis();
+
+import { getRedis, verifyUserWithCache } from "../../utils.js";// Importer l'initialisation de Redis
+
+
 import e from "express";
 import Joi from "joi";
 

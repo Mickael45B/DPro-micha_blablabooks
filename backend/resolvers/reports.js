@@ -1,11 +1,8 @@
 import db from "../db/connect_DB.js";
 import { v4 as uuidv4 } from "uuid";
 import { validateOrderParams, handleDbError } from '../utils/validators.js';
-import { fetchUserById } from './utils/utils_users.js';
 import sanitizeHtml from 'sanitize-html';
 import { GraphQLError } from 'graphql';
-import fetchBookById from './utils/utils_books.js';
-import fetchLibraryById from './utils/utils_librairies.js';
 
 import { isAuthenticated, requireAuth, requireAdmin, requireOwnershipOrAdmin, sanitizeInput, flattenEdges, makePageInfo, makeEdgeFromBook, withErrorHandling } from './utils/helpers/helpers_general.js';
 
@@ -864,7 +861,6 @@ export default {
 
   Report: {
     whistleblower: async (parent) => {
-      // return fetchUserById(parent.id_user);
 
       if (!parent?.id_user) return null;
       try {
@@ -878,7 +874,6 @@ export default {
     },
 
     reported: async (parent) => {
-      // return fetchUserById(parent.reported_id);
       if (!parent?.reported_id) return null;
       try {
         const result = await findBy1ParameterOrThrow('users', 'id_user', parent.reported_id, 'Utilisateur non trouvé');
@@ -891,6 +886,21 @@ export default {
   },
 };
 
+// type de données
+// longeur mini
+//longeur maxi
+// données requises
+
+
+
+
+
+
+
+
+
+
+
 /**
  * Valide les données d'un rapport 
  * @param {object} input - Données du rapport
@@ -898,7 +908,7 @@ export default {
  */
 export const validateReportInput = (input) => {
  
-  if (!input.reason || input.reason.trim().length < 3) {
+  if (!input.reason || input.reason.trim().length < 3) {//TestingMinimumLength(inputTesting,messageError)
     throw new GraphQLError('La raison du rapport doit contenir au moins 3 caractères', {
       extensions: { 
         code: 'BAD_REQUEST',
@@ -907,7 +917,7 @@ export const validateReportInput = (input) => {
     });
   }
     
-  if (input.reason.length > 200) {
+  if (input.reason.length > 200) {//TestingMaximumLength(inputTesting,messageError)
     throw new GraphQLError('La raison ne peut pas dépasser 200 caractères', {
       extensions: { 
         code: 'BAD_REQUEST',
@@ -917,7 +927,7 @@ export const validateReportInput = (input) => {
   }
 
   // Validation des détails (optionnel mais avec limite)
-  if (input.details && input.details.length > 1000) {
+  if (input.details && input.details.length > 1000) {//TestingMaximumLength(inputTesting,messageError)
     throw new GraphQLError('Les détails ne peuvent pas dépasser 1000 caractères', {
       extensions: { 
         code: 'BAD_REQUEST',

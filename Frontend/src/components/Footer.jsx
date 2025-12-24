@@ -15,13 +15,13 @@ const Footer = () => {
 
         {/* Liens vers les réseaux sociaux */}
         <div className="social-media">
-          <a href="https://www.facebook.com" target="_blank" rel="noopener noreferrer" className="social-icon">
+          <a href="https://www.facebook.com" target="_blank" rel="noopener noreferrer" className="social-icon" aria-label="Facebook">
             <i className="fab fa-facebook-f" />
           </a>
-          <a href="https://www.instagram.com" target="_blank" rel="noopener noreferrer" className="social-icon">
+          <a href="https://www.instagram.com" target="_blank" rel="noopener noreferrer" className="social-icon" aria-label="Instagram">
             <i className="fab fa-instagram" />
           </a>
-          <a href="https://www.twitter.com" target="_blank" rel="noopener noreferrer" className="social-icon">
+          <a href="https://www.twitter.com" target="_blank" rel="noopener noreferrer" className="social-icon" aria-label="Twitter">
             <i className="fab fa-twitter" />
           </a>
         </div>

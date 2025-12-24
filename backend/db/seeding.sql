@@ -5,22 +5,26 @@ BEGIN;
 TRUNCATE TABLE roles, permissions, rolehaspermissions, users, books, libraries, reviews, bookhaslibrary, messages, reports RESTART IDENTITY ;
 
 INSERT INTO roles (id_role, role_name, created_at, updated_at)
-VALUES ('1', 'user', '2025-01-01 10:00:00', '2025-01-01 10:00:00'),
-('2', 'admin', '2025-01-01 10:00:00', '2025-01-01 10:00:00');
+VALUES 
+    ('1', 'admin', '2025-01-01 10:00:00', '2025-01-01 10:00:00'), -- role piège pour éviter que les vrais admins soient ciblés
+    ('2', 'user', '2025-01-01 10:00:00', '2025-01-01 10:00:00'), -- role piége pour éviter que les vrais users soient ciblés
+    ('3', 'glossaire', '2025-01-01 10:00:00', '2025-01-01 10:00:00'), --securité par l'obscurité. glossaire=réellement admin
+    ('4', 'premieredecouverture', '2025-01-01 10:00:00', '2025-01-01 10:00:00'); --securité par l'obscurité. premieredecouverture=réellement user
 
 
 INSERT INTO permissions (id_permission, permission_name, created_at, updated_at)
-VALUES ('1', 'read', '2025-01-01 10:00:00', '2025-01-01 10:00:00'),
-('2', 'write', '2025-01-01 10:00:00', '2025-01-01 10:00:00'),
-('3', 'delete', '2025-01-01 10:00:00', '2025-01-01 10:00:00');
+VALUES 
+    ('1', 'read', '2025-01-01 10:00:00', '2025-01-01 10:00:00'),
+    ('2', 'write', '2025-01-01 10:00:00', '2025-01-01 10:00:00'),
+    ('3', 'delete', '2025-01-01 10:00:00', '2025-01-01 10:00:00');
 
 INSERT INTO rolehaspermissions (id_rolehaspermission, id_role, id_permission, created_at, updated_at)   
-VALUES ('1a2b3c4d-5e6f-7g8h-9i0j-1k2l3m4n5o6p', '1', '1', '2025-01-01 10:00:00', '2025-01-01 10:00:00'),  -- user can read
-('2b3c4d5e-6f7g-8h9i-0j1k-2l3m4n5o6p7q', '2', '1', '2025-01-01 10:00:00', '2025-01-01 10:00:00'),  -- admin can read
-('3c4d5e6f-7g8h-9i0j-1k2l-3m4n5o6p7q8w', '2', '2', '2025-01-01 10:00:00', '2025-01-01 10:00:00'),  -- admin can write
-('4d5e6f7g-8h9i-0j1k-2l3m-4n5o6p7q8r9s', '2', '3', '2025-01-01 10:00:00', '2025-01-01 10:00:00');  -- admin can delete
+VALUES 
+    ('1a2b3c4d-5e6f-7g8h-9i0j-1k2l3m4n5o6p', '2', '1', '2025-01-01 10:00:00', '2025-01-01 10:00:00'),  -- user can read
+    ('2b3c4d5e-6f7g-8h9i-0j1k-2l3m4n5o6p7q', '3', '1', '2025-01-01 10:00:00', '2025-01-01 10:00:00'),  -- real admin can read
+    ('3c4d5e6f-7g8h-9i0j-1k2l-3m4n5o6p7q8w', '3', '2', '2025-01-01 10:00:00', '2025-01-01 10:00:00'),  -- real admin can write
+    ('4d5e6f7g-8h9i-0j1k-2l3m-4n5o6p7q8r9s', '3', '3', '2025-01-01 10:00:00', '2025-01-01 10:00:00');  -- real admin can delete
 
--- Option A : insérer des statuses avec des UUID (développement)
 INSERT INTO status (id_status, status_name, created_at, updated_at)
 VALUES
     ('1', 'active', '2025-01-01 10:00:00', '2025-01-01 10:00:00'),
@@ -29,43 +33,49 @@ VALUES
     ('4', 'blocked_by_both', '2025-01-01 10:00:00', '2025-01-01 10:00:00'),
     ('5', 'deleted', '2025-01-01 10:00:00', '2025-01-01 10:00:00');
 
--- Option B (production) : si vous utilisez INT GENERATED ALWAYS AS IDENTITY,
--- remplacez le bloc ci-dessus par une insertion sans id_status explicite et utilisez RESTART IDENTITY.
 
-
--- Utiliser id_status (FK vers table status) au lieu de l'ancienne colonne status
 INSERT INTO users (id_user, name, email, password, id_role, pseudo, id_status, created_at, updated_at) --Pa$$w0rd!
 VALUES 
--- {"Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZF91c2VyIjoiMWUyZDNjNGItNWE2Zi03ZThkLTljMGItMWEyZjNlNGQ1YzZiIiwibmFtZSI6IkFsaWNlIER1cG9udCIsInBzZXVkbyI6InBldGl0IHBvaXNzb24ifQ.c8A_mkFWejX_6GDls2GbqCykqsvCISe6soTAHzHbQCM"}
-('1e2d3c4b-5a6f-7e8d-9c0b-1a2f3e4d5c6b', 'Alice Dupont', 'alice.dupont@example.com', '23e3fc5b1c95c802a262cdde4fa950f4:a00542662e9c2632082ba4739fe50f75024bb2f717f56f82154421ddad5776bed61dcc68f1ced3e2310a1db8280ccc124c624fa78f904ccbf96840e972999e64', 2,'petit poisson', 1, '2025-01-01 10:00:00', '2025-01-01 10:00:00'),
--- {"Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZF91c2VyIjoiMmUzZDRjNWItNmE3Zi04ZTlkLTBjMWItMmEzZjRlNWQ2YzdiIiwibmFtZSI6IkJvYiBNYXJ0aW4iLCJwc2V1ZG8iOiJyZWQgdGFnIn0.tYTKgqtrErdB4wzIC3GJkyyflvnL-eEzv8xTBhw9UsY"}
-('2e3d4c5b-6a7f-8e9d-0c1b-2a3f4e5d6c7b', 'Bob Martin', 'bob.martin@example.com', '23e3fc5b1c95c802a262cdde4fa950f4:a00542662e9c2632082ba4739fe50f75024bb2f717f56f82154421ddad5776bed61dcc68f1ced3e2310a1db8280ccc124c624fa78f904ccbf96840e972999e64', 2, 'red tag', 1, '2025-01-02 11:00:00', '2025-01-02 11:00:00'),
-('3f4e5d6c-7b8a-9f0e-1d2c-3b4a5f6e7d8c', 'Charlie Durand', 'charlie.durand@example.com', '23e3fc5b1c95c802a262cdde4fa950f4:a00542662e9c2632082ba4739fe50f75024bb2f717f56f82154421ddad5776bed61dcc68f1ced3e2310a1db8280ccc124c624fa78f904ccbf96840e972999e64', 1, 'Harold the best', 1, '2025-01-03 12:00:00', '2025-01-03 12:00:00'),
-    -- {"Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZF91c2VyIjoiNGc1ZjZlN2QtOGM5Yi0wYTFmLTJlM2QtNGM1YjZhN2Y4ZTlkIiwibmFtZSI6IkRpYW5lIE1vcmVsIiwicHNldWRvIjoibGludXggdGhlIGJlc3QiLCJpc0FkbWluIjpmYWxzZX0.JPjw19bbnW1IGSunQ4FWC7Z2j8UzYIDUFxET6x4jC6U"}
-('4g5f6e7d-8c9b-0a1f-2e3d-4c5b6a7f8e9d', 'Diane Morel', 'diane.morel@example.com', '23e3fc5b1c95c802a262cdde4fa950f4:a00542662e9c2632082ba4739fe50f75024bb2f717f56f82154421ddad5776bed61dcc68f1ced3e2310a1db8280ccc124c624fa78f904ccbf96840e972999e64', 1, 'linux the best', 1, '2025-01-04 13:00:00', '2025-01-04 13:00:00'),
-('5h6g7f8e-9d0c-1b2a-3f4e-5d6c7b8a9f0e', 'Eve Lambert', 'eve.lambert@example.com', '23e3fc5b1c95c802a262cdde4fa950f4:a00542662e9c2632082ba4739fe50f75024bb2f717f56f82154421ddad5776bed61dcc68f1ced3e2310a1db8280ccc124c624fa78f904ccbf96840e972999e64', 1, 'l''homme des cavernes', 1, '2025-01-05 14:00:00', '2025-01-05 14:00:00'),
-('6i7h8g9f-0e1d-2c3b-4a5f-6e7d8c9b0a1f', 'Franck Petit', 'franck.petit@example.com', '23e3fc5b1c95c802a262cdde4fa950f4:a00542662e9c2632082ba4739fe50f75024bb2f717f56f82154421ddad5776bed61dcc68f1ced3e2310a1db8280ccc124c624fa78f904ccbf96840e972999e64', 1, 'grand jardin', 1, '2025-01-06 15:00:00', '2025-01-06 15:00:00'),
-('7j8i9h0g-1f2e-3d4c-5b6a-7f8e9d0c1b2a', 'Gina Blanc', 'gina.blanc@example.com', '23e3fc5b1c95c802a262cdde4fa950f4:a00542662e9c2632082ba4739fe50f75024bb2f717f56f82154421ddad5776bed61dcc68f1ced3e2310a1db8280ccc124c624fa78f904ccbf96840e972999e64', 1, 'grand malade', 1, '2025-01-07 16:00:00', '2025-01-07 16:00:00'),
-('8k9j0i1h-2g3f-4e5d-6c7b-8a9f0e1d2c3b', 'Hugo Noir', 'hugo.noir@example.com', '23e3fc5b1c95c802a262cdde4fa950f4:a00542662e9c2632082ba4739fe50f75024bb2f717f56f82154421ddad5776bed61dcc68f1ced3e2310a1db8280ccc124c624fa78f904ccbf96840e972999e64', 1, 'dark opera', 1, '2025-01-08 17:00:00', '2025-01-08 17:00:00'),
-('9l0k1j2i-3h4g-5f6e-7d8c-9b0a1f2e3d4c', 'Isabelle Vert', 'isabelle.vert@example.com', '23e3fc5b1c95c802a262cdde4fa950f4:a00542662e9c2632082ba4739fe50f75024bb2f717f56f82154421ddad5776bed61dcc68f1ced3e2310a1db8280ccc124c624fa78f904ccbf96840e972999e64', 1, 'le cygne des lacs', 1, '2025-01-09 18:00:00', '2025-01-09 18:00:00'),
-('0m1l2k3j-4i5h-6g7f-8e9d-0c1b2a3f4e5d', 'Julien Bleu', 'julien.bleu@example.com', '23e3fc5b1c95c802a262cdde4fa950f4:a00542662e9c2632082ba4739fe50f75024bb2f717f56f82154421ddad5776bed61dcc68f1ced3e2310a1db8280ccc124c624fa78f904ccbf96840e972999e64', 1, 'GreenLeaf42', 1, '2025-01-10 19:00:00', '2025-01-10 19:00:00'),
-('a1b2c3d4-e5f6-7g8h-9i0j-1k2l3m4n5o6p', 'Paul Moreau', 'paul.moreau@example.com', '23e3fc5b1c95c802a262cdde4fa950f4:a00542662e9c2632082ba4739fe50f75024bb2f717f56f82154421ddad5776bed61dcc68f1ced3e2310a1db8280ccc124c624fa78f904ccbf96840e972999e64', 1, 'PixelNomad', 1, '2025-01-11 10:00:00', '2025-01-11 10:00:00'),
-('b2c3d4e5-f6g7-8h9i-0j1k-2l3m4n5o6p7q', 'Sophie Lefevre', 'sophie.lefevre@example.com', '23e3fc5b1c95c802a262cdde4fa950f4:a00542662e9c2632082ba4739fe50f75024bb2f717f56f82154421ddad5776bed61dcc68f1ced3e2310a1db8280ccc124c624fa78f904ccbf96840e972999e64', 1, 'AquaBloom', 1, '2025-01-12 11:00:00', '2025-01-12 11:00:00'),
-('c3d4e5f6-g7h8-9i0j-1k2l-3m4n5o6p7q8r', 'Marc Dubois', 'marc.dubois@example.com', '23e3fc5b1c95c802a262cdde4fa950f4:a00542662e9c2632082ba4739fe50f75024bb2f717f56f82154421ddad5776bed61dcc68f1ced3e2310a1db8280ccc124c624fa78f904ccbf96840e972999e64', 1, 'TechnoBee', 1, '2025-01-13 12:00:00', '2025-01-13 12:00:00'),
-('d4e5f6g7-h8i9-0j1k-2l3m-4n5o6p7q8r9s', 'Emma Fontaine', 'emma.fontaine@example.com', '23e3fc5b1c95c802a262cdde4fa950f4:a00542662e9c2632082ba4739fe50f75024bb2f717f56f82154421ddad5776bed61dcc68f1ced3e2310a1db8280ccc124c624fa78f904ccbf96840e972999e64', 1, 'LunaVerse', 1, '2025-01-14 13:00:00', '2025-01-14 13:00:00'),
-('e5f6g7h8-i9j0-1k2l-3m4n-5o6p7q8r9s0t', 'Lucas Bernard', 'lucas.bernard@example.com', '23e3fc5b1c95c802a262cdde4fa950f4:a00542662e9c2632082ba4739fe50f75024bb2f717f56f82154421ddad5776bed61dcc68f1ced3e2310a1db8280ccc124c624fa78f904ccbf96840e972999e64', 1, 'SolarisEdge', 1, '2025-01-15 14:00:00', '2025-01-15 14:00:00'),
-('f6g7h8i9-j0k1-2l3m-4n5o-6p7q8r9s0t1u', 'Chloé Martin', 'chloe.martin@example.com', '23e3fc5b1c95c802a262cdde4fa950f4:a00542662e9c2632082ba4739fe50f75024bb2f717f56f82154421ddad5776bed61dcc68f1ced3e2310a1db8280ccc124c624fa78f904ccbf96840e972999e64', 1, 'EchoWave', 1, '2025-01-16 15:00:00', '2025-01-16 15:00:00'),
-('g7h8i9j0-k1l2-3m4n-5o6p-7q8r9s0t1u2v', 'Nathan Simon', 'nathan.simon@example.com', '23e3fc5b1c95c802a262cdde4fa950f4:a00542662e9c2632082ba4739fe50f75024bb2f717f56f82154421ddad5776bed61dcc68f1ced3e2310a1db8280ccc124c624fa78f904ccbf96840e972999e64', 1, 'NeoSprout', 1, '2025-01-17 16:00:00', '2025-01-17 16:00:00'),
-('h8i9j0k1-l2m3-4n5o-6p7q-8r9s0t1u2v3w', 'Camille Girard', 'camille.girard@example.com', '23e3fc5b1c95c802a262cdde4fa950f4:a00542662e9c2632082ba4739fe50f75024bb2f717f56f82154421ddad5776bed61dcc68f1ced3e2310a1db8280ccc124c624fa78f904ccbf96840e972999e64', 1, 'ShadowByte', 1, '2025-01-18 17:00:00', '2025-01-18 17:00:00'),
-('i9j0k1l2-m3n4-5o6p-7q8r-9s0t1u2v3w4x', 'Léo Dupuis', 'leo.dupuis@example.com', '23e3fc5b1c95c802a262cdde4fa950f4:a00542662e9c2632082ba4739fe50f75024bb2f717f56f82154421ddad5776bed61dcc68f1ced3e2310a1db8280ccc124c624fa78f904ccbf96840e972999e64', 1, 'CrystalRoot', 1, '2025-01-19 18:00:00', '2025-01-19 18:00:00'),
-('j0k1l2m3-n4o5-6p7q-8r9s-0t1u2v3w4x5y', 'Julie Caron', 'julietoto.caron@example.com', '23e3fc5b1c95c802a262cdde4fa950f4:a00542662e9c2632082ba4739fe50f75024bb2f717f56f82154421ddad5776bed61dcc68f1ced3e2310a1db8280ccc124c624fa78f904ccbf96840e972999e64', 1, 'tatoo', 1, '2025-01-19 18:00:00', '2025-01-19 18:00:00');
+('1e2d3c4b-5a6f-7e8d-9c0b-1a2f3e4d5c6b', 'Alice Dupont', 'alice.dupont@example.com', '9a3e2c7802b0175ab314d3357bd962a8:cf4704e9b5302779557b0924703b2db45871e67ebf02de7d2004abeb4f54982e04ca9dd70965b0654e8c4de54c2b7d8a63fbbe2299b2ff1d659ae5614675406a', 3,'petit poisson', 1, '2025-01-01 10:00:00', '2025-01-01 10:00:00'),
+('2e3d4c5b-6a7f-8e9d-0c1b-2a3f4e5d6c7b', 'Bob Martin', 'bob.martin@example.com', '9a3e2c7802b0175ab314d3357bd962a8:cf4704e9b5302779557b0924703b2db45871e67ebf02de7d2004abeb4f54982e04ca9dd70965b0654e8c4de54c2b7d8a63fbbe2299b2ff1d659ae5614675406a', 3, 'red tag', 4, '2025-01-02 11:00:00', '2025-01-02 11:00:00'),
+('3f4e5d6c-7b8a-9f0e-1d2c-3b4a5f6e7d8c', 'Charlie Durand', 'charlie.durand@example.com', '9a3e2c7802b0175ab314d3357bd962a8:cf4704e9b5302779557b0924703b2db45871e67ebf02de7d2004abeb4f54982e04ca9dd70965b0654e8c4de54c2b7d8a63fbbe2299b2ff1d659ae5614675406a', 4, 'Harold the best', 1, '2025-01-03 12:00:00', '2025-01-03 12:00:00'),
+('4g5f6e7d-8c9b-0a1f-2e3d-4c5b6a7f8e9d', 'Diane Morel', 'diane.morel@example.com', '9a3e2c7802b0175ab314d3357bd962a8:cf4704e9b5302779557b0924703b2db45871e67ebf02de7d2004abeb4f54982e04ca9dd70965b0654e8c4de54c2b7d8a63fbbe2299b2ff1d659ae5614675406a', 4, 'linux the best', 1, '2025-01-04 13:00:00', '2025-01-04 13:00:00'),
+('5h6g7f8e-9d0c-1b2a-3f4e-5d6c7b8a9f0e', 'Eve Lambert', 'eve.lambert@example.com', '9a3e2c7802b0175ab314d3357bd962a8:cf4704e9b5302779557b0924703b2db45871e67ebf02de7d2004abeb4f54982e04ca9dd70965b0654e8c4de54c2b7d8a63fbbe2299b2ff1d659ae5614675406a', 4, 'l''homme des cavernes', 1, '2025-01-05 14:00:00', '2025-01-05 14:00:00'),
+('6i7h8g9f-0e1d-2c3b-4a5f-6e7d8c9b0a1f', 'Franck Petit', 'franck.petit@example.com', '9a3e2c7802b0175ab314d3357bd962a8:cf4704e9b5302779557b0924703b2db45871e67ebf02de7d2004abeb4f54982e04ca9dd70965b0654e8c4de54c2b7d8a63fbbe2299b2ff1d659ae5614675406a', 4, 'grand jardin', 1, '2025-01-06 15:00:00', '2025-01-06 15:00:00'),
+('7j8i9h0g-1f2e-3d4c-5b6a-7f8e9d0c1b2a', 'Gina Blanc', 'gina.blanc@example.com', '9a3e2c7802b0175ab314d3357bd962a8:cf4704e9b5302779557b0924703b2db45871e67ebf02de7d2004abeb4f54982e04ca9dd70965b0654e8c4de54c2b7d8a63fbbe2299b2ff1d659ae5614675406a', 4, 'grand malade', 1, '2025-01-07 16:00:00', '2025-01-07 16:00:00'),
+('8k9j0i1h-2g3f-4e5d-6c7b-8a9f0e1d2c3b', 'Hugo Noir', 'hugo.noir@example.com', '9a3e2c7802b0175ab314d3357bd962a8:cf4704e9b5302779557b0924703b2db45871e67ebf02de7d2004abeb4f54982e04ca9dd70965b0654e8c4de54c2b7d8a63fbbe2299b2ff1d659ae5614675406a', 4, 'dark opera', 1, '2025-01-08 17:00:00', '2025-01-08 17:00:00'),
+('9l0k1j2i-3h4g-5f6e-7d8c-9b0a1f2e3d4c', 'Isabelle Vert', 'isabelle.vert@example.com', '9a3e2c7802b0175ab314d3357bd962a8:cf4704e9b5302779557b0924703b2db45871e67ebf02de7d2004abeb4f54982e04ca9dd70965b0654e8c4de54c2b7d8a63fbbe2299b2ff1d659ae5614675406a', 4, 'le cygne des lacs', 1, '2025-01-09 18:00:00', '2025-01-09 18:00:00'),
+('0m1l2k3j-4i5h-6g7f-8e9d-0c1b2a3f4e5d', 'Julien Bleu', 'julien.bleu@example.com', '9a3e2c7802b0175ab314d3357bd962a8:cf4704e9b5302779557b0924703b2db45871e67ebf02de7d2004abeb4f54982e04ca9dd70965b0654e8c4de54c2b7d8a63fbbe2299b2ff1d659ae5614675406a', 4, 'GreenLeaf42', 1, '2025-01-10 19:00:00', '2025-01-10 19:00:00'),
+('a1b2c3d4-e5f6-7g8h-9i0j-1k2l3m4n5o6p', 'Paul Moreau', 'paul.moreau@example.com', '9a3e2c7802b0175ab314d3357bd962a8:cf4704e9b5302779557b0924703b2db45871e67ebf02de7d2004abeb4f54982e04ca9dd70965b0654e8c4de54c2b7d8a63fbbe2299b2ff1d659ae5614675406a', 4, 'PixelNomad', 1, '2025-01-11 10:00:00', '2025-01-11 10:00:00'),
+('b2c3d4e5-f6g7-8h9i-0j1k-2l3m4n5o6p7q', 'Sophie Lefevre', 'sophie.lefevre@example.com', '9a3e2c7802b0175ab314d3357bd962a8:cf4704e9b5302779557b0924703b2db45871e67ebf02de7d2004abeb4f54982e04ca9dd70965b0654e8c4de54c2b7d8a63fbbe2299b2ff1d659ae5614675406a', 4, 'AquaBloom', 1, '2025-01-12 11:00:00', '2025-01-12 11:00:00'),
+('c3d4e5f6-g7h8-9i0j-1k2l-3m4n5o6p7q8r', 'Marc Dubois', 'marc.dubois@example.com', '9a3e2c7802b0175ab314d3357bd962a8:cf4704e9b5302779557b0924703b2db45871e67ebf02de7d2004abeb4f54982e04ca9dd70965b0654e8c4de54c2b7d8a63fbbe2299b2ff1d659ae5614675406a', 4, 'TechnoBee', 1, '2025-01-13 12:00:00', '2025-01-13 12:00:00'),
+('d4e5f6g7-h8i9-0j1k-2l3m-4n5o6p7q8r9s', 'Emma Fontaine', 'emma.fontaine@example.com', '9a3e2c7802b0175ab314d3357bd962a8:cf4704e9b5302779557b0924703b2db45871e67ebf02de7d2004abeb4f54982e04ca9dd70965b0654e8c4de54c2b7d8a63fbbe2299b2ff1d659ae5614675406a', 4, 'LunaVerse', 1, '2025-01-14 13:00:00', '2025-01-14 13:00:00'),
+('e5f6g7h8-i9j0-1k2l-3m4n-5o6p7q8r9s0t', 'Lucas Bernard', 'lucas.bernard@example.com', '9a3e2c7802b0175ab314d3357bd962a8:cf4704e9b5302779557b0924703b2db45871e67ebf02de7d2004abeb4f54982e04ca9dd70965b0654e8c4de54c2b7d8a63fbbe2299b2ff1d659ae5614675406a', 4, 'SolarisEdge', 1, '2025-01-15 14:00:00', '2025-01-15 14:00:00'),
+('f6g7h8i9-j0k1-2l3m-4n5o-6p7q8r9s0t1u', 'Chloé Martin', 'chloe.martin@example.com', '9a3e2c7802b0175ab314d3357bd962a8:cf4704e9b5302779557b0924703b2db45871e67ebf02de7d2004abeb4f54982e04ca9dd70965b0654e8c4de54c2b7d8a63fbbe2299b2ff1d659ae5614675406a', 4, 'EchoWave', 1, '2025-01-16 15:00:00', '2025-01-16 15:00:00'),
+('g7h8i9j0-k1l2-3m4n-5o6p-7q8r9s0t1u2v', 'Nathan Simon', 'nathan.simon@example.com', '9a3e2c7802b0175ab314d3357bd962a8:cf4704e9b5302779557b0924703b2db45871e67ebf02de7d2004abeb4f54982e04ca9dd70965b0654e8c4de54c2b7d8a63fbbe2299b2ff1d659ae5614675406a', 4, 'NeoSprout', 1, '2025-01-17 16:00:00', '2025-01-17 16:00:00'),
+('h8i9j0k1-l2m3-4n5o-6p7q-8r9s0t1u2v3w', 'Camille Girard', 'camille.girard@example.com', '9a3e2c7802b0175ab314d3357bd962a8:cf4704e9b5302779557b0924703b2db45871e67ebf02de7d2004abeb4f54982e04ca9dd70965b0654e8c4de54c2b7d8a63fbbe2299b2ff1d659ae5614675406a', 4, 'ShadowByte', 1, '2025-01-18 17:00:00', '2025-01-18 17:00:00'),
+('i9j0k1l2-m3n4-5o6p-7q8r-9s0t1u2v3w4x', 'Léo Dupuis', 'leo.dupuis@example.com', '9a3e2c7802b0175ab314d3357bd962a8:cf4704e9b5302779557b0924703b2db45871e67ebf02de7d2004abeb4f54982e04ca9dd70965b0654e8c4de54c2b7d8a63fbbe2299b2ff1d659ae5614675406a', 4, 'CrystalRoot', 1, '2025-01-19 18:00:00', '2025-01-19 18:00:00'),
+('j0k1l2m3-n4o5-6p7q-8r9s-0t1u2v3w4x5y', 'Julie Caron', 'julietoto.caron@example.com', '9a3e2c7802b0175ab314d3357bd962a8:cf4704e9b5302779557b0924703b2db45871e67ebf02de7d2004abeb4f54982e04ca9dd70965b0654e8c4de54c2b7d8a63fbbe2299b2ff1d659ae5614675406a', 4, 'tatoo', 1, '2025-01-19 18:00:00', '2025-01-19 18:00:00');
 
--- Après l'insertion des utilisateurs, migrer les id_status numériques vers les UUID insérés ci-dessus
--- (la table users dans l'ancien seeding utilisait la valeur 1 pour "active").
 UPDATE users u
 SET id_status = s.id_status
 FROM status s
 WHERE s.status_name = 'active' AND u.id_status::text = '1';
+
+-- 🚨 COMPTES PIÈGES (honeypot) - Insérés séparément avec ON CONFLICT
+-- Piège 1 : Compte avec rôle "admin" (id_role = 1)
+INSERT INTO users (id_user, name, email, password, id_role, pseudo, id_status, created_at, updated_at)
+VALUES ('j0k1l2m3-n4o5-6p7q-8r9s-0t1u2v3w4x1y', 'Julien Caré', 'julieto.care@example.com', 'FAKE_HASH_THAT_WILL_NEVER_MATCH_12345678901234567890', 1, 'le maitre du monde', 1, '2025-01-19 18:00:00', '2025-01-19 18:00:00')
+ON CONFLICT (id_user) DO NOTHING;
+
+-- Piège 2 : Compte avec rôle "user" piège (id_role = 2)
+INSERT INTO users (id_user, name, email, password, id_role, pseudo, id_status, created_at, updated_at)
+VALUES ('j0k1l2m3-n4o5-6p7q-8r9s-0t1u2v3w3x1y', 'Julien frais', 'julien.frais@example.com', 'FAKE_HASH_THAT_WILL_NEVER_MATCH_12345678901234567890', 2, 'le roi des cartes', 1, '2025-01-19 18:00:00', '2025-01-19 18:00:00')
+ON CONFLICT (id_user) DO NOTHING;
+
+
+
+
 
 INSERT INTO books (id_book, isbn, title, author, publication_date, genre, editor, bookimage, vignetteimage, age_limit, description, created_at, updated_at, series, is_in_favorite, nb_reviews, is_in_library, avg_rating)
 VALUES 

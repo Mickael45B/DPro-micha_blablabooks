@@ -1,0 +1,113 @@
+/* Navigation Component Styles */
+
+.navigation {
+  width: 100%;
+}
+
+.navigation__list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  width: 100%;
+}
+
+.navigation__item {
+  width: 100%;
+  transition: all 0.3s ease;
+}
+
+.navigation__link {
+  display: flex;
+  align-items: center;
+  gap: 1em;
+  padding: 1em;
+  color: #fff;
+  text-decoration: none;
+  transition: all 0.3s ease;
+  position: relative;
+}
+
+.navigation__link i:first-child {
+  font-size: 1.2em;
+  min-width: 1.5em;
+}
+
+.navigation__link span {
+  flex: 1;
+}
+
+/* État actif */
+.navigation__item--active .navigation__link {
+  background-color: rgba(215, 53, 92, 0.3);
+  border-left: 4px solid #F6495C;
+  font-weight: 500;
+}
+
+/* État hover pour les liens accessibles */
+.navigation__link:hover:not(.navigation__link--disabled) {
+  background-color: rgba(215, 53, 92, 0.2);
+}
+
+/* Liens désactivés */
+.navigation__item--disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.navigation__link--disabled {
+  cursor: not-allowed;
+  position: relative;
+}
+
+.navigation__lock {
+  font-size: 0.8em;
+  margin-left: auto;
+  color: #F6495C;
+}
+
+/* Mode Desktop (menu latéral) */
+.navigation--desktop {
+  padding-top: 1em;
+}
+
+/* Mode Mobile (menu burger) - peut être customisé selon vos besoins */
+.navigation--mobile .navigation__list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5em;
+}
+
+/* Animation d'entrée */
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.navigation__item {
+  animation: slideIn 0.3s ease forwards;
+}
+
+.navigation__item:nth-child(1) { animation-delay: 0.05s; }
+.navigation__item:nth-child(2) { animation-delay: 0.1s; }
+.navigation__item:nth-child(3) { animation-delay: 0.15s; }
+.navigation__item:nth-child(4) { animation-delay: 0.2s; }
+.navigation__item:nth-child(5) { animation-delay: 0.25s; }
+
+/* Responsive */
+@media (max-width: 899px) {
+  .navigation--desktop {
+    display: none;
+  }
+}
+
+@media (min-width: 900px) {
+  .navigation--mobile {
+    display: none;
+  }
+}

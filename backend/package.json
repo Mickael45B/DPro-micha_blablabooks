@@ -41,6 +41,7 @@
 		"jsonwebtoken": "^9.0.2",
 		"pg": "^8.11.3",
 		"rate-limit-redis": "^4.2.3",
+		"redis": "^5.10.0",
 		"sanitize-html": "^2.16.0",
 		"semver": "^7.7.1",
 		"sequelize": "6.37.7",

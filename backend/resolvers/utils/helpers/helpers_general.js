@@ -473,41 +473,80 @@ export const withRateLimit = (fn, options = {}) => {
   const { 
     maxRequests = 10, 
     windowMs = 60000, // 1 minute
-    keyFn = (context) => context.user?.id_user || context.ip 
+    // keyFn = (context) => context.user?.id_user || context.ip 
+    keyFn = null 
   } = options;
   
-  return async (parent, args, context, info) => {
-    const key = keyFn(context);
-    
-    if (!key) {
-      throw new GraphQLError('Impossible de déterminer l\'identifiant pour le rate limiting', {
-        extensions: { code: 'INTERNAL_SERVER_ERROR', httpStatus: 500 }
-      });
+  // helper: tenter plusieurs sources pour déterminer une clé unique par client
+  const resolveKey = (context) => {
+    try {
+      if (typeof keyFn === 'function') {
+        const custom = keyFn(context);
+        if (custom) return String(custom);
+      }
+
+      // prefer user id when authenticated
+      const userId = context?.user?.id_user || context?.user?.id || context?.user?.idUser || null;
+      if (userId) return `user:${userId}`;
+
+      // essayer les headers et propriétés courantes pour récupérer l'IP
+      const forwarded = context?.req?.headers?.['x-forwarded-for'];
+      const ipFromHeader = forwarded ? String(forwarded).split(',')[0].trim() : null;
+      const ip = ipFromHeader
+        || context?.req?.headers?.['x-real-ip']
+        || context?.req?.socket?.remoteAddress
+        || context?.req?.connection?.remoteAddress
+        || context?.ip
+        || null;
+
+      if (ip) return `ip:${ip}`;
+
+      // fallback raisonnable : utiliser user-agent encodé pour séparer clients différents (non idéal mais évite throw)
+      const ua = context?.req?.headers?.['user-agent'] || context?.req?.headers?.['User-Agent'] || '';
+      if (ua) return `anon:${Buffer.from(String(ua)).toString('base64').slice(0, 12)}`;
+
+      // dernier recours
+      return 'anonymous';
+    } catch (e) {
+      console.warn('[RATE_LIMIT] resolveKey failed, using anonymous key', e && e.message);
+      return 'anonymous';
     }
-    
+  };
+
+  return async (parent, args, context, info) => {
+    const key = resolveKey(context);
+
+    // Ne plus throw ici : utiliser une clé anonyme en dernier recours pour ne pas casser les routes publiques (ex: login)
+    if (!key) {
+      console.warn('[RATE_LIMIT] Unable to determine a key, using "anonymous"');
+    }
+
     const now = Date.now();
     const userLimits = rateLimitMap.get(key) || { requests: [], resetAt: now + windowMs };
-    
+
     // Nettoyer les anciennes requêtes
     userLimits.requests = userLimits.requests.filter(time => time > now - windowMs);
-    
+
     if (userLimits.requests.length >= maxRequests) {
       const resetIn = Math.ceil((userLimits.resetAt - now) / 1000);
       throw new GraphQLError(`Trop de requêtes. Réessayez dans ${resetIn} secondes`, {
-        extensions: { 
-          code: 'RATE_LIMIT_EXCEEDED', 
+        extensions: {
+          code: 'RATE_LIMIT_EXCEEDED',
           httpStatus: 429,
-          retryAfter: resetIn 
+          retryAfter: resetIn
         }
       });
     }
-    
+
     userLimits.requests.push(now);
     rateLimitMap.set(key, userLimits);
-    
+
     return fn(parent, args, context, info);
   };
 };
+
+
+
 
 
 
@@ -540,7 +579,7 @@ export const withRateLimit = (fn, options = {}) => {
                       sortingSchema = null,
                       orderSchema = null,
                       logAction = 'UNKNOWN_ACTION',
-                      requiresAuth = true,
+                      requiresAuth = false,
                       requiresAdmin = false,
                       getResourceUserId = null,
                       errorMessage = 'Erreur lors de l\'opération',

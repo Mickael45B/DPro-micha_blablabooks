@@ -1,11 +1,8 @@
 import db from "../db/connect_DB.js";
 import { v4 as uuidv4 } from "uuid";
 import { validateOrderParams, handleDbError } from '../utils/validators.js';
-import { fetchUserById } from './utils/utils_users.js';
-import fetchBookById from './utils/utils_books.js'; 
 import sanitizeHtml from 'sanitize-html';
 import { GraphQLError } from 'graphql';
-import fetchLibraryById from './utils/utils_librairies.js';
 
 import { isAuthenticated, requireAuth, requireAdmin, requireOwnershipOrAdmin, sanitizeInput, flattenEdges, makePageInfo, makeEdgeFromBook, withErrorHandling } from './utils/helpers/helpers_general.js';
 
@@ -543,13 +540,11 @@ export default {
 
   Review: {
     user: async (parent) => {
-      //return fetchUserById(parent.id_user);
       const result = await findBy1ParameterOrThrow('users', 'id_user', parent.id_user, 'Utilisateur non trouvé');
       return result.data;
     },
 
     book: async (parent) => {
-      //return fetchBookById(parent.id_book);
       const result = await findBy1ParameterOrThrow('books', 'id_book', parent.id_book, 'Livre non trouvé');
       return result.data;
     },

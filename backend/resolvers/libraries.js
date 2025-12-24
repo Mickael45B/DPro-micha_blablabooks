@@ -3,12 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { GraphQLError } from 'graphql';
 import sanitizeHtml from 'sanitize-html';
 import { validateOrderParams, handleDbError } from '../utils/validators.js';
-import { fetchUserById } from './utils/utils_users.js';
-import fetchUserRoleNameById from './utils/utils_roles.js';
 import { isAuthenticated, requireAuth, requireAdmin, requireOwnershipOrAdmin, sanitizeInput, flattenEdges, makePageInfo, makeEdgeFromBook, withErrorHandling } from './utils/helpers/helpers_general.js';
-
-// import { validateWithJoi } from './utils/helpers/helpers_books.js';
-
 
 // Importer les schemas Joi spécifiques
 import { generalLibrarySchema, generalOrderLibrarySchema, searchLibrariesSchema} from '../schema/schemas_joi/librairySchema.js';
@@ -643,7 +638,6 @@ export default {
      * @returns {object|null} Utilisateur propriétaire
      */
     user: async (parent) => {
-      // return fetchUserById(parent.id_user);
 
       if (!parent?.id_user) return null;
       try {

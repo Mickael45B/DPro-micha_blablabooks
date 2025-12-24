@@ -670,7 +670,7 @@ export default {
     ),
   },
   
-    Message: {
+  Message: {
 
     sender: async (parent) => {
 
@@ -712,7 +712,7 @@ export default {
  * @param {object} context - Contexte GraphQL
  * @throws {GraphQLError} Si accès refusé
  */
-export const requireMessageAccess = (message, context) => {
+const requireMessageAccess = (message, context) => {
   
   const userId = context?.user?.id || context?.user?.id_user;
   
@@ -736,8 +736,8 @@ export const requireMessageAccess = (message, context) => {
  * @param {object} input - Données du message
  * @throws {GraphQLError} Si validation échoue
  */
-export const validateMessageInput = (input) => {
-  if (!input.subject || input.subject.trim().length < 3) {
+const validateMessageInput = (input) => {
+  if (!input.subject || input.subject.trim().length < 3) {//TestingMinimumLength(inputTesting,messageError)
     throw new GraphQLError('Le sujet doit contenir au moins 3 caractères', {
       extensions: { 
         code: 'BAD_REQUEST',
@@ -746,7 +746,7 @@ export const validateMessageInput = (input) => {
     });
   }
   
-  if (!input.content || input.content.trim().length < 10) {
+  if (!input.content || input.content.trim().length < 10) {//TestingMinimumLength(inputTesting,messageError)
     throw new GraphQLError('Le contenu doit contenir au moins 10 caractères', {
       extensions: { 
         code: 'BAD_REQUEST',
@@ -755,7 +755,7 @@ export const validateMessageInput = (input) => {
     });
   }
   
-  if (input.content.length > 5000) {
+  if (input.content.length > 5000) {//TestingMaximumLength(inputTesting,messageError)
     throw new GraphQLError('Le contenu ne peut pas dépasser 5000 caractères', {
       extensions: { 
         code: 'BAD_REQUEST',

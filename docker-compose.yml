@@ -25,8 +25,8 @@ services:
     image: redis:7-alpine
     container_name: myapp_redis
     # REDIS_PASSWORD a une valeur par défaut vide si non fournie (évite l'avertissement)
-    environment:
-      REDIS_PASSWORD: ${REDIS_PASSWORD:-""}
+    #environment:
+      #REDIS_PASSWORD: ${REDIS_PASSWORD:-""}
     command: >
       sh -c 'if [ -n """${REDIS_PASSWORD}""" ]; then \
         redis-server --requirepass "${REDIS_PASSWORD}" --maxmemory 256mb --maxmemory-policy allkeys-lru; \
@@ -55,6 +55,8 @@ services:
       - "3000:3000"
     depends_on:
       db:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     environment:
       DATABASE_URL: postgresql://blablabook:blablabook@db:5432/blablabook

@@ -6,20 +6,20 @@ import jwt from 'jsonwebtoken';
  * @param {boolean} rememberMe - Si true, token valide 30 jours, sinon 24h
  * @returns {string} Token JWT
  */
-export const generateAccessToken = (payload, rememberMe = false) => {
-  // Durée du token
-  const expiresIn = rememberMe ? '30d' : '24h';
-  
-  return jwt.sign(
-    {
-      id_user: payload.id_user,
-      pseudo: payload.pseudo,
-      name: payload.name,
-    },
-    process.env.JWT_SECRET,
-    { expiresIn }
-  );
-};
+export function generateAccessToken(user, rememberMe = false) {
+  const payload = {
+    id_user: user.id_user,
+    pseudo: user.pseudo,
+    name: user.name ?? null,
+    role: user.role ?? null, // role_name string (ou null)
+  };
+  return jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: rememberMe ? '30d' : '24h' });
+}
+
+
+
+
+
 
 /**
  * Génère un refresh token (longue durée)

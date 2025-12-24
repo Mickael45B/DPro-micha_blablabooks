@@ -3,9 +3,6 @@ import { v4 as uuidv4 } from 'uuid';
 import { validateOrderParams, handleDbError } from '../utils/validators.js';
 import sanitizeHtml from 'sanitize-html';
 import { GraphQLError } from 'graphql';
-import fetchBookById from './utils/utils_books.js';
-import fetchLibraryById from './utils/utils_librairies.js';
-// import { flattenEdges, makePageInfo, makeEdgeFromBook } from '../utils/helpers_books.js';
 // import { isAuthenticated, requireAuth, requireAdmin, requireOwnershipOrAdmin, sanitizeInput } from './utils/helpers/helpers_general.js';
 import { isAuthenticated, requireAuth, requireAdmin, requireOwnershipOrAdmin, sanitizeInput, flattenEdges, makePageInfo, makeEdgeFromBook, withErrorHandling  } from './utils/helpers/helpers_general.js';
 
@@ -85,10 +82,23 @@ export default {
         // ========================================
         // DONNEES RECUPEREES
         // ======================================== 
+
+        // Normaliser les dates/strings pour GraphQL scalars
+        const books = result.rows.map((r) => ({
+          ...r,
+          created_at: r.created_at ? (r.created_at instanceof Date ? r.created_at.toISOString().split('T')[0] : String(r.created_at).split('T')[0]) : null,
+          updated_at: r.updated_at ? (r.updated_at instanceof Date ? r.updated_at.toISOString().split('T')[0] : String(r.updated_at).split('T')[0]) : null,
+          // publication_date : renvoyer une date courte YYYY-MM-DD si c'est une Date, sinon string/null
+          publication_date: r.publication_date
+            ? (r.publication_date instanceof Date
+                ? r.publication_date.toISOString().split('T')[0]
+                : String(r.publication_date))
+            : null,
+        }));
+
         return {
           // flattened list of Book objects for simple queries: getBooks { books { title } }
-          books: result.rows,
-          // backward-compatible edge representation
+          books,
           totalCount,
           hasNextPage: offset + limit < totalCount,
           httpStatus: 200,
@@ -99,7 +109,7 @@ export default {
         sortingSchema: generalSortingSchema,
         orderSchema: generalOrderBookSchema,  
         logAction: 'GET_ALL_BOOKS',
-        requiresAuth: true,
+        requiresAuth: false,
         errorMessage: 'Erreur lors de la récupération des livres'
       }
     ),
