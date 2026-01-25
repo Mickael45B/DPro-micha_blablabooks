@@ -82,9 +82,24 @@ export const findBy1ParameterOrThrow = async (database, columnSearch, value, err
         extensions: { code: 'NOT_FOUND', httpStatus: 404 },
       });
     }
-    // console.log(request.rows[0]);
+
+    // ⭐ NETTOYER LES VALEURS {} VIDES
+    const cleanedRow = Object.fromEntries(
+      Object.entries(request.rows[0]).map(([key, value]) => {
+        // Si c'est un objet vide {}, le remplacer par null
+        if (value && typeof value === 'object' && Object.keys(value).length === 0) {
+          return [key, null];
+        }
+        return [key, value];
+      })
+    );
+
+
+
+
+
     // Tout est OK
-    return { data: request.rows[0], httpStatus: 200 };
+    return { data: cleanedRow, httpStatus: 200 };
 
     // Gestion des erreurs
   } catch (err) {

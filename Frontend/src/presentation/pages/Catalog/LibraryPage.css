@@ -1,0 +1,640 @@
+/* ========================================
+   LIBRARY PAGE - Page Catalogue
+   ======================================== */
+
+.library-page {
+  width: 100%;
+  padding: 1.5rem;
+}
+
+/* ========================================
+   EN-TÊTE DE LA BIBLIOTHÈQUE
+   ======================================== */
+
+.library-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 2rem;
+  gap: 2rem;
+  flex-wrap: wrap;
+}
+
+.library-stats {
+  flex: 1;
+  min-width: 250px;
+}
+
+.library-title {
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--color-primary, #d7355c);
+  margin: 0 0 0.5rem 0;
+}
+
+.library-count {
+  font-size: 1rem;
+  color: #666;
+  margin: 0;
+}
+
+/* ========================================
+   CONTRÔLES (TRI & PAGINATION)
+   ======================================== */
+
+.library-controls {
+  display: flex;
+  gap: 2rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.sort-controls,
+.pagination-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.sort-controls label,
+.pagination-controls label {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #333;
+}
+
+.sort-controls select,
+.pagination-controls select {
+  padding: 0.5rem 1rem;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  background-color: white;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.sort-controls select:hover,
+.pagination-controls select:hover {
+  border-color: var(--color-primary, #d7355c);
+}
+
+.sort-controls select:focus,
+.pagination-controls select:focus {
+  outline: none;
+  border-color: var(--color-primary, #d7355c);
+  box-shadow: 0 0 0 3px rgba(215, 53, 92, 0.1);
+}
+
+.sort-order-btn {
+  padding: 0.5rem 0.75rem;
+  background-color: white;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  font-size: 1.2rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.sort-order-btn:hover {
+  background-color: var(--color-primary, #d7355c);
+  color: white;
+  border-color: var(--color-primary, #d7355c);
+}
+
+/* ========================================
+   GRILLE DE LIVRES
+   ======================================== */
+
+.book-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 2rem;
+  margin-bottom: 2rem;
+}
+
+.book-card {
+  background: white;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s ease;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+}
+
+.book-card:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+}
+
+.book-image {
+  width: 100%;
+  height: 280px;
+  object-fit: cover;
+  background-color: #f5f5f5;
+}
+
+.book-info {
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  flex: 1;
+}
+
+.book-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #333;
+  margin: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  line-height: 1.4;
+}
+
+.book-author {
+  font-size: 0.9rem;
+  color: #666;
+  margin: 0;
+  font-style: italic;
+}
+
+.book-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: auto;
+  padding-top: 0.5rem;
+  border-top: 1px solid #eee;
+}
+
+.book-genre {
+  font-size: 0.75rem;
+  padding: 0.25rem 0.5rem;
+  background-color: rgba(215, 53, 92, 0.1);
+  color: var(--color-primary, #d7355c);
+  border-radius: 4px;
+  font-weight: 500;
+}
+
+.book-rating {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #ffa500;
+}
+
+/* ========================================
+   RECHERCHE AVANCÉE (MENU CONTEXTUEL)
+   ======================================== */
+
+.advanced-search {
+  background: white;
+  padding: 1.5rem;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.advanced-search h3 {
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: #333;
+  margin: 0 0 1.5rem 0;
+}
+
+.filter-group {
+  margin-bottom: 1.5rem;
+}
+
+.filter-group label {
+  display: block;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #555;
+  margin-bottom: 0.5rem;
+}
+
+.filter-group input,
+.filter-group select {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  transition: all 0.3s ease;
+}
+
+.filter-group input:focus,
+.filter-group select:focus {
+  outline: none;
+  border-color: var(--color-primary, #d7355c);
+  box-shadow: 0 0 0 3px rgba(215, 53, 92, 0.1);
+}
+
+.year-range {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.year-range input {
+  flex: 1;
+}
+
+.year-range span {
+  color: #999;
+  font-weight: 500;
+}
+
+.reset-filters {
+  width: 100%;
+  padding: 0.75rem;
+  background-color: #f5f5f5;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #666;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.reset-filters:hover {
+  background-color: var(--color-primary, #d7355c);
+  color: white;
+  border-color: var(--color-primary, #d7355c);
+}
+
+/* ========================================
+   PAGINATION
+   ======================================== */
+
+.pagination {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 2rem 0 1rem 0;
+}
+
+.pagination-btn {
+  padding: 0.5rem 1rem;
+  background-color: white;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.pagination-btn:hover:not(:disabled) {
+  background-color: var(--color-primary, #d7355c);
+  color: white;
+  border-color: var(--color-primary, #d7355c);
+}
+
+.pagination-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.pagination-pages {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.pagination-page {
+  min-width: 40px;
+  padding: 0.5rem;
+  background-color: white;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.pagination-page:hover {
+  background-color: rgba(215, 53, 92, 0.1);
+  border-color: var(--color-primary, #d7355c);
+}
+
+.pagination-page.active {
+  background-color: var(--color-primary, #d7355c);
+  color: white;
+  border-color: var(--color-primary, #d7355c);
+}
+
+.pagination-ellipsis {
+  padding: 0.5rem;
+  color: #999;
+  font-weight: 500;
+}
+
+.pagination-info {
+  text-align: center;
+  font-size: 0.85rem;
+  color: #666;
+  margin-bottom: 2rem;
+}
+
+/* ========================================
+   PAS DE RÉSULTATS
+   ======================================== */
+
+.no-results {
+  text-align: center;
+  padding: 4rem 2rem;
+  background-color: #f9f9f9;
+  border-radius: 12px;
+  margin: 2rem 0;
+}
+
+.no-results p {
+  font-size: 1.1rem;
+  color: #666;
+  margin-bottom: 1.5rem;
+}
+
+.no-results button {
+  padding: 0.75rem 2rem;
+  background-color: var(--color-primary, #d7355c);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.no-results button:hover {
+  background-color: #c02d4f;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(215, 53, 92, 0.3);
+}
+
+/* ========================================
+   RESPONSIVE - TABLETTE
+   ======================================== */
+
+@media (max-width: 900px) {
+  .library-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .library-controls {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 1rem;
+  }
+
+  .sort-controls,
+  .pagination-controls {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .book-grid {
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 1.5rem;
+  }
+}
+
+/* ========================================
+   RÉSUMÉ DU LIVRE (MENU CONTEXTUEL)
+   ======================================== */
+
+.book-summary {
+    background: white;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    margin-top: 1rem;
+}
+
+.book-summary-empty {
+    text-align: center;
+    padding: 2rem 1rem;
+    color: #999;
+    font-style: italic;
+}
+
+.book-summary__header {
+    width: 100%;
+    height: 200px;
+    background-color: #f5f5f5;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+}
+
+.book-summary__image {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.book-summary__content {
+    padding: 1.5rem;
+}
+
+.book-summary__title {
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: #333;
+    margin: 0 0 1rem 0;
+    line-height: 1.4;
+}
+
+.book-summary__meta {
+    margin-bottom: 1.5rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid #eee;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.book-summary__meta p {
+    margin: 0.5rem 0;
+    font-size: 0.9rem;
+    color: #666;
+}
+
+.book-summary__meta strong {
+    color: #333;
+    font-weight: 600;
+}
+
+/* Nouveau style pour les métadonnées avec icônes */
+.book-summary__meta-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    padding: 0.5rem;
+    background-color: #f9f9f9;
+    border-radius: 8px;
+    transition: background-color 0.2s ease;
+}
+
+.book-summary__meta-item:hover {
+    background-color: #f0f0f0;
+}
+
+.book-summary__meta-item > i {
+    color: var(--color-primary, #d7355c);
+    font-size: 1rem;
+    min-width: 20px;
+    margin-top: 0.25rem;
+}
+
+.book-summary__meta-item > div {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.book-summary__meta-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #999;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.book-summary__meta-value {
+    font-size: 0.9rem;
+    color: #333;
+    font-weight: 500;
+}
+
+/* Statistiques */
+.book-summary__stats {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+    padding: 1rem;
+    background-color: rgba(215, 53, 92, 0.05);
+    border-radius: 8px;
+}
+
+.book-summary__stat {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.85rem;
+    color: #666;
+}
+
+.book-summary__stat i {
+    color: var(--color-primary, #d7355c);
+    font-size: 1rem;
+}
+
+.book-summary__description {
+    margin-bottom: 1.5rem;
+}
+
+.book-summary__description h4 {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--color-primary, #d7355c);
+    margin: 0 0 0.75rem 0;
+}
+
+.book-summary__description p {
+    font-size: 0.9rem;
+    line-height: 1.6;
+    color: #555;
+    margin: 0;
+    display: -webkit-box;
+    -webkit-line-clamp: 6;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.book-summary__actions {
+    display: flex;
+    justify-content: center;
+}
+
+.book-summary__link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1.5rem;
+    background: linear-gradient(135deg, var(--color-primary, #d7355c) 0%, #c02d4f 100%);
+    color: white;
+    text-decoration: none;
+    border-radius: 8px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 8px rgba(215, 53, 92, 0.3);
+}
+
+.book-summary__link:hover {
+    background: linear-gradient(135deg, #c02d4f 0%, #a02543 100%);
+    box-shadow: 0 4px 12px rgba(215, 53, 92, 0.4);
+    transform: translateY(-2px);
+}
+
+/* ========================================
+   RESPONSIVE - MOBILE
+   ======================================== */
+
+@media (max-width: 600px) {
+  .library-page {
+    padding: 1rem;
+  }
+
+  .library-title {
+    font-size: 1.5rem;
+  }
+
+  .book-grid {
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 1rem;
+  }
+
+  .book-image {
+    height: 200px;
+  }
+
+  .book-info {
+    padding: 0.75rem;
+  }
+
+  .book-title {
+    font-size: 0.9rem;
+  }
+
+  .book-author {
+    font-size: 0.8rem;
+  }
+
+  .pagination-pages {
+    flex-wrap: wrap;
+  }
+
+  .advanced-search {
+    padding: 1rem;
+  }
+
+  .book-summary__content {
+    padding: 1rem;
+  }
+
+  .book-summary__title {
+    font-size: 1.1rem;
+  }
+}

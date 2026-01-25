@@ -1,0 +1,82 @@
+@import "../../../styles/MediaQueries.css";
+
+.user-library-page {
+	display: flex;
+	flex-direction: column;
+	padding: 1rem;
+	color: white;
+	background: linear-gradient(to bottom, #4a1b6b, #2e1044);
+	min-height: 100vh;
+}
+
+.library-title {
+	font-size: 1.6rem;
+	margin: 1rem 0;
+	text-align: center;
+}
+
+.library-category {
+	margin-bottom: 2rem;
+}
+
+.category-title {
+	color: #f6495c;
+	margin-bottom: 0.5rem;
+	font-size: 1.2rem;
+	padding-left: 0.5rem;
+}
+
+.book-grid-static {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: flex-start;
+	gap: 1rem;
+	margin-bottom: 2rem;
+}
+
+.book-card {
+	width: 310px;
+	background-color: rgba(255, 255, 255, 0.06);
+	border-radius: 12px;
+	padding: 0.6rem;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	transition: transform 0.3s;
+}
+
+.book-card:hover {
+	transform: translateY(-4px);
+	background-color: rgba(255, 255, 255, 0.08);
+}
+
+.book-image {
+	width: 80px;
+	height: 120px;
+	border-radius: 6px;
+	object-fit: cover;
+}
+
+.book-title {
+	font-size: 0.85rem;
+	font-weight: bold;
+	margin: 0.4rem 0 0.2rem;
+	text-align: center;
+}
+
+.book-author {
+	font-size: 0.75rem;
+	color: #ccc;
+	text-align: center;
+}
+
+.remove-button {
+	margin-top: 0.3rem;
+	padding: 0.3rem 0.6rem;
+	font-size: 0.7rem;
+	border-radius: 8px;
+	background-color: #f6495c;
+	color: white;
+	border: none;
+	cursor: pointer;
+}

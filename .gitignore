@@ -1,2 +1,3 @@
 Frontend/.gitinore
 backend/.gitignore
+node_modules

@@ -19,6 +19,7 @@ type Book {
   created_at: Date 
   updated_at: Date
   # Relations
+  reviews: [Review!]!
 }
 
 type BookEdge {

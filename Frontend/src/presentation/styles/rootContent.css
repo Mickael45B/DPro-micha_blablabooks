@@ -1,0 +1,75 @@
+/* ==============================================
+   CONFIGURATION DES POLICES ET TAILLES
+   ============================================== */
+
+/* Variables de polices globales */
+:root {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-family: 'Roboto', sans-serif;
+  
+  /* Taille de base mobile first */
+  font-size: 16px;
+}
+
+:root[data-font="visuallyImpaired"] body,
+:root[data-font="visuallyImpaired"] body *:not([class*="fa-"]):not(i) {
+  font-family: 'Lexend', sans-serif;
+
+}
+
+
+:root[data-font="dyslexic"] body,
+:root[data-font="dyslexic"] body *:not([class*="fa-"]):not(i) {
+
+  font-family: 'Atkinson Hyperlegible', sans-serif;
+
+}
+
+/* Tablettes portrait (577px - 768px) */
+@media (min-width: 577px) and (max-width: 768px) {
+  :root {
+    font-size: 18px;
+  }
+}
+
+/* Tablettes paysage (769px - 992px) */
+@media (min-width: 769px) and (max-width: 992px) {
+  :root {
+    font-size: 20px;
+  }
+}
+
+/* Desktop petit (993px - 1200px) */
+@media (min-width: 993px) and (max-width: 1200px) {
+  :root {
+    font-size: 23px;
+  }
+}
+
+/* Desktop moyen (1201px - 1400px) */
+@media (min-width: 1201px) and (max-width: 1400px) {
+  :root {
+    font-size: 26px;
+  }
+}
+
+/* Desktop large (1401px - 2600px) */
+@media (min-width: 1401px) and (max-width: 2600px) {
+  :root {
+    font-size: 29px;
+  }
+}
+
+/* Écrans 4K (2601px - 4500px) */
+@media (min-width: 2601px) and (max-width: 4500px) {
+  :root {
+    font-size: 31px;
+  }
+}
+
+/* Écrans 8K+ (4501px+) */
+@media (min-width: 4501px) {
+  :root {
+    font-size: 34px;
+  }
+}

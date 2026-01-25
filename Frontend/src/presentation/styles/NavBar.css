@@ -1,0 +1,75 @@
+@import './MediaQueries.css';
+
+/* Styles de base pour la barre de navigation */
+.header__nav {
+  position: fixed; /* Fixe la barre sur le côté droit */
+  top: 0;
+  right: -100%; /* Cache la barre en dehors de l'écran */
+  width: 100%; /* Largeur de la barre */
+  height: 100vh; /* Hauteur de la barre */
+  background-color: rgba(66, 24, 98, 0.3) !important; /* Semi-transparent background */
+    -webkit-backdrop-filter: blur(10px); /* Frosted glass effect for WebKit browsers */
+    backdrop-filter: blur(10px); /* Frosted glass effect */
+  box-shadow: -2px 0 5px rgba(0, 0, 0, 0.1); /* Ombre légère */
+  transition: right 0.3s ease-in-out; /* Animation fluide pour l'ouverture/fermeture */
+  z-index: 1000; /* Priorité d'affichage */
+}
+
+/* Classe pour afficher la barre de navigation */
+.header__nav--open {
+  right: 0; /* Positionne la barre visible */
+}
+
+/* Bouton pour fermer la barre de navigation */
+.header__nav-close {
+  position: absolute; /* Position absolue dans la barre */
+  top: 10px; /* Distance du haut */
+  right: 10px; /* Distance de la droite */
+  background: none; /* Pas de fond */
+  border: none; /* Pas de bordure */
+  font-size: 1.5rem; /* Taille de police */
+  color:#ffffff; /* Couleur blanche */
+  cursor: pointer; /* Curseur pointeur */
+}
+
+/* Liste des liens dans la barre de navigation */
+.header__nav ul {
+  list-style: none; /* Supprime les puces */
+  padding: 20px; /* Espacement interne */
+}
+
+/* Style des éléments de la liste */
+.header__nav ul li {
+  margin: 15px 0; /* Espacement vertical */
+}
+
+/* Style des liens */
+.header__nav ul li a {
+  text-decoration: none; /* Supprime le soulignement */
+  color: #ffffff; /* Couleur du texte */
+  font-size: 1.2rem; /* Taille de police */
+}
+
+/* Bouton pour ouvrir la barre de navigation */
+.menu-toggle {
+  display: flex; /* Affiche le bouton */
+  justify-content: center; /* Centre le contenu */
+  align-items: center; /* Centre verticalement */
+  background: none; /* Pas de fond */
+  color: #ffffff; /* Couleur blanche */
+  /* border: none; Pas de bordure */
+  padding: .6em .8em; /* Espacement interne */
+  font-size: 1.3rem; /* Taille de police */
+  height: 35%; /* Hauteur du bouton */
+  cursor: pointer; /* Curseur pointeur */
+}
+
+/* Effet au survol des liens */
+.header__nav ul li a:hover {
+  color: #646cff; /* Change la couleur au survol */
+}
+
+/* Effet au focus des liens */
+.header__nav ul li a:focus {
+  outline: 2px solid #646cff; /* Ajoute un contour au focus */
+}

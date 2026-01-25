@@ -645,5 +645,37 @@ console.log('titleOrAuthor:', titleOrAuthor);
 
   },
 
-  Book: {},
+  Book: {
+    // Resolver pour les reviews d'un livre
+    reviews: async (parent) => {
+      if (parent?.reviews && Array.isArray(parent.reviews)) {
+        return parent.reviews;
+      }
+
+      if (!parent?.id_book) {
+        return [];
+      }
+
+      try {
+        const result = await db.query(`
+          SELECT 
+            r.id_review,
+            r.id_book,
+            r.id_user,
+            r.rating,
+            r.comment,
+            r.updated_at,
+            r.created_at
+          FROM reviews r
+          WHERE r.id_book = $1
+          ORDER BY r.updated_at DESC
+        `, [parent.id_book]);
+
+        return result.rows || [];
+      } catch (error) {
+        console.error('Erreur lors de la récupération des reviews:', error);
+        return [];
+      }
+    },
+  },
 };

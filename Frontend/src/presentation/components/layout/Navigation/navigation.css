@@ -1,0 +1,128 @@
+/* Navigation Component Styles */
+
+
+.navigation {
+  width: 100%;
+}
+
+.navigation__list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  width: 100%;
+}
+
+.navigation__item {
+  width: 100%;
+  transition: all 0.3s ease;
+}
+
+.navigation__link {
+  display: flex;
+  align-items: center;
+  gap: 1em;
+  padding: 1em;
+  color: #fff;
+  text-decoration: none;
+  transition: all 0.3s ease;
+  position: relative;
+}
+
+.navigation__link i:first-child {
+  font-size: 1.2em;
+  min-width: 1.5em;
+}
+
+.navigation__link span {
+  flex: 1;
+    padding: 1rem 2rem;
+
+}
+
+/* État actif */
+.navigation__item--active .navigation__link {
+  background-color: rgba(215, 53, 92, 0.3);
+  border-left: 4px solid #154eca;
+  font-weight: 500;
+}
+
+/* État hover pour les liens accessibles */
+.navigation__link:hover:not(.navigation__link--disabled) {
+  background-color: rgba(215, 53, 92, 0.2);
+}
+
+/* Liens désactivés - Opacité à 50% */
+.navigation__item--disabled span.navigation__link{
+  opacity: 0.5;
+  cursor: not-allowed;
+  padding: 1rem 2rem;
+  margin: 0 2rem;
+  border: 2px solid #6928bd;
+  border-radius: 2rem;
+  box-shadow: 0.5rem 0.5rem 0.5rem #fff, inset -0.5rem -0.5rem 0.5rem #000000;
+}
+
+.navigation__link--disabled {
+  display: block;
+  cursor: not-allowed;
+  position: relative;
+  pointer-events: none; /* Empêche tout clic */
+}
+
+.navigation__lock {
+  font-size: 0.8em;
+  margin-left: auto;
+  color: #F6495C;
+}
+
+/* Mode Desktop (menu latéral) */
+.navigation--desktop {
+  padding-top: 1em;
+}
+
+/* Mode Mobile (menu burger) - peut être customisé selon vos besoins */
+.navigation--mobile .navigation__list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5em;
+}
+
+/* Animation d'entrée */
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.navigation__item {
+  animation: slideIn 0.3s ease forwards;
+}
+
+.navigation__item:nth-child(1) { animation-delay: 0.05s; }
+.navigation__item:nth-child(2) { animation-delay: 0.1s; }
+.navigation__item:nth-child(3) { animation-delay: 0.15s; }
+.navigation__item:nth-child(4) { animation-delay: 0.2s; }
+.navigation__item:nth-child(5) { animation-delay: 0.25s; }
+
+/* Animation pour les éléments désactivés - applique l'opacité finale */
+.navigation__item--disabled {
+  animation: slideIn 0.3s ease forwards;
+}
+
+/* Responsive */
+@media (max-width: 899px) {
+  .navigation--desktop {
+    display: none;
+  }
+}
+
+@media (min-width: 900px) {
+  .navigation--mobile {
+    display: none;
+  }
+}

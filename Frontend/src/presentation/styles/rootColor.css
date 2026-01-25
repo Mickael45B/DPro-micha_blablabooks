@@ -1,0 +1,115 @@
+/* ==============================================
+   SYSTÈME DE COULEURS - MODE CLAIR
+   ============================================== */
+
+:root {
+  /* Couleur de fond du site */
+  --bg-website: #f7f4ec;
+  
+  /* === COULEURS D'ÉLÉMENTS (Dégradés début) === */
+  --primary-start: #8b4513;
+  --secondary-start: #deb887;  
+  --tertiary-start: #f5deb3;
+  --info-start: #add8e6;
+  --success-start: #98fb98;
+  --warning-start: #ffe4b5;
+  --danger-start: #ffb6c1;
+  --default-start: #f5f5f5;
+
+  /* === COULEURS D'ÉLÉMENTS (Dégradés fin) === */
+  --primary-end: #654321;
+  --secondary-end: #cd853f;  
+  --tertiary-end: #d2b48c;
+  --info-end: #4682b4;
+  --success-end: #228b22;
+  --warning-end: #ff8c00;
+  --danger-end: #dc143c;
+  --default-end: #a9a9a9;
+
+  /* === COULEURS DE TEXTE (Dégradés début) === */
+  --text-primary-start: #fffffe;
+  --text-secondary-start: #0a2027;  
+  --text-tertiary-start: #32274a;
+  --text-link-start: #4682b4;
+  --text-info-start: #000080;
+  --text-success-start: #004b00;
+  --text-warning-start: #231600;
+  --text-danger-start: #300000;
+  --text-default-start: #111111;
+
+  /* === COULEURS DE TEXTE (Dégradés fin) === */
+  --text-primary-end: #fffffe;
+  --text-secondary-end: #000000;  
+  --text-tertiary-end: #141719;
+  --text-link-end: #000000;
+  --text-info-end: #4682b4;
+  --text-success-end: #cbd9b8;
+  --text-warning-end: #231600;
+  --text-danger-end: #ffffff;
+  --text-default-end: #fafafa;
+}
+
+/* ==============================================
+   SYSTÈME DE COULEURS - MODE SOMBRE
+   ============================================== */
+
+:root[data-theme="dark"] {
+    /* Couleur de fond du site */
+    --bg-website: #1e2a24;
+    
+    /* === COULEURS D'ÉLÉMENTS (Dégradés début) === */
+    --primary-start: #654321;
+    --secondary-start: #8b4513;  
+    --tertiary-start: #696969;
+    --info-start: #191970;
+    --success-start: #006400;
+    --warning-start: #b8860b;
+    --danger-start: #8b0000;
+    --default-start: #2f2f2f;
+
+    /* === COULEURS D'ÉLÉMENTS (Dégradés fin) === */
+    --primary-end: #3d2914;
+    --secondary-end: #5d2f0a;  
+    --tertiary-end: #2f2f2f;
+    --info-end: #0f0f2e;
+    --success-end: #004225;
+    --warning-end: #8b6914;
+    --danger-end: #5c0000;
+    --default-end: #1a1a1a;
+
+    /* === COULEURS DE TEXTE (Dégradés début) === */
+    --text-primary-start: #fffffe;
+    --text-secondary-start: #ffffff;  
+    --text-tertiary-start: #ffffff;
+    --text-link-start: #4682b4;
+    --text-info-start: #b9b3df;
+    --text-success-start: #fffff9;
+    --text-warning-start: #000000;
+    --text-danger-start: #ffdead;
+    --text-default-start: #fafafa;
+
+    /* === COULEURS DE TEXTE (Dégradés fin) === */
+    --text-primary-end: #afc1fb;
+    --text-secondary-end: #ccd9d3;  
+    --text-tertiary-end: #d6cde6;
+    --text-link-end: #4682b4;
+    --text-info-end: #75b6e8;
+    --text-success-end: #9ef39e;
+    --text-warning-end: #ffffff;
+    --text-danger-end: #ffadad;
+    --text-default-end: #fafafa;
+  }
+
+/* ==============================================
+   UTILITAIRES - DÉGRADÉS PRÉCONSTRUITS
+   ============================================== */
+
+/* Helpers pour créer des dégradés rapidement */
+:root {
+  --gradient-primary: linear-gradient(135deg, var(--primary-start), var(--primary-end));
+  --gradient-secondary: linear-gradient(135deg, var(--secondary-start), var(--secondary-end));
+  --gradient-success: linear-gradient(135deg, var(--success-start), var(--success-end));
+  --gradient-danger: linear-gradient(135deg, var(--danger-start), var(--danger-end));
+  --gradient-warning: linear-gradient(135deg, var(--warning-start), var(--warning-end));
+  --gradient-info: linear-gradient(135deg, var(--info-start), var(--info-end));
+}

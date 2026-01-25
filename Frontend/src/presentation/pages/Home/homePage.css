@@ -1,0 +1,173 @@
+/* ========================================
+   HOME PAGE - Page d'accueil
+   ======================================== */
+
+.home-hero {
+    text-align: center;
+    padding: 2rem 1rem;
+    background: var(--tertiary-start);
+    border-radius: 12px;
+    margin-bottom: 3rem;
+    color: var(--text-secondary-start);
+
+}
+
+.home-section {
+    margin-bottom: 3rem;
+}
+
+.home-section__title {
+    font-size: 1.8rem;
+    font-weight: 700;
+    margin: 0 0 1.5rem 0;
+    padding-bottom: 0.75rem;
+    border-bottom: 3px solid var(--color-primary, #d7355c);
+    display: inline-block;
+}
+
+/* ========================================
+   GRILLE DE LIVRES SUR LA HOME
+   ======================================== */
+
+.home-books-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2rem;
+    margin-top: 1.5rem;
+}
+
+/* ========================================
+   CTA (Call to Action)
+   ======================================== */
+
+.home-cta {
+    text-align: center;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.home-cta h3 {
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: #ffffff;
+}
+
+.home-cta p {
+    font-size: 0.95rem;
+    color: #ffffff;
+    line-height: 1.6;
+}
+
+.cta-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.75rem 2rem;
+    background: linear-gradient(135deg, var(--color-primary, #d7355c) 0%, #c02d4f 100%);
+    color: white;
+    text-decoration: none;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-weight: 600;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 8px rgba(215, 53, 92, 0.3);
+}
+
+.cta-button:hover {
+    background: linear-gradient(135deg, #c02d4f 0%, #a02543 100%);
+    box-shadow: 0 4px 12px rgba(215, 53, 92, 0.4);
+    transform: translateY(-2px);
+}
+
+.button_library {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.75rem 2rem;
+    background: linear-gradient(135deg, var(--color-primary, #d7355c) 0%, #c02d4f 100%);
+    color: white;
+    text-decoration: none;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-weight: 600;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 8px rgba(215, 53, 92, 0.3);
+    border: none;
+    cursor: pointer;
+}
+
+.button_library:hover {
+    background: linear-gradient(135deg, #c02d4f 0%, #a02543 100%);
+    box-shadow: 0 4px 12px rgba(215, 53, 92, 0.4);
+    transform: translateY(-2px);
+}
+
+/* ========================================
+   CAROUSEL CONTAINER
+   ======================================== */
+
+.carousel_items {
+    margin: 1.5rem 0;
+}
+
+/* ========================================
+   RESPONSIVE - TABLETTE
+   ======================================== */
+
+@media (max-width: 900px) {
+    .home-section__title {
+        font-size: 1.5rem;
+    }
+
+    .home-books-grid {
+        grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+        gap: 1.5rem;
+    }
+
+    .home-hero h1 {
+        font-size: 1.5em !important;
+    }
+
+    .home-hero p {
+        font-size: 1em !important;
+    }
+}
+
+/* ========================================
+   RESPONSIVE - MOBILE
+   ======================================== */
+
+@media (max-width: 600px) {
+    .home-hero {
+        padding: 1.5rem 1rem;
+        margin-bottom: 2rem;
+    }
+
+    .home-hero h1 {
+        font-size: 1.3em !important;
+    }
+
+    .home-hero p {
+        font-size: 0.95em !important;
+    }
+
+    .home-section {
+        margin-bottom: 2rem;
+    }
+
+    .home-section__title {
+        font-size: 1.3rem;
+        margin-bottom: 1rem;
+    }
+
+    .home-books-grid {
+        grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+        gap: 1rem;
+    }
+
+    .cta-button,
+    .button_library {
+        padding: 0.6rem 1.5rem;
+        font-size: 0.95rem;
+    }
+}

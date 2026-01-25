@@ -78,14 +78,14 @@ services:
   frontend:
     build:
       context: ./frontend
-      dockerfile: Dockerfile
+      dockerfile: dockerfile
     container_name: blablabooks-frontend
     ports:
       - "5173:80"
     depends_on:
       - backend
     environment:
-      VITE_BACKEND_URL: http://backend:3000
+      VITE_BACKEND_URL: http://backend:3000/graphql
     restart: always
     networks:
       - blablabooks-network

@@ -1,0 +1,57 @@
+/* @import './src/presentation/styles/MediaQueries.css'; */
+@import "./presentation/styles/MediaQueries.css";
+:root {
+    font-family: system-ui, Avenir, Helvetica, Arial, sans-serif; /* Police par défaut */
+    line-height: 1.5; /* Hauteur de ligne */
+    font-weight: 400; /* Poids de la police */
+    min-width: 320px; /* Largeur minimale */
+    max-width: 100vw; /* Largeur maximale */
+    min-height: 100vh; /* Hauteur minimale */
+    /* color-scheme: light dark; Support des thèmes clair et sombre */
+    color: rgba(255, 255, 255, 0.87); /* Couleur du texte */
+  
+    font-synthesis: none; /* Désactive la synthèse de police */
+    text-rendering: optimizeLegibility; /* Optimise le rendu du texte */
+    -webkit-user-select: none; /* Désactive la sélection de texte */
+    user-select: none; /* Désactive la sélection de texte */
+    -webkit-font-smoothing: antialiased; /* Lissage des polices */
+    -moz-osx-font-smoothing: grayscale; /* Lissage des polices pour macOS */
+}
+
+/* Styles pour les liens */
+a {
+    font-weight: 500; /* Poids de la police */
+    color: #646cff; /* Couleur des liens */
+    text-decoration: inherit; /* Hérite de la décoration */
+}
+a:hover {
+    color: #535bf2; /* Couleur au survol */
+}
+
+/* Styles pour le corps de la page */
+body {
+    user-select: none; /* Désactive la sélection de texte */
+    margin: 0; /* Supprime les marges */
+    display: flex; /* Utilise flexbox */
+    flex-direction: column; /* Colonne verticale */
+    justify-content: space-between; /* Espace entre les éléments */
+    align-items: center; /* Centre les éléments horizontalement */
+    min-width: 320px; /* Largeur minimale */
+    max-width: 100vw; /* Largeur maximale */
+    min-height: 100vh; /* Hauteur minimale */
+    color: #deb; /* Couleur du texte */
+    background: linear-gradient(to bottom, #4a1b6b, #2e1044); /* Dégradé de fond */
+    /* background-position: 0 100px; Position du dégradé */
+    background-repeat: no-repeat; /* Pas de répétition */
+}
+
+body::-webkit-scrollbar {
+    display: none; /* Masque les barres de défilement dans les navigateurs WebKit */
+  }
+
+/* Réactivation de la sélection pour certains éléments */
+input,
+textarea,
+[contenteditable] {
+    user-select: auto; /* Autorise la sélection */
+}

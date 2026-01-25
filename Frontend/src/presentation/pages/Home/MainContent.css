@@ -1,0 +1,310 @@
+@import '../../styles/MediaQueries.css';
+/* NOTE : Feuille de style aplicable aux écrans de moins de 900px de large (mobiles) */
+
+ /* 
+ --------------------------------------------------------------------------------------------------
+                                                RACINE 
+ --------------------------------------------------------------------------------------------------
+ */
+
+html{
+    width: 100vw;
+    overflow-x: hidden;
+    font-size: 12px;
+}
+
+*{
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    font-family: 'Roboto', sans-serif;
+}
+ /* 
+ --------------------------------------------------------------------------------------------------
+                                                GENERAL 
+ --------------------------------------------------------------------------------------------------
+ */
+
+ /* 
+ --------------------------------------------------------------------------------------------------
+                                                EN - TETE 
+ --------------------------------------------------------------------------------------------------
+ */
+ /* 
+ --------------------------------------------------------------------------------------------------
+                                                CORPS 
+ --------------------------------------------------------------------------------------------------
+ */
+
+.paragraph_home {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+}
+
+.paragraph_home p {
+    all: initial;
+    color: #fff;
+    font-size: 1.2em;
+    font-weight: 400;
+    text-align: center;
+    margin: 0;
+    padding: 1em 1.5em 2em;
+    line-height: 1.3;
+}
+
+.left_content {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+}
+
+.right_content {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+}
+
+.colored_text {
+    all: initial;
+    display: inline-block;
+    position: relative;
+    top: 1px;
+    color: #F6495C;
+    font-size: 1.2em;
+    font-weight: inherit;
+    line-height: 1.3;
+}
+
+.button_library {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background-color: #D7355C;
+    color: #ffffff;
+    padding: .8em 2em 1em;
+    border-radius: 10px;
+}
+
+.most_read {
+    display: flex;
+    flex-direction: column;
+    text-align: left;
+}
+
+.most_read h2 {
+    color: #fff;
+    font-size: 1.2em;
+    font-weight: 500;
+    margin: 0;
+    padding: 1.5em .8em .8em;
+}
+
+.novelties {
+    display: flex;
+    flex-direction: column;
+    text-align: left;
+}
+
+.novelties h2 {
+    color: #fff;
+    font-size: 1.2em;
+    font-weight: 500;
+    margin: 0;
+    padding: 1.5em .8em .8em;
+}
+    
+.book-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .6em;
+}
+
+.paragraph_home__small_text {
+    color: #ffffff9e;
+    font-size: 0.8em;
+    font-weight: 400;
+    text-align: center;
+    margin-top: 2em;
+}
+
+/* Section cachée par défaut sur mobile */
+.mainContainer__menu {
+    display: none;
+}
+
+/* Navigation dans mainContainer__menu - cachée par défaut sur mobile */
+.mainContainer__menu nav {
+    display: none;
+}
+
+.mainContainer__menu nav ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    width: 100%;
+display: flex;
+  gap: 1rem;
+  flex-direction: column;
+}
+
+.mainContainer__menu nav ul li {
+    width: 100%;
+}
+
+.mainContainer__menu nav ul li a {
+    display: block;
+    color: #fff;
+    text-decoration: none;
+    transition: background-color 0.3s;
+
+  padding: 1rem 2rem;
+  margin: 0 2rem;
+  border-radius: 2rem;
+  box-shadow: 0.5rem 0.5rem 0.5rem #fff, inset -0.5rem -0.5rem 0.5rem #000000;
+
+
+
+
+
+
+
+}
+ .logo_link {
+    width: 9rem;
+}
+.logo_link img {
+    width: 100%;
+}   
+.mainContainer__menu nav ul li a:hover {
+    background-color: rgba(215, 53, 92, 0.2);
+}
+
+/* TABLETTE (900px - 1399px) */
+@media (min-width: 900px) and (max-width: 1399px) {
+    /* Cacher le bouton burger sur tablette et desktop */
+    .menu-toggle {
+        display: none;
+    }
+
+    .principalContainer {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        width: 100%;
+        min-height: 100vh;
+    }
+    
+    .headerContainer {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        width: 100%;
+        height: 12vh;
+    }
+
+    .mainContainer {
+        display: flex;
+        justify-content: space-between;
+        width: 100%;
+        min-height: 76vh;
+        align-items: stretch;
+    }
+    
+    .mainContainer__menu {
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-start;
+        align-items: center;
+        width: 20%;
+        min-height: 76vh;
+    }
+
+    /* Afficher la navigation dans le menu latéral */
+    .mainContainer__menu nav {
+        display: block;
+        width: 100%;
+        padding-top: 1em;
+    }
+
+    .mainContainer__content {
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-start;
+        align-items: center;
+        width: 60%;
+        min-height: 76vh;
+        overflow-x: hidden;
+    }
+
+
+.mainContainer__content section {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        width: 100%;
+        max-width: 100%;
+        overflow: hidden;
+    }
+
+    .mainContainer__content .carousel_items {
+        width: 100%;
+        max-width: 100%;
+        overflow: hidden;
+    }    
+    /* Limiter la largeur des carousels dans le contenu principal */
+    .mainContainer__content .carousel_items {
+        width: 100%;
+        max-width: 100%;
+        overflow: hidden;
+    }    
+
+
+    .mainContainer__contextualMenu {
+        display: flex;
+        flex-direction: column;
+        width: 20%;
+        min-height: 76vh;
+        justify-content: space-evenly;
+        align-items: center;
+    }
+    
+    .contextualMenu__info {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        width: 97%;
+        height: 36vh;
+    }
+    
+    .contextualMenu__action {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        width: 97%;
+        height: 36vh;
+    }
+
+    .footerContainer {
+        display: flex;
+        width: 100%;
+        height: 12vh;
+        justify-content: center;
+        align-items: center;
+    }
+
+ /* 
+ --------------------------------------------------------------------------------------------------
+                                                PIED - DE - PAGE 
+ --------------------------------------------------------------------------------------------------
+ */
+
+
+}
