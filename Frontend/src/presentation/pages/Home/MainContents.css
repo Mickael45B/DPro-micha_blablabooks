@@ -166,12 +166,6 @@ display: flex;
   border-radius: 2rem;
   box-shadow: 0.5rem 0.5rem 0.5rem #fff, inset -0.5rem -0.5rem 0.5rem #000000;
 
-
-
-
-
-
-
 }
  .logo_link {
     width: 9rem;
@@ -245,8 +239,8 @@ display: flex;
 .mainContainer__content section {
         display: flex;
         flex-direction: column;
-        justify-content: center;
-        align-items: center;
+        /* justify-content: center; */
+        /* align-items: center; */
         width: 100%;
         max-width: 100%;
         overflow: hidden;

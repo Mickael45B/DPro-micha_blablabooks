@@ -13,15 +13,14 @@
 
 :root[data-font="visuallyImpaired"] body,
 :root[data-font="visuallyImpaired"] body *:not([class*="fa-"]):not(i) {
-  font-family: 'Lexend', sans-serif;
+  font-family: 'Atkinson Hyperlegible', sans-serif;
 
 }
 
 
 :root[data-font="dyslexic"] body,
 :root[data-font="dyslexic"] body *:not([class*="fa-"]):not(i) {
-
-  font-family: 'Atkinson Hyperlegible', sans-serif;
+  font-family: 'Lexend', sans-serif;
 
 }
 

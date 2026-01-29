@@ -9,7 +9,7 @@ import MainLayout from '../../components/layout/MainLayout/mainLayout.jsx';
 import Carousel from '../../components/features/Carousel/Carousel.jsx';
 import SmallCard from '../../components/features/BookCard/variants/smallCard/smallCard.jsx';
 import Thumbnail from '../../components/features/BookCard/variants/thumbnail/thumbnail.jsx';
-import "../../../index.css";
+// import "../../../index.css";
 import "./homePage.css";
 import { getUserFromToken } from "../../../data/graphql/queries/auth.jsx";
 

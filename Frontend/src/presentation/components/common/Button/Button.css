@@ -1,0 +1,82 @@
+/* ==============================================
+   BOUTON DE NAVIGATION
+   ============================================== */
+.nav-button {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  width: 100%;
+  height: 100%;
+  min-height: 3.5rem;
+  padding: 1rem 1.25rem;
+  color: #fff;
+  text-decoration: none;
+  background: transparent;
+  border: none;
+  border-radius: 1rem;
+  font-size: 1rem;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-sizing: border-box;
+}
+
+/* Icône */
+.nav-button i:first-child {
+  font-size: 1.25rem;
+  min-width: 1.5rem;
+  flex-shrink: 0;
+}
+
+/* Label */
+.nav-button__label {
+  flex: 1;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ==============================================
+   ÉTATS
+   ============================================== */
+
+/* Hover - seulement pour les liens actifs */
+.nav-button:not(.nav-button--disabled):hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+/* État actif */
+.nav-button--active {
+  font-weight: 600;
+  color: #fff;
+}
+
+/* État désactivé */
+.nav-button--disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+/* Cadenas pour les liens désactivés */
+.nav-button__lock {
+  font-size: 0.875rem;
+  margin-left: auto;
+  color: #F6495C;
+  flex-shrink: 0;
+}
+
+/* ==============================================
+   RESPONSIVE
+   ============================================== */
+@media (max-width: 400px) {
+  .nav-button {
+    padding: 0.875rem 1rem;
+    gap: 0.75rem;
+  }
+  
+  .nav-button__label {
+    font-size: 0.9rem;
+  }
+}

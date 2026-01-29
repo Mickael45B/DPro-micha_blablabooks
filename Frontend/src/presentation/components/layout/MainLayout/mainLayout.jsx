@@ -129,6 +129,7 @@ const MainLayout = ({
                   className="search-input"
                 />
                 <button type="submit" className="search-button" aria-label="Rechercher">
+                  <span>Rechercher</span>
                   <i className="fas fa-search"></i>
                 </button>
               </form>

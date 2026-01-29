@@ -4,7 +4,7 @@ import { useMutation } from "@apollo/client";
 import { useAuth } from "../../../infrastructure/context/AuthContext.jsx";
 import { LOGIN_MUTATION, saveAuthPayload } from "../../../data/graphql/queries/auth.jsx";
 import "../../../presentation/styles/NavBar.css";
-import "../../../index.css";
+// import "../../../index.css";
 
 import "./LoginPage.css";
 

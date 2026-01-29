@@ -9,7 +9,6 @@
     text-align: center;
     color: #ffffff;
     background: var(--bg-website); /* Dégradé de fond */
-    /* background-position: 0 200px; Position du dégradé */
     background-repeat: no-repeat; /* Pas de répétition */
   }
   

@@ -6,9 +6,9 @@
     text-align: center;
     padding: 2rem 1rem;
     background: var(--tertiary-start);
-    border-radius: 12px;
+    /* border-radius: 12px; */
     margin-bottom: 3rem;
-    color: var(--text-secondary-start);
+    color: var(--text-primary-start);
 
 }
 

@@ -6,7 +6,6 @@ import "./presentation/styles/reset.css";
 import "./presentation/styles/rootColor.css";
 import "./presentation/styles/rootContent.css";
 
-import "./index.css";
 import "./presentation/styles/MediaQueries.css";
 import App from "./App.jsx";
 

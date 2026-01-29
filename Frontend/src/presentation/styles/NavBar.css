@@ -7,7 +7,7 @@
   right: -100%; /* Cache la barre en dehors de l'écran */
   width: 100%; /* Largeur de la barre */
   height: 100vh; /* Hauteur de la barre */
-  background-color: rgba(66, 24, 98, 0.3) !important; /* Semi-transparent background */
+  background-color: var(--secondary-start) ; /* Semi-transparent background */
     -webkit-backdrop-filter: blur(10px); /* Frosted glass effect for WebKit browsers */
     backdrop-filter: blur(10px); /* Frosted glass effect */
   box-shadow: -2px 0 5px rgba(0, 0, 0, 0.1); /* Ombre légère */
@@ -66,10 +66,10 @@
 
 /* Effet au survol des liens */
 .header__nav ul li a:hover {
-  color: #646cff; /* Change la couleur au survol */
+  color: var(--text-secondary-start); /* Change la couleur au survol */
 }
 
 /* Effet au focus des liens */
 .header__nav ul li a:focus {
-  outline: 2px solid #646cff; /* Ajoute un contour au focus */
+  outline: 2px solid var(--text-default-end); /* Ajoute un contour au focus */
 }

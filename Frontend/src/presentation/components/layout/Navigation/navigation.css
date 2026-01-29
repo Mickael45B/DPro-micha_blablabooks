@@ -1,6 +1,6 @@
-/* Navigation Component Styles */
-
-
+/* ==============================================
+   NAVIGATION - STYLES DE BASE
+   ============================================== */
 .navigation {
   width: 100%;
 }
@@ -9,89 +9,74 @@
   list-style: none;
   padding: 0;
   margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
   width: 100%;
 }
 
+/* ==============================================
+   ITEMS DE NAVIGATION
+   ============================================== */
 .navigation__item {
   width: 100%;
+  min-height: 3.5rem;
+  border-radius: 1rem;
+  background-color: var(--primary-start);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
   transition: all 0.3s ease;
+  overflow: hidden;
 }
 
-.navigation__link {
-  display: flex;
-  align-items: center;
-  gap: 1em;
-  padding: 1em;
-  color: #fff;
-  text-decoration: none;
-  transition: all 0.3s ease;
-  position: relative;
-}
-
-.navigation__link i:first-child {
-  font-size: 1.2em;
-  min-width: 1.5em;
-}
-
-.navigation__link span {
-  flex: 1;
-    padding: 1rem 2rem;
-
+.navigation__item:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
 /* État actif */
-.navigation__item--active .navigation__link {
-  background-color: rgba(215, 53, 92, 0.3);
-  border-left: 4px solid #154eca;
-  font-weight: 500;
+.navigation__item--active {
+  background: var(--primary-end);
+  border-left: 4px solid var(--text-primary-end);
 }
 
-/* État hover pour les liens accessibles */
-.navigation__link:hover:not(.navigation__link--disabled) {
-  background-color: rgba(215, 53, 92, 0.2);
-}
-
-/* Liens désactivés - Opacité à 50% */
-.navigation__item--disabled span.navigation__link{
-  opacity: 0.5;
+/* État désactivé */
+.navigation__item--disabled {
+  opacity: 0.6;
   cursor: not-allowed;
-  padding: 1rem 2rem;
-  margin: 0 2rem;
-  border: 2px solid #6928bd;
-  border-radius: 2rem;
-  box-shadow: 0.5rem 0.5rem 0.5rem #fff, inset -0.5rem -0.5rem 0.5rem #000000;
+  border: 2px solid rgba(105, 40, 189, 0.3);
 }
 
-.navigation__link--disabled {
-  display: block;
-  cursor: not-allowed;
-  position: relative;
-  pointer-events: none; /* Empêche tout clic */
+.navigation__item--disabled:hover {
+  transform: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
 }
 
-.navigation__lock {
-  font-size: 0.8em;
-  margin-left: auto;
-  color: #F6495C;
-}
-
-/* Mode Desktop (menu latéral) */
-.navigation--desktop {
-  padding-top: 1em;
-}
-
-/* Mode Mobile (menu burger) - peut être customisé selon vos besoins */
+/* ==============================================
+   MODE MOBILE (Menu burger)
+   ============================================== */
 .navigation--mobile .navigation__list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5em;
+  padding: 0;
+  gap: .5rem;
+  padding: 2rem;
+  box-sizing: border-box;
 }
 
-/* Animation d'entrée */
-@keyframes slideIn {
+.navigation--mobile .navigation__item {
+  animation: slideInRight 0.3s ease forwards;
+  opacity: 0;
+}
+
+/* Animation décalée pour chaque item */
+.navigation--mobile .navigation__item:nth-child(1) { animation-delay: 0.05s; }
+.navigation--mobile .navigation__item:nth-child(2) { animation-delay: 0.1s; }
+.navigation--mobile .navigation__item:nth-child(3) { animation-delay: 0.15s; }
+.navigation--mobile .navigation__item:nth-child(4) { animation-delay: 0.2s; }
+.navigation--mobile .navigation__item:nth-child(5) { animation-delay: 0.25s; }
+
+@keyframes slideInRight {
   from {
     opacity: 0;
-    transform: translateX(-10px);
+    transform: translateX(-20px);
   }
   to {
     opacity: 1;
@@ -99,22 +84,27 @@
   }
 }
 
-.navigation__item {
-  animation: slideIn 0.3s ease forwards;
+/* ==============================================
+   MODE DESKTOP (Menu latéral)
+   ============================================== */
+.navigation--desktop {
+  padding-top: 1rem;
 }
 
-.navigation__item:nth-child(1) { animation-delay: 0.05s; }
-.navigation__item:nth-child(2) { animation-delay: 0.1s; }
-.navigation__item:nth-child(3) { animation-delay: 0.15s; }
-.navigation__item:nth-child(4) { animation-delay: 0.2s; }
-.navigation__item:nth-child(5) { animation-delay: 0.25s; }
-
-/* Animation pour les éléments désactivés - applique l'opacité finale */
-.navigation__item--disabled {
-  animation: slideIn 0.3s ease forwards;
+.navigation--desktop .navigation__list {
+  flex-direction: row;
+  justify-content: space-between;
+  gap: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  padding: 2rem;
+  box-sizing: border-box;
+  gap: 2rem;
 }
 
-/* Responsive */
+/* ==============================================
+   RESPONSIVE
+   ============================================== */
 @media (max-width: 899px) {
   .navigation--desktop {
     display: none;

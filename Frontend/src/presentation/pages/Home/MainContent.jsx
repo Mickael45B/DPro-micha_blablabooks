@@ -5,8 +5,8 @@
  */
 import React from 'react';
 // Importation des fichiers CSS
-import '../../../index.css';
-import './MainContent.css';
+// import '../../../index.css';
+import './MainContents.css';
 import '../../styles/MediaQueries.css';
 import Carousel from '../../components/features/Carousel/Carousel.jsx'; // Importation du composant Carousel
 import Header from "../../components/layout/Header/Header.jsx";

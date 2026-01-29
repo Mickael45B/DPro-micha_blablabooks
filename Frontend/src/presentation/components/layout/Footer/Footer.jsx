@@ -5,7 +5,7 @@
  */
 import React from "react";
 import "./Footer.css";
-import '../../../../index.css';
+// import '../../../../index.css';
 import '../../../styles/MediaQueries.css';
 
 const Footer = () => {

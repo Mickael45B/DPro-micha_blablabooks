@@ -54,7 +54,7 @@ function App() {
           <Footer />
 
           {/* 🔍 Composant de debug - À RETIRER EN PRODUCTION */}
-          <AuthDebug />
+          {/* <AuthDebug /> */}
 
         </Router>
       </AuthProvider>

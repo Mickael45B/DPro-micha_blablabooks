@@ -7,7 +7,7 @@ import apolloClient from '../../../../config/apolloClient.js';
 import LoadingSpinner from '../../../../presentation/components/layout/LoadingSpinner.jsx';
 
 import "./Carousel.css";
-import "../../../../index.css";
+// import "../../../../index.css";
 
 // export const bookimages = [
 //   { src: image1, index: 1 }, { src: image3, index: 3 }

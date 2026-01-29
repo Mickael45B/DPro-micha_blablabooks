@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import "../../styles/NavBar.css";
-import "../../../presentation/pages/Home/MainContent.css";
+// import "../../../presentation/pages/Home/MainContents.css";
 import "./BookPage.css";
 import { GET_BOOK_BY_ID } from "../../../data/graphql/queries/queriesBooks.jsx";
 import { useQuery } from '@apollo/client';

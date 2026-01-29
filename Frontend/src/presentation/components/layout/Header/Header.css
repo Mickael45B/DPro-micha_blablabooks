@@ -1,65 +1,49 @@
-@import '../../../styles/MediaQueries.css';
+/* ==============================================
+   VARIABLES CSS
+   ============================================== */
+:root {
+  --header-height: 4rem;
+  --burger-z-index: 9999;
+  --transition-speed: 0.3s;
+}
 
 /* ==============================================
-   HEADER - STYLES DE BASE
+   HEADER PRINCIPAL
    ============================================== */
-
 header {
   display: flex;
-  flex-direction: row;
   justify-content: space-between;
   align-items: center;
   width: 100%;
-  /* height: 3.5rem; */
-  background-color: var(--secondary-start); 
+  height: var(--header-height);
+  background-color: var(--secondary-start);
   color: #ffffff;
-  /*padding: 0 0.5rem; /* Ajouter du padding pour éviter que les éléments touchent les bords */
+  padding: 0 1rem;
   box-sizing: border-box;
-}
-
-.header__pinkColor {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  width: 100%;
-  height: 3em;
-  background: #F6495C;
+  position: relative;
+  z-index: 100;
 }
 
 /* ==============================================
-   LOGO - RESPONSIVE
+   LOGO
    ============================================== */
-
 .logo_link {
   display: flex;
   align-items: center;
   height: 100%;
   text-decoration: none;
-  flex-shrink: 0; /* Empêche le logo de rétrécir */
+  flex-shrink: 0;
 }
 
-.header__logo {
-  display: flex;
-  position: relative;
-  height: 100%;
-  margin-left: 0;
-}
-
-/* Mobile first - Logo sans titre par défaut */
 .logo {
-  display: block;
-  height: 100%;
-  /* max-height: 3rem; */
+  height: 2.5rem;
   width: auto;
   object-fit: contain;
-  /* padding: 0.3rem; */
 }
 
-/* Tablettes et desktop - Logo avec titre */
 @media (min-width: 577px) {
   .logo {
-    /* padding: 0.5rem; */
-    /* max-height: 3.5rem; */
+    height: 3rem;
   }
   
   .logo_link {
@@ -70,61 +54,22 @@ header {
 /* ==============================================
    ACTIONS HEADER
    ============================================== */
-
 .header__actions {
   display: flex;
-  justify-content: flex-end;
   align-items: center;
-  gap: 0.3rem;
-  flex: 1; /* Prend l'espace restant */
+  gap: 0.5rem;
   height: 100%;
-  color: #ffffff;
-  overflow: visible; /* Permet aux boutons d'être visibles */
 }
 
-.header__actions--left {
-  display: flex;
-  justify-content: flex-start;
-}
-
-.header__search {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  background-color: #1b6b43;
-  color: #ffffff;
-}
-
-.searchbar {
-  display: none;
-  background-color: #ffffff;
-  border: none;
-  border-radius: 8px;
-  height: 1.8em;
-}  
-
-.fas.fa-search {
-  color: #fff;
-  font-size: 1rem;
-}
-
-.header__actions--center {
-  display: flex;
-  justify-content: center;
-}
-
-/* ==============================================
-   AUTHENTIFICATION
-   ============================================== */
-
+/* Authentification */
 .header__auth,
 .header__logout {
   display: flex;
-  justify-content: center;
   align-items: center;
+  justify-content: center;
   background-color: transparent;
   color: #ffffff;
-  padding: 0.4rem 0.6rem;
+  padding: 0.5rem 0.75rem;
   border-radius: 8px;
   border: 1px solid transparent;
   font-size: 0.9rem;
@@ -132,40 +77,24 @@ header {
   cursor: pointer;
   transition: all 0.25s ease;
   white-space: nowrap;
-  gap: 0.3rem;
-  flex-shrink: 0; /* Empêche les boutons de rétrécir */
+  gap: 0.5rem;
+  flex-shrink: 0;
 }
 
 .header__auth:hover,
 .header__logout:hover {
-  border-color: transparent;
+  background-color: rgba(255, 255, 255, 0.1);
   transform: translateY(-2px);
 }
 
-.header__auth:focus,
-.header__auth:focus-visible,
-.header__logout:focus,
-.header__logout:focus-visible {
-  outline: 4px auto -webkit-focus-ring-color;
-}
-
-/* Texte "Bonjour" caché en mobile */
-.hello {
-  display: none;
-}
-
-/* Réduire encore plus le texte "Se connecter" en mobile */
+.hello,
 .connect {
   display: none;
 }
- 
-/* Afficher le texte sur écrans moyens et grands */
+
 @media (min-width: 577px) {
+  .hello,
   .connect {
-    display: inline;
-  }
-  
-  .hello {
     display: inline;
   }
   
@@ -173,225 +102,157 @@ header {
   .header__logout {
     padding: 0.5rem 1rem;
     font-size: 1rem;
-    gap: 0.5rem;
-  }
-}
-
-/* Tailles intermédiaires pour tablettes */
-@media (min-width: 400px) and (max-width: 576px) {
-  .header__auth,
-  .header__logout {
-    padding: 0.4rem 0.8rem;
   }
 }
 
 .fas.fa-user {
   color: #fff;
   font-size: 1rem;
-  flex-shrink: 0;
 }
-
-.header__actions--right {
-  display: flex;
-  justify-content: flex-end;
-}
-
-/* ==============================================
-   SÉPARATIONS
-   ============================================== */
 
 .separation {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  margin: 0;
-  font-size: 1rem;
+  margin: 0 0.25rem;
   color: rgba(255, 255, 255, 0.5);
-  flex-shrink: 0;
-}
-
-/* Masquer les séparations sur très petits écrans */
-@media (max-width: 400px) {
-  .separation {
-    display: none;
-  }
-  
-  .header__actions {
-    gap: 0.2rem;
-  }
-}
-
-/* ==============================================
-   BOUTONS GÉNÉRIQUES
-   ============================================== */
-
-button {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  border-radius: 8px;
-  border: 1px solid transparent;
-  font-family: inherit;
-  cursor: pointer;
-  transition: border-color 0.25s;
-}
-
-button:hover {
-  border-color: #646cff;
-}
-
-button:focus,
-button:focus-visible {
-  outline: 4px auto -webkit-focus-ring-color;
 }
 
 .logoutsection {
   display: flex;
-  justify-content: center;
   align-items: center;
 }
 
 .logoutIcon {
   width: 1rem;
   height: 1rem;
-  color: #fff;
-}
-/* ==============================================
-   POPUP DE RECHERCHE
-   ============================================== */
-
-.search-popup {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background-color: rgba(0, 0, 0, 0.8);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 1000;
-}
-
-.search-popup__content {
-  background: #fff;
-  padding: 20px;
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 90%;
-  max-width: 400px;
-}
-
-.search-popup__input {
-  flex: 1;
-  padding: 10px;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-}
-
-.search-popup__submit {
-  background-color: #ff4081;
-  color: #fff;
-  border: none;
-  padding: 10px 15px;
-  border-radius: 4px;
-  cursor: pointer;
-}
-
-.search-popup__close {
-  background: none;
-  border: none;
-  font-size: 20px;
-  cursor: pointer;
-  color: #333;
 }
 
 /* ==============================================
-   MENU BURGER (MOBILE)
+   BOUTON BURGER
    ============================================== */
-
 .menu-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   background: transparent;
   border: none;
   color: #ffffff;
-  padding: 0.3rem;
-  min-width: 2.5rem;
-  flex-shrink: 0;
+  padding: 0.5rem;
+  cursor: pointer;
+  width: 2.5rem;
+  height: 2.5rem;
+  transition: background-color 0.2s;
+}
+
+.menu-toggle:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
 }
 
 .menu-toggle i {
-  font-size: 1.3rem;
+  font-size: 1.5rem;
 }
 
-@media (min-width: 577px) {
-  .menu-toggle i {
-    font-size: 1.5rem;
-  }
-}
+/* ==============================================
+   MENU BURGER - OVERLAY ET NAVIGATION
+   ============================================== */
 
-/* Navigation mobile - CORRECTION LARGEUR */
-.header__nav {
-  position: fixed;
-  top: 0;
-  right: -100%;
-  width: 100%; /* Largeur à 80% de l'écran */
-  /* max-width: 350px; */
-  height: 100vh;
-  background-color: var(--primary-end);
-  transition: right 0.3s ease;
-  z-index: 1000;
-  padding: 3rem 1rem 1rem;
-  overflow-y: auto;
-  box-shadow: -4px 0 10px rgba(0, 0, 0, 0.3);
-}
-
-.header__nav--open {
-  right: 0;
-}
-
-.header__nav-close {
-  position: absolute;
-  top: 1rem;
-  right: 1rem;
-  background: transparent;
-  border: none;
-  color: #ffffff;
-  font-size: 2rem;
-  cursor: pointer;
-  /* padding: 0.5rem; */
-  z-index: 1001;
-}
-
-.header__nav-close:hover {
-  transform: scale(1.1);
-}
-
-/* Overlay pour fermer le menu en cliquant à l'extérieur */
-.header__nav--open::before {
-  content: '';
+/* Overlay sombre derrière le menu */
+.header__nav-overlay {
   position: fixed;
   top: 0;
   left: 0;
   width: 100vw;
   height: 100vh;
   background-color: rgba(0, 0, 0, 0.5);
-  z-index: -1;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity var(--transition-speed) ease,
+              visibility var(--transition-speed) ease;
+  z-index: 998;
+}
+
+.header__nav-overlay--open {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* Menu burger */
+.header__nav {
+  position: fixed;
+  top: 0;
+  right: -100%;
+  width: 80%;
+  max-width: 400px;
+  height: 100vh;
+  background-color: var(--primary-end);
+  transition: right var(--transition-speed) ease;
+  z-index: calc(var(--burger-z-index) + 1);
+  overflow-y: auto;
+  overflow-x: hidden;
+  box-shadow: -4px 0 20px rgba(0, 0, 0, 0.3);
+  display: flex;
+  flex-direction: column;
+}
+
+.header__nav--open {
+  right: 0;
+}
+
+/* Bouton de fermeture */
+.header__nav-close {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  background: rgba(255, 255, 255, 0.1);
+  border: none;
+  color: #ffffff;
+  font-size: 1.5rem;
+  cursor: pointer;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  z-index: 1001;
+}
+
+.header__nav-close:hover {
+  background: rgba(255, 255, 255, 0.2);
+  transform: rotate(90deg);
+}
+
+/* Contenu du menu */
+.header__nav-content {
+  margin-top: 4rem;
+  padding: 1rem;
+  flex: 1;
+  z-index: 1000;
 }
 
 /* Masquer le menu burger sur desktop */
 @media (min-width: 900px) {
   .menu-toggle,
-  .header__nav {
+  .header__nav,
+  .header__nav-overlay {
     display: none;
   }
 }
 
-/* Très petits écrans - Menu burger prend 95% de la largeur */
+/* ==============================================
+   RESPONSIVE
+   ============================================== */
 @media (max-width: 400px) {
+  header {
+    padding: 0 0.5rem;
+  }
+  
+  .header__actions {
+    gap: 0.25rem;
+  }
+  
   .header__nav {
-    width: 100vw;
-    max-width: none;
+    width: 100%;
+    max-width: 100%;
   }
 }
