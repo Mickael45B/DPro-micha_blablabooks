@@ -1,0 +1,9 @@
+# Type pour représenter les catégories de rapport dans le schéma GraphQL
+type CategoryOfReport {
+    id_report_category: ID!
+    name: String!
+    created_at: Date!
+    updated_at: Date
+    # RELATION(S)
+    reports: [Report!]!
+}

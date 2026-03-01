@@ -1,0 +1,11 @@
+extend type Mutation {
+    #TABLE discussions
+    # Ajouter une nouvelle discussion
+    addDiscussion(input: CreateDiscussionInput!): Discussion!
+
+    # Mettre à jour une discussion existante
+    updateDiscussion(input: UpdateDiscussionInput!): Discussion!
+
+    # Supprimer une discussion par son ID
+    deleteDiscussion(input: DeleteDiscussionInput!): Boolean!
+}

@@ -42,7 +42,7 @@ express.Router.use = function (...args) {
       return typeof a;
     }));
   } catch (e) {
-    console.error('[DIAG] router.use log failed', e);
+    //console.error('[DIAG] router.use log failed', e);
   }
   return _routerUse.apply(this, args);
 };

@@ -13,6 +13,7 @@
     flex-direction: column;
     height: 100%;
     position: relative;
+    width: 12rem;
 }
 
 .book-card:hover {
@@ -51,7 +52,7 @@
     position: absolute;
     top: 10px;
     right: 10px;
-    background-color: rgba(215, 53, 92, 0.9);
+    background-color: var(--primary-start);
     color: white;
     padding: 0.25rem 0.75rem;
     border-radius: 20px;
@@ -65,7 +66,7 @@
    ======================================== */
 
 .book-card__content {
-    padding: 1rem;
+    padding: 1rem 0 0 0;
     display: flex;
     flex-direction: column;
     gap: 0.75rem;
@@ -97,7 +98,7 @@
 
 .book-card__author i,
 .book-card__editor i {
-    color: var(--color-primary, #d7355c);
+    color: var(--primary-start);
     font-size: 0.85rem;
     width: 16px;
 }
@@ -156,7 +157,7 @@
     width: 100%;
     padding: 0.75rem 1rem;
     margin-top: auto;
-    background: linear-gradient(135deg, var(--color-primary, #d7355c) 0%, #c02d4f 100%);
+    background:  var(--primary-start);
     color: white;
     border: none;
     border-radius: 8px;
@@ -168,7 +169,7 @@
 }
 
 .book-card__detail-link:hover {
-    background: linear-gradient(135deg, #c02d4f 0%, #a02543 100%);
+    background: var(--primary-end);
     box-shadow: 0 4px 12px rgba(215, 53, 92, 0.4);
     transform: translateY(-2px);
 }
@@ -194,16 +195,8 @@
    INDICATION DE CLIC
    ======================================== */
 
-.book-card__hint {
-    font-size: 0.75rem;
-    color: #999;
-    text-align: center;
-    margin: 0.5rem 0 0 0;
-    opacity: 0;
-    transition: opacity 0.3s ease;
-}
 
-.book-card:hover .book-card__hint {
+.book-card:hover {
     opacity: 1;
 }
 
@@ -255,7 +248,4 @@
         font-size: 0.9rem;
     }
 
-    .book-card__hint {
-        font-size: 0.7rem;
-    }
 }

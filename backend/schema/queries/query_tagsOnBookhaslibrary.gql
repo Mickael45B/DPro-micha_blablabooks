@@ -1,0 +1,36 @@
+# Type pour les résultats de recherche paginés
+type PaginatedTagsOnBookHasLibrary {
+    tagsOnBookHasLibrary: [TagsOnBookHasLibrary!]!
+    totalCount: Int!
+    hasNextPage: Boolean!
+    httpStatus: Int  
+}
+
+extend type Query {
+    # Récupérer tous les tags associés à un livre dans une bibliothèque
+    getAllTagsOnBookHasLibrary(
+        id_book: ID!, 
+        id_library: ID!, 
+        limit: Int, 
+        offset: Int, 
+        order: String = "created_at", # Colonne par défaut pour le tri
+        direction: String = "ASC" # Direction par défaut pour le tri (ASC ou DESC)
+    ): PaginatedTagsOnBookHasLibrary!
+
+    getTagsOnBookHasLibraryByID(
+        id_tagsOnBookHasLibrary: ID!
+    ): TagsOnBookHasLibrary
+
+    getTagsOnBookHasLibraryByTag(
+        tag: String!
+    ): [TagsOnBookHasLibrary!]!
+
+    searchTagsOnBookHasLibraryByTag(
+        tag: String!, 
+        limit: Int, 
+        offset: Int, 
+        order: String = "created_at", # Colonne par défaut pour le tri
+        direction: String = "ASC" # Direction par défaut pour le tri (ASC ou DESC)
+    ): PaginatedTagsOnBookHasLibrary!
+
+}

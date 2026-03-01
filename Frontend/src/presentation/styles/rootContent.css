@@ -2,27 +2,36 @@
    CONFIGURATION DES POLICES ET TAILLES
    ============================================== */
 
+/* Imports Google Fonts */
+@import url('https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Lexend:wght@400;700&display=swap');
+
 /* Variables de polices globales */
 :root {
   font-family: 'Plus Jakarta Sans', sans-serif;
   font-family: 'Roboto', sans-serif;
   
   /* Taille de base mobile first */
-  font-size: 16px;
+  /* font-size: 16px; */
 }
 
-:root[data-font="visuallyImpaired"] body,
-:root[data-font="visuallyImpaired"] body *:not([class*="fa-"]):not(i) {
-  font-family: 'Atkinson Hyperlegible', sans-serif;
-
+/* Police pour malvoyants */
+html[data-font="visuallyImpaired"],
+html[data-font="visuallyImpaired"] *:not([class*="fa"]):not(i[class*="fa"]) {
+  font-family: 'Atkinson Hyperlegible', sans-serif !important;
 }
 
-
-:root[data-font="dyslexic"] body,
-:root[data-font="dyslexic"] body *:not([class*="fa-"]):not(i) {
-  font-family: 'Lexend', sans-serif;
-
+/* Police pour dyslexiques */
+html[data-font="dyslexic"],
+html[data-font="dyslexic"] *:not([class*="fa"]):not(i[class*="fa"]) {
+  font-family: 'Lexend', sans-serif !important;
 }
+
+/* 
+==============================================
+   Breakpoints 
+============================================== 
+*/
 
 /* Tablettes portrait (577px - 768px) */
 @media (min-width: 577px) and (max-width: 768px) {

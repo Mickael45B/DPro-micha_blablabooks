@@ -2,26 +2,102 @@
 input CreateBookHasLibraryInput {
   id_book: ID!
   id_library: ID!
+  id_bookhaslibrary: ID
+  is_read: Boolean
+  is_favorite: Boolean
+  progress_percentage: Int
+  personal_note: String
+  started_at: DateTime
+  finished_at: DateTime
+  lent_to: String
+  lent_at: DateTime
+  created_at: DateTime
+  updated_at: DateTime
+  tags: [String!]
+}
+
+input UpdateFavoriteStatusInBookHasLibraryInput {
+  id_book: String
+}
+
+# Input pour déplacer un livre entre bibliothèques
+
+input MoveBookInput {
+  id_book: String!
+  from_library_id: String!
+  to_library_id: String!
+}
+
+# Input pour actions groupées
+input BulkMoveInput {
+  book_ids: [String!]!
+  from_library_id: String!
+  to_library_id: String!
+}
+
+
+# Input pour recherche/filtrage dans bibliothèques
+input LibraryFilterInput {
+  search: String
+  is_default: Boolean
+  is_public: Boolean
+  sort_field: LibrarySortField
+  sort_direction: SortDirection
+}
+
+# Input pour recherche/filtrage de livres dans bibliothèque
+input BookInLibraryFilterInput {
+  search: String
+  reading_status: ReadingStatus
+  is_favorite: Boolean
+  tags: [String!]
+  min_rating: Float
+  max_rating: Float
+  lent: Boolean
+  sort_field: BookInLibrarySortField
+  sort_direction: SortDirection
+}
+
+
+
+
+
+
+
+
+
+input UpdateBookInLibraryInput {
+  id_book: ID!
+  id_library: ID!
+  id_bookhaslibrary: ID!
+  is_read: Boolean
+  is_favorite: Boolean!
+  progress_percentage: Int
+  personal_note: String
+  started_at: DateTime
+  finished_at: DateTime
+  lent_to: String
+  lent_at: DateTime
+  created_at: DateTime
+  updated_at: DateTime
+  tags: [String!]
 }
 
 # Mettre à jour une association livre-bibliothèque
 input UpdateLibraryInBookHasLibraryInput {
   id_bookhaslibrary: ID
-  libraryId: ID
 }
 
 # Mettre à jour le statut "lu" d'un livre dans une bibliothèque
 input UpdateReadStatusInBookHasLibraryInput {
   id_bookhaslibrary: ID!
 }
-# Mettre à jour le statut "favori" d'un livre dans une bibliothèque
-input UpdateFavoriteStatusInBookHasLibraryInput {
-  id_bookhaslibrary: ID!
-}
 
 # Supprimer une association livre-bibliothèque
 input DeleteBookHasLibraryInput {
-  id_bookhaslibrary: ID!
+  id_bookhaslibrary: String
+  id_library: String
+  id_book: String
 }
 
 # Ajouter des livres à une bibliothèque
@@ -43,6 +119,7 @@ input MarkBookAsReadInput {
 
 # Marquer un livre comme favori/non favori
 input ToggleFavoriteInput {
-  idBookHasLibrary: ID!
-  isFavorite: Boolean!
+  idBookHasLibrary: String
+  isFavorite: Boolean
+  id_book: String
 }

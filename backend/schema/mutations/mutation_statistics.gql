@@ -1,0 +1,16 @@
+type ManyStatistics {
+  statistics: [Statistics!]!
+  httpStatus: Int
+}
+
+extend type Mutation {
+    #TABLE statistics
+    # Ajouter une nouvelle statistique
+    addStatistic(input: CreateStatisticInput!): Statistics!
+
+    # Mettre à jour une statistique existante
+    updateStatistic(input: UpdateStatisticInput!): Statistics!
+
+    # Supprimer une statistique par son ID
+    deleteStatistic(input: DeleteStatisticInput!): Boolean!
+}

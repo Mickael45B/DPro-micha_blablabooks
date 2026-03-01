@@ -31,6 +31,7 @@
 		"dataloader": "^2.2.3",
 		"debug": "^4.4.0",
 		"dotenv": "^16.3.1",
+		"emailjs": "^5.0.0",
 		"express": "^5.1.0",
 		"express-rate-limit": "^8.2.0",
 		"graphql": "^16.10.0",

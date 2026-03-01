@@ -21,7 +21,7 @@
     font-weight: 700;
     margin: 0 0 1.5rem 0;
     padding-bottom: 0.75rem;
-    border-bottom: 3px solid var(--color-primary, #d7355c);
+    border-bottom: 3px solid var(--primary-start);
     display: inline-block;
 }
 
@@ -34,6 +34,7 @@
     flex-wrap: wrap;
     gap: 2rem;
     margin-top: 1.5rem;
+  justify-content: center;
 }
 
 /* ========================================
@@ -43,7 +44,7 @@
 .home-cta {
     text-align: center;
     border-radius: 12px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 2px 8px var(--primary-start);
 }
 
 .home-cta h3 {
@@ -63,19 +64,20 @@
     align-items: center;
     justify-content: center;
     padding: 0.75rem 2rem;
-    background: linear-gradient(135deg, var(--color-primary, #d7355c) 0%, #c02d4f 100%);
+    background: var(--primary-start);
     color: white;
     text-decoration: none;
     border-radius: 8px;
     font-size: 1rem;
     font-weight: 600;
     transition: all 0.3s ease;
-    box-shadow: 0 2px 8px rgba(215, 53, 92, 0.3);
+    box-shadow: 0 2px 8px var(--primary-start);
+    margin: 0 1rem;
 }
 
 .cta-button:hover {
-    background: linear-gradient(135deg, #c02d4f 0%, #a02543 100%);
-    box-shadow: 0 4px 12px rgba(215, 53, 92, 0.4);
+    background: var(--primary-end);
+    box-shadow: 0 4px 12px var(--primary-end);
     transform: translateY(-2px);
 }
 
@@ -84,7 +86,7 @@
     align-items: center;
     justify-content: center;
     padding: 0.75rem 2rem;
-    background: linear-gradient(135deg, var(--color-primary, #d7355c) 0%, #c02d4f 100%);
+    background: var(--primary-start);
     color: white;
     text-decoration: none;
     border-radius: 8px;
@@ -110,6 +112,26 @@
     margin: 1.5rem 0;
 }
 
+
+.contextualMenu__action {
+  position: relative;
+}
+
+.selected-book-container {
+  position: sticky;
+  top: 5rem; 
+}
+
+.selected-book-thumbnail {
+    display: flex;
+    justify-content: center;
+}
+
+.selected-book-header {
+margin-bottom: 1rem;
+}
+
+
 /* ========================================
    RESPONSIVE - TABLETTE
    ======================================== */
@@ -122,6 +144,8 @@
     .home-books-grid {
         grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
         gap: 1.5rem;
+        display: flex;
+  justify-content: center;
     }
 
     .home-hero h1 {
@@ -163,6 +187,8 @@
     .home-books-grid {
         grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
         gap: 1rem;
+        display: flex;
+  justify-content: center;
     }
 
     .cta-button,

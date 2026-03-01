@@ -1,0 +1,18 @@
+input CreateDiscussionInput {
+  id_conversation: ID
+  subject: String!
+  created_by: String
+  recipient_pseudo: String!  # Pseudo du destinataire
+  content: String!           # Contenu du premier message
+}
+
+input UpdateDiscussionInput {
+  id_conversation: ID!
+  subject: String
+  is_archived: Boolean
+}
+
+input DeleteDiscussionInput {
+  id_conversation: ID!
+}
+

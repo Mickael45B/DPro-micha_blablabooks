@@ -1,0 +1,22 @@
+type ManyEditors {
+  editors: [Editor!]!
+  httpStatus: Int
+}
+
+extend type Mutation {
+    #TABLE editors
+    # Ajouter un nouvel éditeur
+    addEditor(input: CreateEditorInput!): Editor!
+
+    # Mettre à jour un éditeur existant
+    updateEditor(input: UpdateEditorInput!): Editor!
+
+    # Supprimer un éditeur par son ID
+    deleteEditor(input: DeleteEditorInput!): Boolean!
+
+    # Ajouter ou retirer des éditeurs d'un livre
+    addEditorsToBook(input: AddEditorsToBookInput!): ManyEditors!
+
+    # Retirer des éditeurs d'un livre
+    removeEditorsFromBook(input: RemoveEditorsFromBookInput!): ManyEditors!
+}

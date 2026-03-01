@@ -36,8 +36,8 @@ const AccessibilityControls = () => {
     localStorage.setItem('fontMode', fontMode);
     
     // Debug
-    console.log('Font mode appliqué:', fontMode);
-    console.log('data-font attribute:', document.documentElement.getAttribute('data-font'));
+    //console.log('Font mode appliqué:', fontMode);
+    //console.log('data-font attribute:', document.documentElement.getAttribute('data-font'));
   }, [fontMode]);
 
   const toggleDarkMode = () => {

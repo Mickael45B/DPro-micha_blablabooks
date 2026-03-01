@@ -1,0 +1,41 @@
+# Statut de lecture d'un livre
+
+enum ReadingStatus {
+  to_read    # À lire
+  reading    # En cours
+  read       # Lu
+  reread     # À relire
+}
+
+# Type de tri pour les bibliothèques
+enum LibrarySortField {
+  name
+  created_at
+  updated_at
+  total_books
+  sort_order
+}
+
+# Type de tri pour les livres dans une bibliothèque
+enum BookInLibrarySortField {
+  title
+  author
+  created_at
+  rating
+  progress_percentage
+  started_at
+  finished_at
+  position
+}
+
+# Direction de tri
+enum SortDirection {
+  ASC
+  DESC
+}
+
+# Vue d'affichage
+enum ViewMode {
+  grid
+  list
+}

@@ -1,0 +1,243 @@
+/* ========================================
+   IMAGE UPLOAD COMPONENT
+   ======================================== */
+
+.image-upload {
+  margin-bottom: 1.5rem;
+}
+
+.image-upload__label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+  color: #2c3e50;
+  font-size: 0.9rem;
+}
+
+.image-upload__label .required {
+  color: #e74c3c;
+  margin-left: 0.25rem;
+}
+
+.image-upload__container {
+  position: relative;
+  border: 2px dashed #ddd;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #f8f9fa;
+  transition: all 0.3s ease;
+}
+
+.image-upload__container:hover {
+  border-color: #6928bd;
+  background: #f5f0ff;
+}
+
+/* ========================================
+   DROPZONE (zone de drop)
+   ======================================== */
+
+.image-upload__dropzone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem 2rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.image-upload__dropzone:hover {
+  background: #ede7f6;
+}
+
+.image-upload__dropzone i {
+  font-size: 3rem;
+  color: #6928bd;
+  margin-bottom: 1rem;
+}
+
+.image-upload__dropzone p {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #2c3e50;
+  margin-bottom: 0.5rem;
+}
+
+.image-upload__dropzone small {
+  display: block;
+  color: #7f8c8d;
+  font-size: 0.85rem;
+  margin-top: 0.25rem;
+}
+
+/* ========================================
+   PREVIEW (aperçu de l'image)
+   ======================================== */
+
+.image-upload__preview {
+  position: relative;
+  width: 100%;
+  min-height: 250px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff;
+}
+
+.image-upload__preview img {
+  max-width: 100%;
+  max-height: 400px;
+  object-fit: contain;
+  display: block;
+}
+
+.image-upload__overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.image-upload__preview:hover .image-upload__overlay {
+  opacity: 1;
+}
+
+.image-upload__btn {
+  padding: 0.75rem 1.5rem;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.image-upload__btn--change {
+  background: #6928bd;
+  color: white;
+}
+
+.image-upload__btn--change:hover {
+  background: #5a1fab;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(105, 40, 189, 0.3);
+}
+
+.image-upload__btn--remove {
+  background: #e74c3c;
+  color: white;
+}
+
+.image-upload__btn--remove:hover {
+  background: #c0392b;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(231, 76, 60, 0.3);
+}
+
+/* ========================================
+   LOADING (indicateur de chargement)
+   ======================================== */
+
+.image-upload__loading {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  background: #e3f2fd;
+  border-radius: 6px;
+  color: #1976d2;
+  font-size: 0.9rem;
+  margin-top: 0.75rem;
+}
+
+.image-upload__loading i {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* ========================================
+   ERROR (message d'erreur)
+   ======================================== */
+
+.image-upload__error {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  background: #ffebee;
+  border-left: 4px solid #e74c3c;
+  border-radius: 6px;
+  color: #c0392b;
+  font-size: 0.9rem;
+  margin-top: 0.75rem;
+  font-weight: 500;
+}
+
+/* ========================================
+   HELP (texte d'aide)
+   ======================================== */
+
+.image-upload__help {
+  margin-top: 0.75rem;
+  padding: 0.5rem 0;
+}
+
+.image-upload__help small {
+  color: #7f8c8d;
+  font-size: 0.85rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.image-upload__help i {
+  color: #6928bd;
+}
+
+/* ========================================
+   RESPONSIVE
+   ======================================== */
+
+@media (max-width: 768px) {
+  .image-upload__dropzone {
+    padding: 2rem 1rem;
+  }
+  
+  .image-upload__dropzone i {
+    font-size: 2.5rem;
+  }
+  
+  .image-upload__preview {
+    min-height: 200px;
+  }
+  
+  .image-upload__preview img {
+    max-height: 300px;
+  }
+  
+  .image-upload__btn {
+    padding: 0.5rem 1rem;
+    font-size: 0.85rem;
+  }
+  
+  .image-upload__overlay {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+}

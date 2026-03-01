@@ -418,7 +418,7 @@ const rotateLogIfNeeded = async (filePath) => {
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
       const archivePath = filePath.replace('.log', `-${timestamp}.log`);
       await fs.rename(filePath, archivePath);
-      console.log(`📦 Log rotaté: ${archivePath}`);
+      //console.log(`📦 Log rotaté: ${archivePath}`);
     }
   } catch (err) {
     // Fichier n'existe pas encore, c'est normal
@@ -447,7 +447,7 @@ export const logSuspiciousActivity = async (action, data, context) => {
   // debug: affichage du répertoire de logs résolu
   try {
     const resolved = path.resolve(SECURITY_LOG_DIR);
-    console.log('[SECURITY_LOG] SECURITY_LOG_DIR resolved to:', resolved);
+    //console.log('[SECURITY_LOG] SECURITY_LOG_DIR resolved to:', resolved);
   } catch (e) {
     console.error('[SECURITY_LOG] cannot resolve SECURITY_LOG_DIR', e);
   }  
@@ -480,18 +480,18 @@ ${logEntry.data}
     const logFile = path.join(SECURITY_LOG_DIR, `suspicious-${new Date().toISOString().split('T')[0]}.log`);
     
     // debug: afficher le chemin du fichier avant écriture
-    console.log('[SECURITY_LOG] will append to', logFile);    
+    //console.log('[SECURITY_LOG] will append to', logFile);    
     try {
       await rotateLogIfNeeded(logFile);
       await fs.appendFile(logFile, logLine, 'utf8');
-      console.log('[SECURITY_LOG] write successful:', logFile);
+      //console.log('[SECURITY_LOG] write successful:', logFile);
       
        // Vérification immédiate : lister le répertoire et afficher les infos du fichier
        try {
          const listing = await fs.readdir(SECURITY_LOG_DIR);
-         console.log('[SECURITY_LOG] directory listing:', listing);
+         //console.log('[SECURITY_LOG] directory listing:', listing);
          const stats = await fs.stat(logFile);
-         console.log('[SECURITY_LOG] file stats:', { size: stats.size, mtime: stats.mtime });
+         //console.log('[SECURITY_LOG] file stats:', { size: stats.size, mtime: stats.mtime });
        } catch (errInner) {
          console.error('[SECURITY_LOG] cannot read dir or stat file:', errInner);
        }      

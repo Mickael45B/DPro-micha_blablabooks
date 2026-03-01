@@ -1,30 +1,55 @@
-        type PaginatedLibraries {
-        libraries: [Library!]!
-        totalCount: Int!
-        hasNextPage: Boolean!
-        httpStatus: Int
-        }
+type PaginatedLibraries {
+  libraries: [Library!]!
+  totalCount: Int!
+  hasNextPage: Boolean!
+  httpStatus: Int
+}
 
-extend type Query {        # Type pour les résultats de recherche paginés
-        # Récupérer tous les livres de la bibliothèque
-        getLibraries(
-            limit: Int, 
-            offset: Int, 
-            order: String = "created_at", # Colonne par défaut pour le tri
-            direction: String = "ASC" # Direction par défaut pour le tri (ASC ou DESC)
-        ): PaginatedLibraries
+extend type Query {
+  # Récupérer toutes les bibliothèques
+  getLibraries(
+    limit: Int
+    offset: Int
+    order: String = "created_at"
+    direction: String = "ASC"
+  ): PaginatedLibraries
 
-        # Récupérer un livre de la bibliothèque par son ID
-        getUserLibraries(
-            limit: Int, 
-            offset: Int, 
-            order: String = "created_at", # Colonne par défaut pour le tri
-            direction: String = "ASC" # Direction par défaut pour le tri (ASC ou DESC)
-        ): PaginatedLibraries 
+  # Récupérer les bibliothèques de l'utilisateur connecté
+  getUserLibraries(
+    limit: Int
+    offset: Int
+    order: String = "created_at"
+    direction: String = "ASC"
+  ): PaginatedLibraries
 
-        # Récupérer un livre de la bibliothèque par son ID (sans restriction d'utilisateur)
-        getLibrary(id_library: ID!): Library
+  # Récupérer une bibliothèque par son ID
+  getLibrary(id_library: ID!): Library
 
-        # Rechercher des livres de la bibliothèque par titre ou auteur avec pagination
-        searchLibraries(name: String!, limit: Int, offset: Int): PaginatedLibraries
+  # Récupérer toutes les bibliothèques de l'utilisateur connecté
+  getMyLibraries(filter: LibraryFilterInput): [Library!]!
+
+  # Obtenir les bibliothèques publiques d'un utilisateur
+  getPublicLibraries(id_user: ID!): [Library!]!
+
+  # Rechercher des bibliothèques par nom
+  searchLibraries(name: String!, limit: Int, offset: Int): PaginatedLibraries
+
+  getLibrariesByIdUser(id_user: ID!, limit: Int, offset: Int): PaginatedLibraries
+
+
+
+
+
+
+
+GetMyLibrariesWithBooks(id_user: ID!, limit: Int, offset: Int): PaginatedLibraries
+
+
+
+
+
+
+
+
+
 }

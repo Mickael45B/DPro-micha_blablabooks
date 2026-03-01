@@ -1,0 +1,41 @@
+# Type pour les résultats de recherche paginés
+type PaginatedReasonOfReport {
+    reasonOfReports: [ReasonOfReport!]!
+    totalCount: Int!
+    hasNextPage: Boolean!
+    httpStatus: Int  
+}
+
+extend type Query {
+    # Récupérer tous les types de signalement
+    getAllReasonOfReport(
+        limit: Int, 
+        offset: Int, 
+        order: String = "created_at", # Colonne par défaut pour le tri
+        direction: String = "ASC" # Direction par défaut pour le tri (ASC ou DESC)
+    ): PaginatedReasonOfReport!
+
+    getAllReasonsOfReport(
+        limit: Int, 
+        offset: Int, 
+        order: String = "created_at", # Colonne par défaut pour le tri
+        direction: String = "ASC" # Direction par défaut pour le tri (ASC ou DESC)
+    ): PaginatedReasonOfReport!
+
+    getReasonOfReportByID(
+        id_reasonOfReport: ID!
+    ): ReasonOfReport
+
+    getReasonOfReportByName(
+        name: String!
+    ): ReasonOfReport
+
+    searchReasonOfReportByName(
+        name: String!, 
+        limit: Int, 
+        offset: Int, 
+        order: String = "created_at", # Colonne par défaut pour le tri
+        direction: String = "ASC" # Direction par défaut pour le tri (ASC ou DESC)
+    ): PaginatedReasonOfReport!
+
+}

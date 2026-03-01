@@ -1,0 +1,11 @@
+extend type Subscription {
+  """
+  S'abonner aux changements d'une bibliothèque
+  """
+  libraryUpdated(id_library: ID!): Library!
+  
+  """
+  S'abonner aux changements dans toutes mes bibliothèques
+  """
+  myLibrariesUpdated: Library!
+}

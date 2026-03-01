@@ -23,11 +23,11 @@ const AuthDebug = () => {
     setToken(currentToken);
     setAuthStorage(storage);
     
-    console.log('=== AUTH DEBUG ===');
-    console.log('User:', currentUser);
-    console.log('Is Admin:', adminStatus);
-    console.log('Token:', currentToken);
-    console.log('Auth Storage:', storage);
+    //console.log('=== AUTH DEBUG ===');
+    //console.log('User:', currentUser);
+    //console.log('Is Admin:', adminStatus);
+    //console.log('Token:', currentToken);
+    //console.log('Auth Storage:', storage);
   };
 
   useEffect(() => {

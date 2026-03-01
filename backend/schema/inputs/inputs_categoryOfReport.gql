@@ -1,0 +1,12 @@
+input CreateCategoryOfReportInput{
+  name: String!
+
+}
+
+input UpdateCategoryOfReportInput{
+  name: String
+}
+
+input DeleteCategoryOfReportInput{
+  id_category: ID!
+}

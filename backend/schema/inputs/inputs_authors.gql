@@ -1,0 +1,28 @@
+input CreateAuthorInput {
+    id_author: ID
+    name: String!
+    created_at: DateTime
+    updated_at: DateTime
+}
+
+input UpdateAuthorInput {
+    id_author: ID!
+    name: String
+    created_at: DateTime
+    updated_at: DateTime
+}
+
+input DeleteAuthorInput {
+    id_author: ID!
+}
+
+input AddAuthorsToBookInput {
+    id_book: ID!
+    author_ids: [ID!]!
+}
+
+input RemoveAuthorsFromBookInput {
+    id_book: ID!
+    author_ids: [ID!]!
+}
+

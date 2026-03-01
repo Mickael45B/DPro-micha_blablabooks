@@ -310,7 +310,7 @@ export default {
                 extensions: { code: 'BAD_USER_INPUT', httpStatus: 400 }
             });
             }
-            console.log("Input reçu pour la création du statut :", input.status_name);
+            //console.log("Input reçu pour la création du statut :", input.status_name);
             // Validation avec Joi => 1ere couche - défense en profondeur
             const validatedInput = validateWithJoi(createStatusSchema, { status_name: input.status_name });
 

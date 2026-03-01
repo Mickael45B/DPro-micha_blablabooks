@@ -1,0 +1,16 @@
+type ManyTagsOnBookHasLibrary {
+  tagsOnBookHasLibrary: [TagsOnBookHasLibrary!]!
+  httpStatus: Int
+}
+
+extend type Mutation {
+    #TABLE tagsOnBookHasLibrary
+    # Ajouter des tags à un livre en bibliothèque
+    addTagsToBookHasLibrary(input: AddTagsToBookHasLibraryInput!): ManyTagsOnBookHasLibrary!
+
+    # Mettre à jour des tags d'un livre en bibliothèque
+    updateTagsOnBookHasLibrary(input: UpdateTagsOnBookHasLibraryInput!): ManyTagsOnBookHasLibrary!
+
+    # Retirer des tags d'un livre en bibliothèque
+    removeTagsFromBookHasLibrary(input: RemoveTagsFromBookHasLibraryInput!): ManyTagsOnBookHasLibrary!
+}

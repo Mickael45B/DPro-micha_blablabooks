@@ -1,0 +1,30 @@
+extend type Mutation {
+        # Réinitialisation forcée du mot de passe par un administrateur
+        adminResetPassword(input: AdminResetPasswordInput!): Boolean!
+
+        # Changer le mot de passe d'un utilisateur
+        changePassword(input: ChangePasswordInput!): Boolean!
+
+        #créer un code de réinitialisation de mot de passe pour un utilisateur
+        createPasswordResetCode(input: CreatePasswordResetCodeInput!): Boolean!
+
+        # Mettre à jour le rôle d'un utilisateur
+        updateUserRole(input: UpdateUserRoleInput!): User!
+
+        # Réinitialiser le mot de passe d'un utilisateur en utilisant un code de réinitialisation valide
+        resetPasswordWithCode(input: ResetPasswordWithCodeInput!): Boolean!
+
+        # supprimer le code de réinitialisation de mot de passe d'un utilisateur (en cas de réinitialisation réussie ou d'expiration du code) =>  voir en tâche CRON
+        deletePasswordResetCode(input: DeletePasswordResetCodeInput!): Boolean!
+
+        # Connexion
+        login(input: LoginInput!): AuthPayload!
+        
+        # Renouveler le token
+        refreshToken(refresh_token: String!): TokenPayload!
+
+        lastLogin(last_login: String!): TokenPayload!
+        
+        # Déconnexion
+        logout: Boolean!
+}

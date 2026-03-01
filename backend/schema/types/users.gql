@@ -3,11 +3,15 @@ type User {
   id_user: ID!
   name: String
   email: String!
+  password: String
   pseudo: String!
   id_role: String
   id_status: Int!
   refresh_token: String, 
   last_login: DateTime, 
+  code_passwordReset: String,
+  createDatetime_passwordReset: DateTime,
+  validity_passwordReset: Int,
   created_at: Date!
   updated_at: Date
   # Relations

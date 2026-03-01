@@ -1,0 +1,17 @@
+input CreateGenreInput {
+  id_genre: ID
+  name: String!
+  created_at: DateTime
+  updated_at: DateTime
+}
+
+input UpdateGenreInput {
+  id_genre: ID!
+  name: String
+  created_at: DateTime
+  updated_at: DateTime
+}
+
+input DeleteGenreInput {
+  id_genre: ID!
+}

@@ -1,0 +1,43 @@
+# Type pour les résultats de recherche paginés
+
+type PaginatedGenres {
+    genres: [Genre!]!
+    totalCount: Int!
+    hasNextPage: Boolean!
+    httpStatus: Int  
+}
+
+extend type Query {
+    # Récupérer tous les genres
+    getAllGenres(
+        limit: Int, 
+        offset: Int, 
+        order: String = "created_at", # Colonne par défaut pour le tri
+        direction: String = "ASC" # Direction par défaut pour le tri (ASC ou DESC)
+    ): PaginatedGenres!
+
+    getGenreByID(
+        id_genre: ID!
+    ): Genre
+
+    getGenreByName(
+        name: String!
+    ): Genre
+
+    searchGenreByName(
+        name: String!, 
+        limit: Int, 
+        offset: Int, 
+        order: String = "created_at", # Colonne par défaut pour le tri
+        direction: String = "ASC" # Direction par défaut pour le tri (ASC ou DESC)
+    ): PaginatedGenres!
+
+    searchGenres(
+        name: String!, 
+        limit: Int, 
+        offset: Int, 
+        order: String = "created_at", # Colonne par défaut pour le tri
+        direction: String = "ASC" # Direction par défaut pour le tri (ASC ou DESC)
+    ): PaginatedGenres!
+
+}

@@ -21,7 +21,7 @@ const BookCard = ({ book }) => {
                 className="remove-button"
                 onClick={(e) => {
                     e.stopPropagation(); // Empêche la propagation du clic vers le parent
-                    console.log("Retirer le livre");
+                    //console.log("Retirer le livre");
                 }}
             >
                 Retirer
@@ -56,7 +56,7 @@ const UserLibraryPage = () => {
 
                 const librariesData = librariesResponse.data.data;
                 const librariesDatat = librariesResponse.data.data.id_library;
-                console.log("Données des bibliothèques :", librariesDatat);
+                //console.log("Données des bibliothèques :", librariesDatat);
                 // Récupérer les livres pour chaque bibliothèque
                 const librariesWithBooks = await new Promise((resolve, reject) => {
                     Promise.all(
@@ -71,7 +71,7 @@ const UserLibraryPage = () => {
                                         },
                                     },
                                 );
-                                console.log(booksResponse);
+                                //console.log(booksResponse);
                                 return {
                                     ...library,
                                     books: booksResponse.data.data || [], // Assurez-vous que "books" est un tableau

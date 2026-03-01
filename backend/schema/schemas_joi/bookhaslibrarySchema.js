@@ -6,13 +6,21 @@ import Joi from "joi";
 //-----------------------------------------------------------
 
 export const generalBookHasLibrarySchema = Joi.object({
-    id: Joi.string().min(34).max(36), // UUIDv4
-    id_library: Joi.string().min(34).max(36), // UUIDv4
-    id_book: Joi.string().min(34).max(36), // UUIDv4
+    id_bookhaslibrary: Joi.string().uuid().optional(),
+    id_library: Joi.string().uuid(),
+    id_book: Joi.string().min(1).max(42),
     is_read: Joi.boolean().default(false),
     is_favorite: Joi.boolean().default(false),
-    created_at: Joi.date(),// Date de création
-    updated_at: Joi.date(),// Date de mise à jour
+    progress_percentage: Joi.number().min(0).max(100).default(0),
+    personal_note: Joi.string().max(1000).allow(null, ''),
+    tags: Joi.array().items(Joi.string().max(50)).default([]),
+    started_at: Joi.date().iso().allow(null),
+    finished_at: Joi.date().iso().allow(null),
+    lent_to: Joi.string().max(255).allow(null, ''),
+    lent_at: Joi.date().iso().allow(null),
+    created_at: Joi.date().iso().default(() => new Date()),
+    updated_at: Joi.date().iso().default(() => new Date()),
+
 });
 export const generalOrderBookHasLibrarySchema = Joi.object({
     order: Joi.string().valid('created_at', 'id_book', 'id_library', 'is_read', 'is_favorite', 'updated_at').default('created_at'),
@@ -41,7 +49,12 @@ export const updateBookHasLibrarySchema = Joi.object({
 });
 
 export const deleteBookHasLibrarySchema = Joi.object({
-});
+        id_bookhaslibrary: Joi.string().min(1).max(42),
+        id_book: Joi.string().min(1).max(42),
+        id_library: Joi.string().min(1).max(42),
+})
+    // .or('id_bookhaslibrary', 'id_book')
+    // .with('id_book', 'id_library');
 
 export const addBooksToLibrarySchema = Joi.object({
 });

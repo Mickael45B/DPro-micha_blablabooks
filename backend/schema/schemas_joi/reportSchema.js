@@ -12,7 +12,7 @@ export const generalReportSchema = Joi.object({
     reported_id: Joi.string().min(34).max(36), // UUIDv4
     reason: Joi.string().min(3).max(255),
     details: Joi.string().max(1000),
-    status: Joi.string().valid('pending', 'in_review', 'resolved', 'dismissed'),
+    status: Joi.string().valid('PENDING', 'IN_REVIEW', 'RESOLVED', 'DISMISSED'),
     created_at: Joi.date(),// Date de création
     updated_at: Joi.date(),// Date de mise à jour
 });
@@ -34,7 +34,7 @@ export const searchReportsByUserSchema = Joi.object({
 });
 
 export const searchReportsByStatusSchema = Joi.object({
-    status: Joi.string().valid('pending', 'in_review', 'resolved', 'dismissed').required(),
+    status: Joi.string().valid('PENDING', 'IN_REVIEW', 'RESOLVED', 'DISMISSED').required(),
 });
 
 export const searchReportsByDetailsOrReasonSchema = Joi.object({
@@ -44,7 +44,7 @@ export const searchReportsByDetailsOrReasonSchema = Joi.object({
 export const searchReportsSchema = Joi.object({
     id_report: Joi.string().min(34).max(36).optional(), // UUIDv4
     id_user: Joi.string().min(34).max(36).optional(), // UUIDv4
-    status: Joi.string().valid('pending', 'in_review', 'resolved', 'dismissed').optional(),
+    status: Joi.string().valid('PENDING', 'IN_REVIEW', 'RESOLVED', 'DISMISSED').optional(),
     content: Joi.string().min(3).max(255).optional(),
 });
 

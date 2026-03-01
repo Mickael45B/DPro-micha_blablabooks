@@ -1,0 +1,37 @@
+/* Correctif pour AccessibilityControls dans le menu burger */
+
+/* S'assurer qu'AccessibilityControls ne force pas la largeur du menu */
+.header__nav-content .accessibility-controls,
+.navigation--mobile .accessibility-controls {
+  max-width: 100%;
+  width: 100%;
+  box-sizing: border-box;
+  overflow-x: hidden;
+}
+
+/* Forcer tous les enfants d'AccessibilityControls à respecter la largeur */
+.header__nav-content .accessibility-controls > *,
+.navigation--mobile .accessibility-controls > * {
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+/* Si AccessibilityControls contient des inputs ou boutons larges */
+.header__nav-content .accessibility-controls input,
+.header__nav-content .accessibility-controls button,
+.header__nav-content .accessibility-controls select,
+.navigation--mobile .accessibility-controls input,
+.navigation--mobile .accessibility-controls button,
+.navigation--mobile .accessibility-controls select {
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+/* Si AccessibilityControls utilise flex ou grid */
+.header__nav-content .accessibility-controls[style*="display: flex"],
+.header__nav-content .accessibility-controls[style*="display: grid"],
+.navigation--mobile .accessibility-controls[style*="display: flex"],
+.navigation--mobile .accessibility-controls[style*="display: grid"] {
+  flex-wrap: wrap;
+  width: 100%;
+}

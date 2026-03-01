@@ -68,7 +68,7 @@
 
 .search-input:focus {
   outline: none;
-  border-color: #F6495C;
+  border-color: var(--primary-start);
 }
 
 .search-button {
@@ -77,7 +77,7 @@
   justify-content: center;
   gap: 1rem;
   padding: 0.8rem .5rem;
-  background-color: #D7355C;
+  background-color: var(--primary-start);
   color: #fff;
   border: none;
   border-radius: 8px;
@@ -89,8 +89,12 @@
   font-size: 1rem;
 } 
 
+.search-button i {
+  font-size: 0.8rem;
+}
+
 .search-button:hover {
-  background-color: #F6495C;
+  background-color: var(--primary-end);
 }
 
 /* Breadcrumb */
@@ -99,6 +103,11 @@
   /* padding-bottom: 1em; */
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   background-color: var(--secondary-start);
+}
+
+.breadcrumb a i{
+  color: var(--text-primary-start);
+  text-decoration: none;
 }
 
 .breadcrumb {
@@ -116,6 +125,13 @@
 .breadcrumb__current {
   font-weight: 500;
   color: var(--text-primary-start);
+  cursor: pointer;
+  transition: opacity 0.2s ease;
+}
+
+.breadcrumb__current:hover {
+  opacity: 0.7;
+  text-decoration: underline;
 }
 
 /* Contenu de la page */
@@ -161,9 +177,9 @@
 }
 
 .stat__number {
-  font-size: 1.8em;
+  font-size: 1rem;
   font-weight: bold;
-  color: #F6495C;
+  color: var(--primary-start);
 }
 
 .stat__label {
@@ -220,8 +236,9 @@
 
   .contextualMenu__info h3,
   .contextualMenu__action h3 {
-    color: #F6495C;
+    color: var(--primary-start);
     font-size: 1.1em;
+    margin-bottom: 0.5rem;
   }
 
   .contextualMenu__info p {
@@ -233,19 +250,20 @@
   .cta-button {
     display: inline-block;
     padding: 0.8em 1.5em;
-    background-color: #D7355C;
+    background-color: var(--primary-start);
     color: #fff;
     text-decoration: none;
     border-radius: 8px;
     font-weight: 500;
     transition: all 0.3s;
     margin-top: 1em;
+    
   }
 
   .cta-button:hover {
-    background-color: #F6495C;
+    background-color: var(--primary-end);
     transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(215, 53, 92, 0.3);
+    box-shadow: 0 4px 12px var(--primary-end);
   }
 
   /* Footer */
@@ -278,6 +296,6 @@
   }
 
   .stat__number {
-    font-size: 2.2em;
+    font-size: 1rem;
   }
 }

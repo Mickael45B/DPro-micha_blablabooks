@@ -10,6 +10,13 @@ export const generalLibrarySchema = Joi.object({
 	name: Joi.string().min(1).max(255), // Nom de la bibliothèque
 	is_editable: Joi.boolean().default(false),
 	id_user: Joi.string().min(34).max(36), // UUIDv4
+  is_default: Joi.boolean().default(false), // Indique si la bibliothèque est la bibliothèque par défaut de l'utilisateur
+  color: Joi.string().pattern(/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/).default('#FFFFFF'), // Couleur de la bibliothèque au format hexadécimal
+  is_public: Joi.boolean().default(false), // Indique si la bibliothèque est publique ou privée
+  description: Joi.string().max(500).allow(''), // Description de la bibliothèque, peut être vide
+  sort_order: Joi.string().valid('name', 'created_at', 'id_library', 'is_editable', 'id_user').default('created_at'), // Critère de tri des bibliothèques
+  created_at: Joi.date().default(() => new Date()), // Date de création de la bibliothèque
+  updated_at: Joi.date().default(() => new Date()), // Date de la dernière mise à jour de la bibliothèque
 });
 export const generalOrderLibrarySchema = Joi.object({
 	order: Joi.string().valid('name', 'created_at', 'id_library', 'is_editable', 'id_user').default('created_at'),

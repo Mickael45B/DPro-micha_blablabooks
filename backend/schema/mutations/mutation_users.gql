@@ -1,33 +1,18 @@
 extend type Mutation {        
-        # Ajouter un nouvel utilisateur (renvoie AuthPayload pour fournir tokens + bibliothèques)
+        # Ajouter un nouvel utilisateur (renvoie AuthPayload pour fournir tokens + bibliothèques) => page d'inscription
+        # register(input: CreateUserInput!): AuthPayload!
         createUser(input: CreateUserInput!): AuthPayload!
 
         # Mettre à jour un utilisateur existant
         updateUser(input: UpdateUserInput!): User!
 
-        # Réinitialisation forcée du mot de passe par un administrateur
-        adminResetPassword(input: AdminResetPasswordInput!): Boolean!
-
-        # Changer le mot de passe d'un utilisateur
-        changePassword(input: ChangePasswordInput!): Boolean!
-
         # Supprimer un utilisateur par son ID
         deleteUser(input: DeleteUserInput!): Boolean!
 
-        # Inscription (alias possible)
-        register(input: RegisterUserInput!): AuthPayload!
+        # Activer ou désactiver un utilisateur (bloquer/débloquer) => met à jour le statut de l'utilisateur
+        toggleUserStatus(input: ToggleUserStatusInput!): User!
         
-        # Connexion
-        login(input: LoginInput!): AuthPayload!
-        
-        # Renouveler le token
-        refreshToken(refresh_token: String!): TokenPayload!
-
-        lastLogin(last_login: String!): TokenPayload!
-        
-        # Déconnexion
-        logout: Boolean!
-        }
+}
 
 
 

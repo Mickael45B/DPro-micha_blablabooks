@@ -19,6 +19,8 @@ import { generalBookSchema, generalOrderBookSchema, searchBooksSchema} from '../
 import { sanitizeStrict} from './utils/helpers/helpers_securite.js';
 
 import { findBy1ParameterOrThrow, generalSortingSchema } from './utils/helper.js';
+import authors from "./authors.js";
+import editors from "./editors.js";
 
 
 // ========================================
@@ -37,7 +39,7 @@ export default {
      * @returns {object} { books, totalCount, hasNextPage, httpStatus }
      * @throws {GraphQLError} Si l'utilisateur n'a pas les droits (401 ou 403)
      * @throws {GraphQLError} Si une erreur se produit lors de la récupération des livres (500)
-     */
+    */
      getBooks: withSecureResolver(
       async (_, { validated }, context) => {    
         /* exemple context JWT décodé ( à revoir):
@@ -128,34 +130,62 @@ export default {
      */
     getBook: withSecureResolver(
       async (_, { id_book, validated }, context) => {
-        /* exemple context JWT décodé ( à revoir):
-        {
-          userId: "uuid-of-user",
-          email: "user@example.com",
-          role: "admin"
-        }
-        */
-        /*exemple de requête :
-        query  getBook($id_book: ID!) {getBook(id_book: $id_book) {id_book,title }}
-
-        */
-        /* Exemple variables :
-        {"id_book": "i9j0k1l2-m3n4-5o6p-7q8r-9s0t1u2v3w4z"}
-        */
-        // ========================================
-        // RECUPERER LES DONNEES NESSESAIRES
-        // ======================================== 
         const cleanId = sanitizeStrict(id_book);
 
-        // ========================================
-        // REQUETES BASE DE DONNEES
-        // ======================================== 
-        const book = await findBy1ParameterOrThrow('books', 'id_book', cleanId, 'Livre non trouvé');
-        // ========================================
-        // DONNEES RECUPEREES
-        // ========================================        
+        // Récupérer le livre avec ses reviews (en incluant title_rating)
+        const result = await db.query(`
+          SELECT 
+            b.id_book,
+            b.isbn,
+            b.title,
+            b.author,
+            to_char(b.publication_date, 'YYYY-MM-DD') as publication_date,
+            b.genre,
+            b.editor,
+            b.vignetteimage,
+            b.bookimage,
+            b.age_limit,
+            b.description,
+            b.series,
+            b.avg_rating,
+            b.nb_reviews,
+            b.is_in_favorite,
+            b.is_in_library,
+            to_char(b.created_at, 'YYYY-MM-DD') as created_at,
+            to_char(b.updated_at, 'YYYY-MM-DD') as updated_at,
+            json_agg(
+              json_build_object(
+                'id_review', r.id_review,
+                'title_rating', r.title_rating,
+                'rating', r.rating,
+                'comment', r.comment,
+                'updated_at', to_char(r.updated_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
+                'id_user', r.id_user,
+                'user', json_build_object(
+                  'id_user', u.id_user,
+                  'pseudo', u.pseudo,
+                  'name', u.name
+                )
+              ) ORDER BY r.updated_at DESC
+            ) FILTER (WHERE r.id_review IS NOT NULL) as reviews
+          FROM books b
+          LEFT JOIN reviews r ON b.id_book = r.id_book
+          LEFT JOIN users u ON r.id_user = u.id_user
+          WHERE b.id_book = $1
+          GROUP BY b.id_book
+        `, [cleanId]);
+
+        if (!result.rows.length) {
+          throw new GraphQLError('Livre non trouvé', {
+            extensions: { code: 'NOT_FOUND', httpStatus: 404 }
+          });
+        }
+
+        const book = result.rows[0];
+        book.reviews = book.reviews || [];
+
         if (context?.res?.status) context.res.status(200);
-        return book.data;
+        return book;
 
       },
       {
@@ -201,7 +231,7 @@ export default {
       // ======================================== 
 
       const { titleOrAuthor, limit = 50, offset = 0, direction = 'ASC', order = 'created_at' } = validated;
-console.log('titleOrAuthor:', titleOrAuthor);
+      //console.log('titleOrAuthor:', titleOrAuthor);
       if (!titleOrAuthor || titleOrAuthor.length < 2) {
         throw new GraphQLError('Le terme de recherche doit contenir au moins 2 caractères', {
           extensions: { code: 'BAD_REQUEST', httpStatus: 400 }
@@ -239,7 +269,7 @@ console.log('titleOrAuthor:', titleOrAuthor);
       // ========================================                
       return {
         books: result.rows,
-        countResult,
+        totalCount: countResult.rows[0].count,
         hasNextPage: offset + limit < countResult,
         httpStatus: 200,
       };
@@ -302,18 +332,56 @@ console.log('titleOrAuthor:', titleOrAuthor);
 
         const { isbn, title, author, publication_date, genre, editor, vignetteimage, bookimage, age_limit, description, series } = input;
 
+    // ✅ Valider que le titre existe
+    if (!title || !title.trim()) {
+      throw new GraphQLError('Le titre est obligatoire', {
+        extensions: { code: 'BAD_REQUEST', httpStatus: 400 },
+      });
+    }
+
+    // ✅ Valider et formater publication_date
+    let formattedDate = null;
+    if (publication_date) {
+      const dateStr = String(publication_date).trim();
+      if (dateStr && dateStr !== '{}') {
+        const parsedDate = new Date(dateStr);
+        if (isNaN(parsedDate.getTime())) {
+          throw new GraphQLError('Format de date invalide (attendu: YYYY-MM-DD)', {
+            extensions: { code: 'BAD_REQUEST', httpStatus: 400 }
+          });
+        }
+        // ✅ Vérifier que la date n'est pas dans le futur
+        if (parsedDate > new Date()) {
+          throw new GraphQLError('La date de publication ne peut pas être dans le futur', {
+            extensions: { code: 'BAD_REQUEST', httpStatus: 400 }
+          });
+        }
+        formattedDate = parsedDate.toISOString().split('T')[0]; // Format YYYY-MM-DD
+      }
+    }
+
+    // ✅ CORRECTION : Utiliser une fonction helper pour nettoyer les valeurs
+    const cleanValue = (val) => {
+      const sanitized = sanitizeStrict(val);
+      // Si sanitizeStrict retourne {} ou vide, retourner null
+      if (!sanitized || (typeof sanitized === 'object' && Object.keys(sanitized).length === 0)) {
+        return null;
+      }
+      return sanitized;
+    };
+
         const cleanInput = {
-          isbn: sanitizeStrict(isbn),
+          isbn: sanitizeStrict(isbn) || null,
           title: sanitizeStrict(title),
-          author: sanitizeStrict(author),
-          publicationDate: sanitizeStrict(publication_date),
-          genre: sanitizeStrict(genre),
-          editor: sanitizeStrict(editor),
-          vignetteImage: sanitizeStrict(vignetteimage),
-          bookImage: sanitizeStrict(bookimage),
-          ageLimit: sanitizeStrict(age_limit),
-          description: sanitizeStrict(description),
-          series: sanitizeStrict(series),
+          author: sanitizeStrict(author) || null,
+          publicationDate: formattedDate ,
+          genre: sanitizeStrict(genre) || null,
+          editor: sanitizeStrict(editor) || null,
+          vignetteImage: sanitizeStrict(vignetteimage) || null,
+          bookImage: sanitizeStrict(bookimage) || null,
+          ageLimit: sanitizeStrict(age_limit) || null,
+          description: sanitizeStrict(description) || null,
+          series: sanitizeStrict(series) || null,
         };
 
         // Vérifier que l'ISBN n'est pas déjà utilisé
@@ -356,17 +424,17 @@ console.log('titleOrAuthor:', titleOrAuthor);
           RETURNING *
         `, [
           id,
-          cleanInput.title || null,
-          cleanInput.author || null,
-          cleanInput.publicationDate || null,
-          cleanInput.genre || null,
-          cleanInput.isbn || null,
-          cleanInput.editor || null,
-          cleanInput.vignetteImage || null,
-          cleanInput.bookImage || null,
-          cleanInput.ageLimit || null,
-          cleanInput.description || null,
-          cleanInput.series || null,
+          cleanInput.title,
+          cleanInput.author,
+          cleanInput.publicationDate, // ✅ Peut être null ou YYYY-MM-DD
+          cleanInput.genre,
+          cleanInput.isbn,
+          cleanInput.editor,
+          cleanInput.vignetteImage,
+          cleanInput.bookImage,
+          cleanInput.ageLimit,
+          cleanInput.description,
+          cleanInput.series,
           createdAt,
           updatedAt
         ]);
@@ -421,6 +489,10 @@ console.log('titleOrAuthor:', titleOrAuthor);
         // RECUPERER LES DONNEES NESSESAIRES
         // ======================================== 
 
+          //console.log('📥 INPUT REÇU:', JSON.stringify(input, null, 2));
+          //console.log('📥 publication_date type:', typeof input.publication_date);
+          //console.log('📥 publication_date value:', input.publication_date);
+  
         const { id_book, title, author, publication_date, genre, isbn, editor, vignetteimage, bookimage, age_limit, description, series } = input;
 
         const cleanInput = {  
@@ -444,7 +516,7 @@ console.log('titleOrAuthor:', titleOrAuthor);
 
         
           const cleanIdBook = sanitizeStrict(id_book);
-          console.log('cleanIdBook:', cleanIdBook);
+          //console.log('cleanIdBook:', cleanIdBook);
 
         if (title !== undefined) {
           const cleanTitle = sanitizeStrict(title);
@@ -535,7 +607,7 @@ console.log('titleOrAuthor:', titleOrAuthor);
           WHERE id_book = $${paramIndex}
           RETURNING *
         `, values);
-          console.log('Values for updateBook:', result);
+          //console.log('Values for updateBook:', result);
         // ========================================
         // DONNEES RECUPEREES
         // ========================================         
@@ -648,11 +720,16 @@ console.log('titleOrAuthor:', titleOrAuthor);
   Book: {
     // Resolver pour les reviews d'un livre
     reviews: async (parent) => {
+
+      // ✅ Ajoute un log pour déboguer
+      //console.log('📚 Loading reviews for book:', parent.id_book);
+          
       if (parent?.reviews && Array.isArray(parent.reviews)) {
         return parent.reviews;
       }
 
       if (!parent?.id_book) {
+        //console.log('❌ No id_book provided');
         return [];
       }
 
@@ -668,14 +745,142 @@ console.log('titleOrAuthor:', titleOrAuthor);
             r.created_at
           FROM reviews r
           WHERE r.id_book = $1
+          AND r.title_rating IS NOT NULL
+          AND r.comment IS NOT NULL
           ORDER BY r.updated_at DESC
         `, [parent.id_book]);
 
+        //console.log('✅ Found reviews:', result.rows.length);
+
         return result.rows || [];
+
+     // ✅ Filtrer et valider les données retournées
+     /*return (result.rows || [])
+       .filter(r => r.title_rating && r.comment) // Éviter les null
+       .map(r => ({
+         ...r,
+         title_rating: r.title_rating || 'Sans titre',
+         comment: r.comment || ''
+       }));*/
+
       } catch (error) {
         console.error('Erreur lors de la récupération des reviews:', error);
         return [];
       }
+    },
+
+    authors: async (parent) => {
+      if (parent?.authors) {
+        return parent.authors;
+      }
+      if (!parent?.id_book) {
+        return [];
+      }
+      const result = await db.query(
+        'SELECT * FROM authors WHERE id_book = $1',
+        [parent.id_book]
+      );
+      return result.rows || [];
+    },
+
+     libraries: async (parent) => { 
+      if (parent?.libraries) {
+        return parent.libraries;
+      }
+      if (!parent?.id_book) {
+        return [];
+      }
+      const result = await db.query(
+        `SELECT l.* FROM libraries l
+         JOIN bookhaslibrary bl ON bl.id_library = l.id_library
+         WHERE bl.id_book = $1`,
+        [parent.id_book]
+      );
+      return result.rows || [];
+    },
+
+    editors: async (parent) => {
+      if (parent?.editors) {
+        return parent.editors;
+      } 
+      if (!parent?.id_book) { 
+        return [];
+      }
+      const result = await db.query(
+        'SELECT * FROM editors WHERE id_book = $1',
+        [parent.id_book]
+      );
+      return result.rows || [];
+    },
+
+    genre: async (parent) => {
+      // Si le genre est déjà chargé (objet), retourner son nom
+      if (parent?.genre && typeof parent.genre === 'object' && parent.genre.name) {
+        return parent.genre.name;
+      }
+      
+      // Si genre est un ID (INTEGER), chercher le nom du genre
+      if (parent?.genre) {
+        try {
+          const result = await db.query(
+            'SELECT name FROM genres WHERE id_genre = $1',
+            [parent.genre]
+          );
+          return result.rows[0]?.name || null;
+        } catch (error) {
+          console.error('Erreur lors de la récupération du nom du genre:', error);
+          return null;
+        }
+      }
+      return null;
+    },
+
+    author: async (parent) => {
+      //console.log('📖 Book.author resolver called, parent.author =', parent.author, 'type:', typeof parent.author);
+      
+      // Si l'auteur est déjà chargé (objet), retourner son nom
+      if (parent?.author && typeof parent.author === 'object' && parent.author.name) {
+        return parent.author.name;
+      }
+      
+      // Si author est un ID (INTEGER), chercher le nom de l'auteur
+      if (parent?.author) {
+        try {
+          const result = await db.query(
+            'SELECT name FROM authors WHERE id_author = $1',
+            [parent.author]
+          );
+          //console.log('📖 Author lookup result for id', parent.author, ':', result.rows);
+          return result.rows[0]?.name || null;
+        } catch (error) {
+          console.error('Erreur lors de la récupération du nom de l\'auteur:', error);
+          return null;
+        }
+      }
+      //console.log('📖 No author found (null), returning null');
+      return null;
+    },
+
+    editor: async (parent) => {
+      // Si l'éditeur est déjà chargé (objet), retourner son nom
+      if (parent?.editor && typeof parent.editor === 'object' && parent.editor.name) {
+        return parent.editor.name;
+      }
+      
+      // Si editor est un ID (INTEGER), chercher le nom de l'éditeur
+      if (parent?.editor) {
+        try {
+          const result = await db.query(
+            'SELECT name FROM editors WHERE id_editor = $1',
+            [parent.editor]
+          );
+          return result.rows[0]?.name || null;
+        } catch (error) {
+          console.error('Erreur lors de la récupération du nom de l\'éditeur:', error);
+          return null;
+        }
+      }
+      return null;
     },
   },
 };

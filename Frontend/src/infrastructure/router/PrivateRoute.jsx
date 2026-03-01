@@ -5,7 +5,7 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import MainLayout from '../../presentation/components/layout/MainLayout/mainLayout.jsx';
 import BookPage from '../../presentation/pages/BookDetail/BookPage.jsx';
 import LibraryPage from '../../presentation/pages/Catalog/LibraryPage.jsx';    
-import UserLibraryPage from '../../presentation/pages/Profile/libraries/UserLibraryPage.jsx';
+import UserLibraryPage from '../../presentation/components/features/Library/UserLibraryPage.jsx';
 import ProfilePage from '../../presentation/pages/Profile/DashboardPage.jsx';
 // import ProtectedRoute from './ProtectedRoute.jsx';
 
@@ -20,9 +20,9 @@ export default function PrivateRoutes() {
     <Route 
       path="/livres/:id" 
       element={
-        <MainLayout>
+        
           <BookPage />
-        </MainLayout>
+        
       } 
     />
     
@@ -30,9 +30,7 @@ export default function PrivateRoutes() {
     <Route 
       path="/catalogue" 
       element={
-        <MainLayout>
-          <LibraryPage />
-        </MainLayout>
+        <LibraryPage />
       } 
     />
 

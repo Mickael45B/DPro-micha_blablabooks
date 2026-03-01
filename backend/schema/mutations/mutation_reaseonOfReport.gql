@@ -1,0 +1,16 @@
+type ManyReasonsOfReport {
+  reasons: [ReasonOfReport!]!
+  httpStatus: Int
+}
+
+extend type Mutation {
+    #TABLE reasonOfReport
+    # Ajouter une nouvelle raison de signalement
+    addReasonOfReport(input: CreateAuthorInput!): ReasonOfReport!
+
+    # Mettre à jour une raison de signalement existante
+    updateReasonOfReport(input: UpdateAuthorInput!): ReasonOfReport!
+
+    # Supprimer une raison de signalement par son ID
+    deleteReasonOfReport(input: DeleteAuthorInput!): Boolean!
+}

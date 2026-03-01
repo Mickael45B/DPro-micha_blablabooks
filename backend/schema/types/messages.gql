@@ -3,13 +3,14 @@ type Message {
   id_message: ID!
   id_sender: String!
   id_receiver: String!
-  subject: String!
   content: String!
   is_read: Boolean!
   created_at: Date!
   updated_at: Date
+  subject: String!          # ID de la discussion (id_conversation)
   # Relations
   sender: User
   receiver: User
+  discussion: Discussion
 }
 

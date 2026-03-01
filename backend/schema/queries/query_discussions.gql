@@ -1,0 +1,37 @@
+    type PaginatedDiscussions {
+        discussions: [Discussion!]!
+        totalCount: Int!
+        hasNextPage: Boolean!
+        httpStatus: Int
+    }
+
+extend type Query {
+
+    # Récupérer toutes les discussions (administrateur)
+    getAllDiscussions(
+        limit: Int
+        offset: Int 
+        order: String = "created_at"
+        direction: String = "ASC"
+    ): PaginatedDiscussions!
+
+    # Récupérer toutes les discussions de l'utilisateur connecté
+    getUserDiscussions(
+        limit: Int
+        offset: Int
+        order: String = "created_at"
+        direction: String = "ASC"
+    ): PaginatedDiscussions!
+
+    # Récupérer une discussion par son ID
+    getDiscussionByID(id_conversation: ID!): Discussion
+
+    # Rechercher des discussions par sujet
+    searchDiscussionsBySubject(
+        subject: String!
+        limit: Int
+        offset: Int
+        order: String = "created_at"
+        direction: String = "ASC"
+    ): PaginatedDiscussions!
+}

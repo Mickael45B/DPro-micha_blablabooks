@@ -13,7 +13,7 @@ const AdminRoute = ({ children }) => {
   useEffect(() => {
     const checkAuth = () => {
       const currentUser = getUserFromToken();
-      console.log('AdminRoute - Current user:', currentUser);
+      //console.log('AdminRoute - Current user:', currentUser);
       setUser(currentUser);
       setLoading(false);
     };
@@ -53,21 +53,21 @@ const AdminRoute = ({ children }) => {
 
   // Pas d'utilisateur connecté
   if (!user) {
-    console.log('AdminRoute - No user, redirecting to /connexion');
+    //console.log('AdminRoute - No user, redirecting to /connexion');
     return <Navigate to="/connexion" replace />;
   }
 
   // Vérifier si l'utilisateur est admin (groupe = "glossaire")
   const admin = isUserAdmin();
-  console.log('AdminRoute - Is admin?', admin, 'User groupe:', user.groupe);
+  //console.log('AdminRoute - Is admin?', admin, 'User groupe:', user.groupe);
 
   if (!admin) {
-    console.log('AdminRoute - Not admin, redirecting to /forbidden');
+    //console.log('AdminRoute - Not admin, redirecting to /forbidden');
     return <Navigate to="/forbidden" replace />;
   }
 
   // L'utilisateur est admin, afficher le contenu
-  console.log('AdminRoute - Access granted');
+  //console.log('AdminRoute - Access granted');
   return children;
 };
 

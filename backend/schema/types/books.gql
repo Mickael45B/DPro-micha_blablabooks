@@ -20,6 +20,11 @@ type Book {
   updated_at: Date
   # Relations
   reviews: [Review!]!
+  authors: Author!
+  editors: Editor!
+  genres: Genre!
+  booksInLibraries: [BookHasLibrary!]!
+  libraries: [Library!]!
 }
 
 type BookEdge {

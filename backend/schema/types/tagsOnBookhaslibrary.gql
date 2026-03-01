@@ -1,0 +1,11 @@
+# Type pour représenter les tags associés à un livre dans une bibliothèque dans le schéma GraphQL
+#BookInLibrary
+type TagsOnBookHasLibrary {
+    id_tag: String!
+    id_bookhaslibrary: String!
+    tag_name: String!
+    created_at: DateTime!
+    updated_at: DateTime
+    # Relations
+    book: Book!
+}

@@ -1,0 +1,21 @@
+
+
+
+
+extend type Query {
+  # Compter les messages non lus de l'utilisateur connecté
+  getMyUnreadMessagesCount: Int!
+}
+
+# Dans query_reports.gql :
+extend type Query {
+  # Compter les signalements en cours de l'utilisateur
+  getMyPendingReportsCount: Int!
+}
+
+# OU créer un nouveau fichier query_stats.gql :
+type Query {
+  # Statistiques du dashboard utilisateur
+  getMyUnreadMessagesCount: Int!
+  getMyPendingReportsCount: Int!
+}

@@ -3,18 +3,19 @@ import { v4 as uuidv4 } from "uuid";
 import { GraphQLError } from 'graphql';
 import { validateOrderParams, handleDbError } from '../utils/validators.js';
 
-// Importer les fonctions de vérification de l'existence du livre et de la bibliothèque
+// Importer les fonctions de vérification de l'existence ou non
 import { findBy1ParameterOrThrow, generalSortingSchema } from './utils/helper.js';
 
 // Importer les helpers généralistes
 import { withSecureResolver, verifyUserInDB } from './utils/helpers/helpers_general.js';
 
 // Importer les schemas Joi spécifiques
-import { generalBookHasLibrarySchema, generalOrderBookHasLibrarySchema, searchBooksInLibrary, addBookHasLibrarySchema, updateBookHasLibrarySchema, deleteBookHasLibrarySchema, addBooksToLibrarySchema, removeBooksFromLibrarySchema} from '../schema/schemas_joi/bookhaslibrarySchema.js';
+import { generalBookHasLibrarySchema, generalOrderBookHasLibrarySchema, getBooksInLibrarySchema, searchBooksInLibrary, addBookHasLibrarySchema, updateBookHasLibrarySchema, deleteBookHasLibrarySchema, addBooksToLibrarySchema, removeBooksFromLibrarySchema} from '../schema/schemas_joi/bookhaslibrarySchema.js';
 
 // Importer les wrappers et helpers de sécurité
 import { sanitizeStrict} from './utils/helpers/helpers_securite.js';
 import { get } from "http";
+import { console } from "inspector";
 
 // HEADERS POUR LES REQUETES DE TEST
   //ADMIN
@@ -164,7 +165,7 @@ export default {
             if (!libId) return [];
             try {
               const res = await db.query(sql, [libId]);
-              console.log(`Books found in library ${libId}:`, res.rows);
+              //console.log(`Books found in library ${libId}:`, res.rows);
               return Array.isArray(res.rows) ? res.rows : [];
 
             } catch (e) {
@@ -181,7 +182,7 @@ export default {
           }));
 
           const flattened = booksByLibrary.flat();
-          console.log('Total books found across all libraries:', flattened);
+          //console.log('Total books found across all libraries:', flattened);
 
         // Récupérer les infos (id, name) pour les bibliothèques en une seule requête
         const libsRes = await db.query(
@@ -474,6 +475,130 @@ export default {
     ),
 
     /**
+     * Récupère les livres d'une bibliothèque avec filtres
+     * 🔒 Route protégée - Propriétaire de la bibliothèque ou admin
+     */
+    getBooksInLibrary: withSecureResolver(
+      async (_, { id_library, filter = {} }, context) => {
+        const cleanLibraryId = sanitizeStrict(id_library);
+        if (!cleanLibraryId) {
+          throw new GraphQLError('id_library requis', {
+            extensions: { code: 'BAD_REQUEST', httpStatus: 400 }
+          });
+        }
+
+        const library = await findBy1ParameterOrThrow('libraries', 'id_library', cleanLibraryId, 'Bibliothèque non trouvée');
+        const user = await verifyUserInDB(context);
+
+        if (!user.isAdmin && library.data.id_user !== user.id_user) {
+          throw new GraphQLError('Accès refusé à cette bibliothèque', {
+            extensions: { code: 'FORBIDDEN', httpStatus: 403 }
+          });
+        }
+
+        const sortField = (filter?.sort_field || 'position').toString();
+        const sortDirection = (filter?.sort_direction || 'ASC').toString().toUpperCase();
+        const safeDirection = sortDirection === 'ASC' ? 'ASC' : 'DESC';
+
+        const sortMap = {
+          title: 'b.title',
+          author: 'a.name',
+          created_at: 'bhl.created_at',
+          rating: 'b.avg_rating',
+          progress_percentage: 'bhl.progress_percentage',
+          started_at: 'bhl.started_at',
+          finished_at: 'bhl.finished_at',
+          position: 'bhl.positioninlibrary'
+        };
+        const sortColumn = sortMap[sortField] || 'bhl.positioninlibrary';
+
+        const needsBooks = ['title', 'author', 'rating'].includes(sortField) ||
+          filter?.search ||
+          filter?.min_rating !== undefined ||
+          filter?.max_rating !== undefined;
+
+        const joins = needsBooks
+          ? 'LEFT JOIN books b ON bhl.id_book = b.id_book LEFT JOIN authors a ON b.author = a.id_author'
+          : '';
+
+        const conditions = ['bhl.id_library = $1'];
+        const params = [cleanLibraryId];
+        const addParam = (value) => {
+          params.push(value);
+          return `$${params.length}`;
+        };
+
+        if (filter?.reading_status) {
+          conditions.push(`bhl.reading_status = ${addParam(filter.reading_status)}`);
+        }
+
+        if (typeof filter?.is_favorite === 'boolean') {
+          conditions.push(`bhl.is_favorite = ${addParam(filter.is_favorite)}`);
+        }
+
+        if (typeof filter?.lent === 'boolean') {
+          conditions.push(filter.lent ? 'bhl.lent_to IS NOT NULL' : 'bhl.lent_to IS NULL');
+        }
+
+        if (Array.isArray(filter?.tags) && filter.tags.length > 0) {
+          conditions.push(`bhl.tags && ${addParam(filter.tags)}::text[]`);
+        }
+
+        if (filter?.search) {
+          const searchParam = addParam(`%${filter.search}%`);
+          conditions.push(`(b.title ILIKE ${searchParam} OR a.name ILIKE ${searchParam})`);
+        }
+
+        if (filter?.min_rating !== undefined && filter?.min_rating !== null) {
+          conditions.push(`b.avg_rating >= ${addParam(filter.min_rating)}`);
+        }
+
+        if (filter?.max_rating !== undefined && filter?.max_rating !== null) {
+          conditions.push(`b.avg_rating <= ${addParam(filter.max_rating)}`);
+        }
+
+        const query = `
+          SELECT
+            bhl.id_bookhaslibrary,
+            bhl.id_library,
+            bhl.id_book,
+            bhl.is_read,
+            bhl.is_favorite,
+            bhl.positioninlibrary,
+            bhl.reading_status,
+            bhl.progress_percentage,
+            bhl.personal_note,
+            bhl.tags,
+            to_char(bhl.started_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as started_at,
+            to_char(bhl.finished_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as finished_at,
+            bhl.lent_to,
+            to_char(bhl.lent_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as lent_at,
+            to_char(bhl.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as created_at,
+            to_char(bhl.updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as updated_at
+          FROM bookhaslibrary bhl
+          ${joins}
+          WHERE ${conditions.join(' AND ')}
+          ORDER BY 
+            CASE WHEN bhl.positioninlibrary IS NOT NULL THEN 0 ELSE 1 END,
+            ${sortColumn} ${safeDirection} NULLS LAST,
+            bhl.created_at ASC
+        `;
+
+        const result = await db.query(query, params);
+        if (context?.res?.status) context.res.status(200);
+        return result.rows || [];
+      },
+      {
+        structureSchema: getBooksInLibrarySchema,
+        sortingSchema: generalSortingSchema,
+        orderSchema: generalOrderBookHasLibrarySchema,
+        logAction: 'GET_BOOKS_IN_LIBRARY',
+        requiresAuth: true,
+        errorMessage: 'Erreur lors de la récupération des livres de la bibliothèque'
+      }
+    ),
+
+    /**
      * Récupère un livre d'une bibliothèque
      * 🔒 Route protégée - L'utilisateur ne peut voir que ses propres livres (sauf admin)
      * @param {string} id_bookhaslibrary - ID de la relation livre-bibliothèque
@@ -634,6 +759,47 @@ export default {
       }
     ),
 
+    /**
+     * Vérifie si un livre est dans les favoris de l'utilisateur connecté
+     * 🔒 Route protégée - L'utilisateur ne peut voir que ses propres favoris
+     * @param {string} id_book - ID du livre à vérifier
+     * @returns {boolean} true si le livre est dans les favoris, false sinon
+     * @throws {GraphQLError} Si l'utilisateur n'est pas authentifié (401)
+     */
+    IsBookInFavorites: withSecureResolver(
+      async (_, { id_book }, context) => {
+        const cleanBookId = sanitizeStrict(id_book);
+        if (!cleanBookId) {
+          throw new GraphQLError('id_book requis', {
+            extensions: { code: 'BAD_REQUEST', httpStatus: 400 }
+          });
+        }
+
+        // Récupérer l'utilisateur du contexte JWT
+        const user = await verifyUserInDB(context);
+
+        // Vérifier si le livre est dans les favoris de l'utilisateur
+        // Un livre est en favoris s'il existe une relation bookhaslibrary avec is_favorite = true
+        // ET que la bibliothèque appartient à l'utilisateur
+        const result = await db.query(`
+          SELECT COUNT(*)::int as count
+          FROM bookhaslibrary bhl
+          INNER JOIN libraries l ON bhl.id_library = l.id_library
+          WHERE bhl.id_book = $1 
+            AND l.id_user = $2 
+            AND bhl.is_favorite = true
+        `, [cleanBookId, user.id_user]);
+
+        if (context?.res?.status) context.res.status(200);
+        return result.rows[0].count > 0;
+      },
+      {
+        logAction: 'IS_BOOK_IN_FAVORITES',
+        requiresAuth: true,
+        errorMessage: 'Erreur lors de la vérification des favoris'
+      }
+    ),
+
   },
 
   Mutation: {
@@ -677,7 +843,7 @@ export default {
 
         // Vérifier l'accès et que la bibliothèque est modifiable
         const library = await verifyUserOwnsLibrary(cleanIdLibrary, context);
-        requireEditableLibrary(library);
+        
 
         // Vérifier que le livre existe
         const book = await findBy1ParameterOrThrow('books', 'id_book', cleanIdBook, 'Livre non trouvé');
@@ -903,42 +1069,65 @@ export default {
      */
     updateFavoriteStatusInBookHasLibrary: withSecureResolver(
       async (_, { input, validated }, context) => {
-        const { id_bookhaslibrary } = input;  
-        if (!id_bookhaslibrary) {
-          throw new GraphQLError('id_bookhaslibrary requis', {
+        const { id_book } = input;
+        
+        if (!id_book) {
+          throw new GraphQLError('id_book requis', {
             extensions: { code: 'BAD_REQUEST', httpStatus: 400 }
           });
         }
-        // ========================================
-        // RECUPERER LES DONNEES NESSESAIRES
-        // ========================================
+
+        const cleanIdBook = sanitizeStrict(id_book);
+        const cleanIdUser = sanitizeStrict(context.user.id_user);
+
+        // Trouver la bibliothèque de favoris de l'utilisateur (bibliothèque par défaut)
+        const favLibResult = await db.query(
+          'SELECT id_library FROM libraries WHERE id_user = $1 AND name = $2 LIMIT 1',
+          [cleanIdUser, 'Bibliothèque livres favoris']
+        );
         
-        const cleanIdBookHasLibrary = sanitizeStrict(id_bookhaslibrary);
-        const bookLibrary = await findBy1ParameterOrThrow('bookhaslibrary', 'id_bookhaslibrary', cleanIdBookHasLibrary, 'Livre en bibliothèque non trouvé');
-        // Vérifier l'accès
-        await verifyUserOwnsLibrary(bookLibrary.data.id_library, context);
-        // ========================================
-        // REQUETES BASE DE DONNEES
-        // ========================================
-        const result = await db.query(`
-          UPDATE bookhaslibrary
-          SET is_favorite = NOT is_favorite, updated_at = NOW()
-          WHERE id_bookhaslibrary = $1
-          RETURNING *
-        `, [cleanIdBookHasLibrary]);
-        // ========================================
-        // DONNEES RECUPEREES
-        // ========================================
-        if (result.rows.length === 0) {
-          throw new GraphQLError('Livre en bibliothèque non trouvé', {
+        if (!favLibResult.rows.length) {
+          throw new GraphQLError('Bibliothèque de favoris non trouvée', {
             extensions: { code: 'NOT_FOUND', httpStatus: 404 }
           });
         }
-        if (context?.res?.status) context.res.status(201);
+        
+        const favLibId = favLibResult.rows[0].id_library;
+
+        // Vérifier si le livre est déjà dans les favoris
+        const bookHasLibResult = await db.query(
+          'SELECT id_bookhaslibrary FROM bookhaslibrary WHERE id_book = $1 AND id_library = $2',
+          [cleanIdBook, favLibId]
+        );
+        
+        let isFavorite;
+        
+        if (bookHasLibResult.rows.length) {
+          // Le livre est déjà dans les favoris → le SUPPRIMER
+          const id_bookhaslibrary = bookHasLibResult.rows[0].id_bookhaslibrary;
+          await db.query(
+            'DELETE FROM bookhaslibrary WHERE id_bookhaslibrary = $1',
+            [id_bookhaslibrary]
+          );
+          isFavorite = false;
+        } else {
+          // Le livre n'est pas dans les favoris → le CRÉER
+          const newId = uuidv4();
+          await db.query(
+            'INSERT INTO bookhaslibrary (id_bookhaslibrary, id_book, id_library, is_favorite, created_at, updated_at) VALUES ($1, $2, $3, true, NOW(), NOW())',
+            [newId, cleanIdBook, favLibId]
+          );
+          isFavorite = true;
+        }
+
+        if (context?.res?.status) context.res.status(200);
+        
+        // Retourner un objet simple avec le statut
         return {
-          data: result.rows[0],
-          message: `Le statut 'favori' a été mis à jour avec succès.`,
-          httpStatus: 201
+          id_bookhaslibrary: bookHasLibResult.rows[0]?.id_bookhaslibrary || null,
+          id_book: cleanIdBook,
+          id_library: favLibId,
+          is_favorite: isFavorite
         };
       },
       {
@@ -949,6 +1138,62 @@ export default {
         logAction: 'UPDATE_BOOK_IN_LIBRARY',
         requiresAuth: true,
         errorMessage: 'Erreur lors de la mise à jour'
+      }
+    ),
+
+    /**
+     * Met à jour la progression de lecture d'un livre
+     * 🔒 Route protégée - L'utilisateur ne peut mettre à jour que ses propres livres
+     * @param {string} id_bookhaslibrary - ID du livre en bibliothèque
+     * @param {int} progress_percentage - Pourcentage de progression (0-100)
+     * @returns {object} Livre mise à jour
+     */
+    updateProgressPercentage: withSecureResolver(
+      async (_, { id_bookhaslibrary, progress_percentage }, context) => {
+        if (!id_bookhaslibrary) {
+          throw new GraphQLError('id_bookhaslibrary requis', {
+            extensions: { code: 'BAD_REQUEST', httpStatus: 400 }
+          });
+        }
+
+        if (progress_percentage === undefined || progress_percentage === null) {
+          throw new GraphQLError('progress_percentage requis', {
+            extensions: { code: 'BAD_REQUEST', httpStatus: 400 }
+          });
+        }
+
+        if (progress_percentage < 0 || progress_percentage > 100) {
+          throw new GraphQLError('progress_percentage doit être entre 0 et 100', {
+            extensions: { code: 'BAD_REQUEST', httpStatus: 400 }
+          });
+        }
+
+        const cleanIdBookHasLibrary = sanitizeStrict(id_bookhaslibrary);
+        const bookLibrary = await findBy1ParameterOrThrow('bookhaslibrary', 'id_bookhaslibrary', cleanIdBookHasLibrary, 'Livre en bibliothèque non trouvé');
+        
+        // Vérifier l'accès
+        await verifyUserOwnsLibrary(bookLibrary.data.id_library, context);
+
+        const result = await db.query(`
+          UPDATE bookhaslibrary
+          SET progress_percentage = $1, updated_at = NOW()
+          WHERE id_bookhaslibrary = $2
+          RETURNING *
+        `, [progress_percentage, cleanIdBookHasLibrary]);
+
+        if (result.rows.length === 0) {
+          throw new GraphQLError('Livre en bibliothèque non trouvé', {
+            extensions: { code: 'NOT_FOUND', httpStatus: 404 }
+          });
+        }
+
+        if (context?.res?.status) context.res.status(200);
+        return result.rows[0];
+      },
+      {
+        logAction: 'UPDATE_PROGRESS',
+        requiresAuth: true,
+        errorMessage: 'Erreur lors de la mise à jour de la progression'
       }
     ),
 
@@ -981,12 +1226,30 @@ export default {
         // ========================================
         // RECUPERER LES DONNEES NESSESAIRES
         // ======================================== 
-        const cleanId = sanitizeStrict(input.id_bookhaslibrary);
+        let cleanId = sanitizeStrict(input.id_bookhaslibrary);
 
         if (!cleanId) {
-          throw new GraphQLError('id_bookhaslibrary requis', {
-            extensions: { code: 'BAD_REQUEST', httpStatus: 400 }
-          });
+          const cleanIdBook = sanitizeStrict(input.id_book);
+          const cleanIdLibrary = sanitizeStrict(input.id_library);
+
+          if (!cleanIdBook || !cleanIdLibrary) {
+            throw new GraphQLError('id_bookhaslibrary requis', {
+              extensions: { code: 'BAD_REQUEST', httpStatus: 400 }
+            });
+          }
+
+          const lookup = await db.query(
+            'SELECT id_bookhaslibrary FROM bookhaslibrary WHERE id_book = $1 AND id_library = $2',
+            [cleanIdBook, cleanIdLibrary]
+          );
+
+          if (!lookup.rows.length) {
+            throw new GraphQLError('Livre en bibliothèque non trouvé', {
+              extensions: { code: 'NOT_FOUND', httpStatus: 404 }
+            });
+          }
+
+          cleanId = lookup.rows[0].id_bookhaslibrary;
         }
 
         const bookLibrary = await findBy1ParameterOrThrow('bookhaslibrary', 'id_bookhaslibrary', cleanId, 'Livre en bibliothèque non trouvé');
@@ -1073,7 +1336,7 @@ export default {
         const uniqueLibraries = [...new Set(cleanBooks.map(b => b.id_library))];
         for (const libraryId of uniqueLibraries) {
           const library = await verifyUserOwnsLibrary(libraryId, context);
-          requireEditableLibrary(library);
+          
         }
 
         // Vérifier que tous les livres existent
@@ -1183,7 +1446,7 @@ export default {
         const uniqueLibraries = [...new Set(cleanBooks.map(b => b.id_library))];
         for (const libraryId of uniqueLibraries) {
           const library = await verifyUserOwnsLibrary(libraryId, context);
-          requireEditableLibrary(library);
+          
         }
 
         // Préparer la suppression en batch avec des paires (id_book, id_library)
@@ -1227,6 +1490,138 @@ export default {
       }
     ),
 
+    /**
+     * Déplacer un livre d'une bibliothèque à une autre
+     */
+    moveBookToLibrary: withSecureResolver(
+      async (_, { input }, context) => {
+        const { id_book, from_library_id, to_library_id } = input;
+
+        //console.log('🚚 moveBookToLibrary called:', { id_book, from_library_id, to_library_id });
+
+        // Vérifier l'utilisateur
+        const user = await verifyUserInDB(context);
+
+        // Vérifier que les bibliothèques existent et appartiennent à l'utilisateur
+        const fromLibrary = await findBy1ParameterOrThrow('libraries', 'id_library', from_library_id, 'Bibliothèque source non trouvée');
+        const toLibrary = await findBy1ParameterOrThrow('libraries', 'id_library', to_library_id, 'Bibliothèque destination non trouvée');
+
+        if (!user.isAdmin && (fromLibrary.data.id_user !== user.id_user || toLibrary.data.id_user !== user.id_user)) {
+          throw new GraphQLError('Accès refusé', {
+            extensions: { code: 'FORBIDDEN', httpStatus: 403 }
+          });
+        }
+
+        // Vérifier que le livre existe dans la bibliothèque source
+        const bookInLibrary = await db.query(
+          'SELECT * FROM bookhaslibrary WHERE id_book = $1 AND id_library = $2',
+          [id_book, from_library_id]
+        );
+
+        //console.log('🔍 Book found in source library:', bookInLibrary.rows.length > 0);
+
+        if (bookInLibrary.rows.length === 0) {
+          throw new GraphQLError('Livre non trouvé dans la bibliothèque source', {
+            extensions: { code: 'NOT_FOUND', httpStatus: 404 }
+          });
+        }
+
+        // Vérifier si le livre existe déjà dans la bibliothèque destination
+        const existingInDest = await db.query(
+          'SELECT * FROM bookhaslibrary WHERE id_book = $1 AND id_library = $2',
+          [id_book, to_library_id]
+        );
+
+        if (existingInDest.rows.length > 0) {
+          throw new GraphQLError('Le livre existe déjà dans la bibliothèque destination', {
+            extensions: { code: 'CONFLICT', httpStatus: 409 }
+          });
+        }
+
+        // Déplacer le livre
+        const updateResult = await db.query(
+          'UPDATE bookhaslibrary SET id_library = $1, updated_at = NOW() WHERE id_book = $2 AND id_library = $3 RETURNING *',
+          [to_library_id, id_book, from_library_id]
+        );
+
+        //console.log('✅ Book moved successfully, rows affected:', updateResult.rowCount);
+        //console.log('📦 Updated record:', updateResult.rows[0]);
+
+        if (context?.res?.status) context.res.status(200);
+        return true;
+      },
+      {
+        logAction: 'MOVE_BOOK_TO_LIBRARY',
+        requiresAuth: true,
+        errorMessage: 'Erreur lors du déplacement du livre'
+      }
+    ),
+
+    /**
+     * Réorganise les livres dans une bibliothèque
+     * 🔒 Route protégée - L'utilisateur peut réorganiser ses propres livres
+     * @param {string} id_library - ID de la bibliothèque
+     * @param {array} book_ids - Liste ordonnée des IDs de livres
+     * @returns {boolean} true si succès
+     */
+    reorderBooksInLibrary: withSecureResolver(
+      async (_, { id_library, book_ids }, context) => {
+        //console.log('📚 reorderBooksInLibrary called:', { id_library, book_ids, userId: context?.user?.id_user });
+
+        if (!id_library || !book_ids || book_ids.length === 0) {
+          throw new GraphQLError('L\'ID de la bibliothèque et la liste des livres sont requis', {
+            extensions: { code: 'BAD_REQUEST', httpStatus: 400 }
+          });
+        }
+
+        const userId = context?.user?.id_user;
+        if (!userId) {
+          throw new GraphQLError('Utilisateur non authentifié', {
+            extensions: { code: 'UNAUTHORIZED', httpStatus: 401 }
+          });
+        }
+
+        // Vérifier que la bibliothèque appartient à l'utilisateur
+        const libraryCheck = await db.query(
+          'SELECT id_user FROM libraries WHERE id_library = $1',
+          [id_library]
+        );
+
+        if (libraryCheck.rows.length === 0) {
+          throw new GraphQLError('Bibliothèque non trouvée', {
+            extensions: { code: 'NOT_FOUND', httpStatus: 404 }
+          });
+        }
+
+        if (libraryCheck.rows[0].id_user !== userId) {
+          throw new GraphQLError('Vous n\'avez pas accès à cette bibliothèque', {
+            extensions: { code: 'FORBIDDEN', httpStatus: 403 }
+          });
+        }
+
+        // Mettre à jour la position de chaque livre
+        for (let i = 0; i < book_ids.length; i++) {
+          const bookId = book_ids[i];
+          const position = i;
+
+          await db.query(
+            `UPDATE bookhaslibrary 
+             SET positioninlibrary = $1, updated_at = NOW() 
+             WHERE id_book = $2 AND id_library = $3`,
+            [position, bookId, id_library]
+          );
+        }
+
+        //console.log('✅ Books reordered successfully in library');
+        return true;
+      },
+      {
+        logAction: 'REORDER_BOOKS_IN_LIBRARY',
+        requiresAuth: true,
+        errorMessage: 'Erreur lors de la réorganisation des livres'
+      }
+    ),
+
   },
 
   BookHasLibrary: {
@@ -1267,9 +1662,11 @@ export const requireEditableLibrary = (library) => {
  * Vérifie que l'utilisateur peut accéder à cette bibliothèque
  */
 export const verifyUserOwnsLibrary = async (libraryId, context) => {
-  const library = await findBy1ParameterOrThrow('libraries', 'id_library', libraryId, 'Bibliothèque non trouvée');
-
+  const libraryResult = await findBy1ParameterOrThrow('libraries', 'id_library', libraryId, 'Bibliothèque non trouvée');
   
+  // Extraire les données de la bibliothèque (peut être libraryResult ou libraryResult.data)
+  const library = libraryResult.data || libraryResult;
+
   if (!library) {
     throw new GraphQLError('Bibliothèque non trouvée', {
       extensions: { code: 'NOT_FOUND', httpStatus: 404 }

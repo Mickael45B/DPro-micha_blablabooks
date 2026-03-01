@@ -2,6 +2,8 @@ import React, { useEffect, useState, useMemo  } from "react";
 import { useParams } from "react-router-dom";
 import { useQuery } from '@apollo/client';
 import { GET_BOOKS } from '../../../data/graphql/queries/queriesBooks.jsx';
+import { GET_NUMBER_OF_USERS, GET_NUMBER_OF_REVIEWS } from '../../../data/graphql/queries/connecting.jsx';
+
 import apolloClient from '../../../data/apollo/apolloClient.js';
 import LoadingSpinner from '../../components/layout/LoadingSpinner.jsx';
 
@@ -9,12 +11,15 @@ import MainLayout from '../../components/layout/MainLayout/mainLayout.jsx';
 import Carousel from '../../components/features/Carousel/Carousel.jsx';
 import SmallCard from '../../components/features/BookCard/variants/smallCard/smallCard.jsx';
 import Thumbnail from '../../components/features/BookCard/variants/thumbnail/thumbnail.jsx';
+import ThumbnailContext from '../../components/features/BookCard/variants/thumbnailContext/thumbnailContext.jsx';
+import { GET_USERS } from '../Admin/adminQueries.jsx';
+
 // import "../../../index.css";
 import "./homePage.css";
 import { getUserFromToken } from "../../../data/graphql/queries/auth.jsx";
 
 // Composant pour afficher le résumé dans le menu contextuel
-const BookSummaryHome = ({ book }) => {
+const SelectedBookDisplay = ({ book }) => {
     if (!book) {
         return (
             <div className="home-cta">
@@ -24,7 +29,7 @@ const BookSummaryHome = ({ book }) => {
                     Essai gratuit 30 jours
                 </a>
                 <p style={{fontSize: '0.8em', marginTop: '1em', opacity: 0.7}}>
-                    Puis 9,99€/mois ou 99,99€/an
+                    fonctionnalités à venir
                 </p>
             </div>
         );
@@ -37,13 +42,19 @@ const BookSummaryHome = ({ book }) => {
     };
 
     return (
-        <div className="book-summary">
-            {/* Image d'en-tête */}
-            <span className="book-summary__badge">{decodeHtml(book.title)}</span>
-            <SmallCard 
-                key={book.id_book} 
-                book={book}
-            />
+        <div className="selected-book-display">
+            {/* Titre du livre sélectionné */}
+            <div className="selected-book-header">
+                <span className="selected-book-badge">{decodeHtml(book.title)}</span>
+            </div>
+            
+            {/* Afficher le thumbnail du livre sélectionné */}
+            <div className="selected-book-thumbnail">
+                <ThumbnailContext 
+                    book={book}
+                    onShowSummary={() => {}} // Désactiver le clic pour éviter la récursion
+                />
+            </div>
         </div>
     );
 };
@@ -62,6 +73,23 @@ const HomePage = () => {
         },
         fetchPolicy: 'network-only'
     });
+
+    const { data: usersData } = useQuery(GET_NUMBER_OF_USERS, {
+        variables: {
+            limit: 5,
+            offset: 0
+        },
+        fetchPolicy: 'network-only'
+    });
+
+    const { data: reviewsData } = useQuery(GET_NUMBER_OF_REVIEWS, {
+        variables: {
+            limit: 5,
+            offset: 0
+        },
+        fetchPolicy: 'network-only'
+    });
+
 
     // Sélectionner 15 livres pris au hasard
     const randomBooks = useMemo(() => {
@@ -88,59 +116,31 @@ const HomePage = () => {
             .slice(0, 15);
     }, [data]);
 
+    // Fonction appelée quand on clique sur un thumbnail
     const handleShowSummary = (book) => {
-        console.log('📖 Livre sélectionné:', book.title);
+        //console.log('📖 Livre sélectionné:', book.title);
         setSelectedBook(book);
     };
 
-    // Menu contextuel avec info et résumé
-    const contextualMenu = (
-        <>
-            <div className="contextualMenu__info">
-
-
-
-        <h2 className="footerContainer__title">
-          Rejoignez une communauté de passionnés de lecture
-        </h2>
-        <div className="footerContainer__stats">
-          <div className="stat">
-            <span className="stat__number">10K+</span>
-            <span className="stat__label">Livres</span>
-          </div>
-          <div className="stat">
-            <span className="stat__number">5K+</span>
-            <span className="stat__label">Lecteurs</span>
-          </div>
-          <div className="stat">
-            <span className="stat__number">15K+</span>
-            <span className="stat__label">Avis</span>
-          </div>
+    // Menu contextuel avec info et livre sélectionné
+    const contextualMenuAction = (
+        <div className="contextualMenu__action">
+            <div className="selected-book-container">
+            {selectedBook ? (
+                <>
+                    <h3>📖 Aperçu du livre</h3>
+                    <SelectedBookDisplay book={selectedBook} />
+                </>
+            ) : (
+                <SelectedBookDisplay book={null} />
+            )}
+            </div>
         </div>
-
-
-
-
-
-
-                
-            </div>
-            <div className="contextualMenu__action">
-                {selectedBook ? (
-                    <>
-                        <h3>📖 Aperçu du livre</h3>
-                        <BookSummaryHome book={selectedBook} />
-                    </>
-                ) : (
-                    <BookSummaryHome book={null} />
-                )}
-            </div>
-        </>
     );
 
     if (loading) {
         return (
-            <MainLayout contextualMenu={contextualMenu}>
+            <MainLayout contextualMenuAction={contextualMenuAction}>
                 <div style={{ textAlign: 'center', padding: '3rem' }}>
                     <p>Chargement des livres...</p>
                 </div>
@@ -150,7 +150,7 @@ const HomePage = () => {
 
     if (error) {
         return (
-            <MainLayout contextualMenu={contextualMenu}>
+            <MainLayout contextualMenuAction={contextualMenuAction}>
                 <div style={{ textAlign: 'center', padding: '3rem', color: 'red' }}>
                     <p>❌ Erreur lors du chargement : {error.message}</p>
                 </div>
@@ -159,7 +159,7 @@ const HomePage = () => {
     }
 
     return (
-        <MainLayout contextualMenu={contextualMenu}>
+        <MainLayout contextualMenuAction={contextualMenuAction}>
             {/* Hero section */}
             <section className="home-hero">
                 <h1 style={{fontSize: '2em', marginBottom: '0.5em'}}>
@@ -170,6 +170,7 @@ const HomePage = () => {
                 </p>
             </section>
 
+            {/* Grille - Sélection du moment */}
             <section className="home-section">
                 <h2 className="home-section__title">📚 notre sélection du moment</h2>
                     <div className="home-books-grid">
@@ -184,18 +185,18 @@ const HomePage = () => {
             </section>
 
             {/* Grille - Livres les mieux notés */}
-                <section className="home-section">
-                    <h2 className="home-section__title">⭐ Nos coups de cœur</h2>
-                    <div className="home-books-grid">
-                        {topRatedBooks.map((book) => (
-                            <Thumbnail 
-                                key={book.id_book} 
-                                book={book}
-                                onShowSummary={handleShowSummary}
-                            />
-                        ))}
-                    </div>
-                </section>
+            <section className="home-section">
+                <h2 className="home-section__title">⭐ Nos coups de cœur</h2>
+                <div className="home-books-grid">
+                    {topRatedBooks.map((book) => (
+                        <Thumbnail 
+                            key={book.id_book} 
+                            book={book}
+                            onShowSummary={handleShowSummary}
+                        />
+                    ))}
+                </div>
+            </section>
 
             {/* Grille - Livres récents */}
             {recentBooks.length > 0 && (

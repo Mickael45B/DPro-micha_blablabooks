@@ -29,12 +29,19 @@ CREATE EXTENSION IF NOT EXISTS pg_trgm SCHEMA public;--nécessaire pour les inde
 -- ---------------------------------------------------------
 DROP TABLE IF EXISTS rolehaspermissions CASCADE;
 DROP TABLE IF EXISTS permissions CASCADE;
+DROP TABLE IF EXISTS reports CASCADE;
+DROP TABLE IF EXISTS reaseonOfReport CASCADE;
+DROP TABLE IF EXISTS categoryOfReport CASCADE;
 DROP TABLE IF EXISTS bookhaslibrary CASCADE;
 DROP TABLE IF EXISTS reviews CASCADE;
 DROP TABLE IF EXISTS libraries CASCADE;
 DROP TABLE IF EXISTS books CASCADE;
 DROP TABLE IF EXISTS users CASCADE;
 DROP TABLE IF EXISTS roles CASCADE;
+DROP TABLE IF EXISTS authors CASCADE;
+DROP TABLE IF EXISTS editors CASCADE;
+DROP TABLE IF EXISTS genres CASCADE;
+DROP TABLE IF EXISTS tagsOnBookhaslibrary CASCADE;
 
 -- ---------------------------------------------------------
 -- 2) ROLES
@@ -88,18 +95,47 @@ CREATE TABLE status (
 
 CREATE INDEX idx_status_name ON status(status_name);
 
--- Option B (production) : utiliser INT GENERATED ALWAYS AS IDENTITY
--- Si vous préférez garder une colonne entière auto-incrémentée, remplacez la définition
--- ci-dessus par :
--- CREATE TABLE status (
---   id_status     INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
---   status_name   VARCHAR(100) NOT NULL UNIQUE,
---   created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
---   updated_at    TIMESTAMPTZ
--- );
+-- ---------------------------------------------------------
+-- 6) AUTHORS
+-- ---------------------------------------------------------
+CREATE TABLE authors (
+  id_author     INTEGER PRIMARY KEY,
+  name          VARCHAR(255) NOT NULL UNIQUE CHECK (length(btrim(name)) > 0),
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at    TIMESTAMPTZ
+);
+
+CREATE INDEX idx_authors_name ON authors(name);
+CREATE INDEX idx_authors_name_trgm ON authors USING GIN (name gin_trgm_ops);
 
 -- ---------------------------------------------------------
--- 6) USERS
+-- 6b) EDITORS
+-- ---------------------------------------------------------
+CREATE TABLE editors (
+  id_editor     INTEGER PRIMARY KEY,
+  name          VARCHAR(255) NOT NULL UNIQUE CHECK (length(btrim(name)) > 0),
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at    TIMESTAMPTZ
+);
+
+CREATE INDEX idx_editors_name ON editors(name);
+CREATE INDEX idx_editors_name_trgm ON editors USING GIN (name gin_trgm_ops);
+
+-- ---------------------------------------------------------
+-- 6c) GENRES
+-- ---------------------------------------------------------
+CREATE TABLE genres (
+  id_genre      INTEGER PRIMARY KEY,
+  name          VARCHAR(100) NOT NULL UNIQUE CHECK (length(btrim(name)) > 0),
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at    TIMESTAMPTZ
+);
+
+CREATE INDEX idx_genres_name ON genres(name);
+CREATE INDEX idx_genres_name_trgm ON genres USING GIN (name gin_trgm_ops);
+
+-- ---------------------------------------------------------
+-- 7) USERS
 -- ---------------------------------------------------------
 CREATE TABLE users (
   id_user       VARCHAR(42) PRIMARY KEY,
@@ -112,6 +148,9 @@ CREATE TABLE users (
   id_status     VARCHAR(42) REFERENCES status(id_status) ON DELETE SET NULL,
   refresh_token TEXT, -- pour stocker le refresh token (optionnel)
   last_login    TIMESTAMPTZ,
+  code_passwordReset VARCHAR(64), -- pour stocker le code de réinitialisation de mot de passe (optionnel)
+  createDatetime_passwordReset TIMESTAMPTZ, -- pour stocker la date d'expiration du code de réinitialisation (optionnel)
+  validity_passwordReset INTEGER CHECK (validity_passwordReset > 0), -- pour stocker la durée de validité du code de réinitialisation (optionnel)
   created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at    TIMESTAMPTZ
 );
@@ -130,16 +169,16 @@ COMMENT ON COLUMN users.last_login IS 'Date de dernière connexion réussie';
 COMMENT ON COLUMN users.id_status IS 'Référence au statut utilisateur (actif, bloqué, etc.)';
 COMMENT ON COLUMN users.password IS 'Mot de passe hashé avec bcrypt (10 rounds)';
 -- ---------------------------------------------------------
--- 6) BOOKS
+-- 8) BOOKS
 -- ---------------------------------------------------------
 CREATE TABLE books (
   id_book            VARCHAR(42) PRIMARY KEY,
   title              VARCHAR(255) NOT NULL CHECK (length(btrim(title)) > 0),
   isbn               VARCHAR(42),
   publication_date   TIMESTAMPTZ CHECK (publication_date IS NULL OR publication_date <= CURRENT_DATE), -- date format européen (jj/mm/aaaa)
-  author             VARCHAR(255),
-  editor             VARCHAR(255),
-  genre              VARCHAR(100), 
+  author             INTEGER REFERENCES authors(id_author) ON DELETE SET NULL, -- référence à la table des auteurs
+  editor             INTEGER REFERENCES editors(id_editor) ON DELETE SET NULL, -- référence à la table des éditeurs
+  genre              INTEGER REFERENCES genres(id_genre) ON DELETE SET NULL, -- référence à la table des genres
   vignetteimage      VARCHAR(255),
   bookimage          VARCHAR(255),
   age_limit          INTEGER CHECK (age_limit IS NULL OR age_limit >= 0),
@@ -156,55 +195,57 @@ CREATE TABLE books (
   -- CONSTRAINT chk_book_isbn CHECK (isbn IS NULL OR isbn ~ '^(?:ISBN(?:-1[03])?:?\s?)?(?:\d{9}[\dXx]|\d{13})$')
 );
 
--- Index pour recherche full-text (français) avec unaccent
--- CREATE INDEX idx_books_fulltext
--- ON books
--- USING GIN (to_tsvector('french',
---   immutable_unaccent(coalesce(title,'') || ' ' ||
---                      coalesce(author,'') || ' ' ||
---                      coalesce(editor,'') || ' ' ||
---                      coalesce(series,'') || ' ' ||
---                      coalesce(description,'')))
--- );
-
--- Index trigramme pour recherche floue
-CREATE INDEX idx_books_author_title_trgm ON books USING GIN ((coalesce(author,'') || ' ' || title) gin_trgm_ops);
-CREATE INDEX idx_books_author_trgm ON books USING GIN (author gin_trgm_ops);
+-- Index trigramme pour recherche floue (author est maintenant INTEGER, pas de trigramme dessus)
 CREATE INDEX idx_books_title_trgm ON books USING GIN (title gin_trgm_ops);
+-- Index pour author, editor, genre (clés étrangères INTEGER)
+CREATE INDEX idx_books_author ON books(author) WHERE author IS NOT NULL;
+CREATE INDEX idx_books_editor ON books(editor) WHERE editor IS NOT NULL;
+CREATE INDEX idx_books_genre ON books(genre) WHERE genre IS NOT NULL;
 -- Index composite optimisé pour tri par popularité/qualité
 CREATE INDEX idx_books_popularity 
 ON books(avg_rating DESC NULLS LAST, is_in_favorite DESC, nb_reviews DESC);
 CREATE INDEX idx_books_publication_date ON books(publication_date DESC) WHERE publication_date IS NOT NULL;
-CREATE INDEX idx_books_genre ON books(genre) WHERE genre IS NOT NULL; -- Nouvel index pour le genre
 CREATE INDEX idx_books_isbn ON books(isbn) WHERE isbn IS NOT NULL;
 
-
-
-
-
-
 -- ---------------------------------------------------------
--- 7) LIBRARIES 
+-- 9) LIBRARIES 
 -- ---------------------------------------------------------
 CREATE TABLE libraries (
   id_library   VARCHAR(42) PRIMARY KEY,
   name         VARCHAR(255) NOT NULL CHECK (length(btrim(name)) > 0),
   is_editable  BOOLEAN DEFAULT FALSE,
   id_user      VARCHAR(42) REFERENCES users(id_user) ON DELETE SET NULL, 
+  is_default    BOOLEAN DEFAULT FALSE, -- pour différencier la bibliothèque par défaut de l'utilisateur (tous les livres) des bibliothèques personnalisées
+  color         VARCHAR(7) DEFAULT '#d7355c' CHECK (color ~ '^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$'), -- code couleur hexadécimal
+  is_public   BOOLEAN DEFAULT FALSE, -- pour les futures bibliothèques partagées
+  description VARCHAR(512), -- description optionnelle de la bibliothèque
+  sort_order INTEGER DEFAULT 0, -- pour permettre à l'utilisateur de réorganiser ses bibliothèques
   created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at   TIMESTAMPTZ
 );
 
 CREATE INDEX idx_libraries_user ON libraries(id_user) WHERE id_user IS NOT NULL;
+-- Index pour is_default
+CREATE INDEX IF NOT EXISTS idx_libraries_default 
+ON libraries(is_default) 
+WHERE is_default = TRUE;
 
+-- Index pour is_public
+CREATE INDEX IF NOT EXISTS idx_libraries_public 
+ON libraries(is_public) 
+WHERE is_public = TRUE;
+
+-- Index composite pour user + is_public
+CREATE INDEX IF NOT EXISTS idx_libraries_user_public 
+ON libraries(id_user, is_public);
 
 -- ---------------------------------------------------------
--- 8) REVIEWS
+-- 10) REVIEWS
 -- ---------------------------------------------------------
 CREATE TABLE reviews (
   id_review    VARCHAR(42) PRIMARY KEY,
   id_user   VARCHAR(42) REFERENCES users(id_user) ON DELETE SET NULL, 
-  id_book      VARCHAR(42) NOT NULL REFERENCES books(id_book) ON DELETE SET NULL, 
+  id_book      VARCHAR(42)  REFERENCES books(id_book) ON DELETE SET NULL, 
   title_rating  VARCHAR(255) NOT NULL CHECK (length(btrim(title_rating)) > 0), 
   comment      VARCHAR(1024) NOT NULL CHECK (length(btrim(comment)) > 0),
   rating       INTEGER NOT NULL CHECK (rating BETWEEN 1 AND 5),
@@ -233,7 +274,7 @@ CREATE INDEX idx_reviews_created_at ON reviews(created_at DESC);
 --   FOR VALUES FROM ('2026-01-01') TO ('2027-01-01');
 
 -- ---------------------------------------------------------
--- 9) BOOKHASLIBRARY (relation livre ↔ bibliothèque)
+-- 11) BOOKHASLIBRARY (relation livre ↔ bibliothèque)
 -- ---------------------------------------------------------
 CREATE TABLE bookhaslibrary (
   id_bookhaslibrary VARCHAR(42) PRIMARY KEY,
@@ -241,9 +282,18 @@ CREATE TABLE bookhaslibrary (
   id_book           VARCHAR(42) REFERENCES books(id_book) ON DELETE SET NULL, 
   is_read           BOOLEAN DEFAULT FALSE,
   is_favorite       BOOLEAN DEFAULT FALSE,
+  positionInLibrary INTEGER, -- pour permettre à l'utilisateur de réorganiser ses livres dans la bibliothèque
+  reading_status VARCHAR(20) DEFAULT 'to_read' CHECK (reading_status IN ('to_read', 'reading', 'read', 'reread')),
+  progress_percentage INTEGER DEFAULT 0 CHECK (progress_percentage >= 0 AND progress_percentage <= 100), -- pour suivre l'avancement de la lecture
+  personal_note  VARCHAR(512), -- pour que l'utilisateur puisse ajouter une note personnelle à ce livre dans sa bibliothèque
+  tags        TEXT[], -- pour que l'utilisateur puisse ajouter des tags personnalisés à ce livre dans sa bibliothèque (ex: ARRAY['à lire cet été', 'cadeau'])
+  started_at TIMESTAMPTZ, -- pour suivre la date de début de lecture
+  finished_at TIMESTAMPTZ, -- pour suivre la date de fin de lecture
+  lent_to VARCHAR(255), -- pour suivre à qui l'utilisateur a prêté ce livre (si applicable)
+  lent_at TIMESTAMPTZ, -- pour suivre la date de prêt
   created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at        TIMESTAMPTZ,
-  
+
   -- Contrainte d'unicité : un livre ne peut être qu'une fois dans la même bibliothèque
   CONSTRAINT uq_library_book UNIQUE(id_library, id_book)
 );
@@ -256,28 +306,52 @@ CREATE INDEX idx_bookhaslibrary_library ON bookhaslibrary(id_library);
 CREATE INDEX idx_bookhaslibrary_book ON bookhaslibrary(id_book);
 CREATE INDEX idx_bookhaslibrary_is_favorite ON bookhaslibrary(is_favorite) WHERE is_favorite = TRUE;
 CREATE INDEX idx_bookhaslibrary_library_book ON bookhaslibrary(id_library, id_book); -- Index composite
+-- Index pour reading_status
+CREATE INDEX IF NOT EXISTS idx_bookhaslibrary_reading_status 
+ON bookhaslibrary(reading_status);
+
+-- Index pour tags (GIN pour recherche dans array)
+CREATE INDEX IF NOT EXISTS idx_bookhaslibrary_tags 
+ON bookhaslibrary USING GIN(tags);
+
+-- Index pour les livres prêtés
+CREATE INDEX IF NOT EXISTS idx_bookhaslibrary_lent 
+ON bookhaslibrary(lent_to) 
+WHERE lent_to IS NOT NULL;
+
+-- ---------------------------------------------------------
+-- 12) DISCUTION 
+-- ---------------------------------------------------------
+
+CREATE TABLE discussions (
+  id_conversation VARCHAR(255) PRIMARY KEY,
+  subject VARCHAR(255) NOT NULL CHECK (length(btrim(subject)) > 0),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ,
+  last_message_at TIMESTAMPTZ,
+  is_archived BOOLEAN DEFAULT FALSE,
+  created_by VARCHAR(42) REFERENCES users(id_user) ON DELETE SET NULL -- pour savoir qui a initié la discussion 
+);
+
+
+
+
+
+
+
+
+
 
 
 -- ---------------------------------------------------------
--- 10) MESSAGES 
+-- 13) MESSAGES 
 -- ---------------------------------------------------------
-
--- Nouvelle fonctionnalité : ajout de tags pour vos livres
--- Problème de connexion à votre compte
--- Mise à jour de vos préférences de lecture
--- Invitation à rejoindre une bibliothèque partagée
--- Confirmation de suppression de compte
--- Message privé concernant un livre favori
--- Notification de sécurité : changement de mot de passe
--- Suggestions de lecture personnalisées
--- Rapport signalé concernant un commentaire
--- Bienvenue dans la communauté des lecteurs
 
 CREATE TABLE messages (
   id_message    VARCHAR(42) PRIMARY KEY,
   id_sender     VARCHAR(42) REFERENCES users(id_user) ON DELETE SET NULL,
   id_receiver   VARCHAR(42) REFERENCES users(id_user) ON DELETE SET NULL,
-  subject       VARCHAR(255) NOT NULL CHECK (length(btrim(subject)) > 0),
+  subject       VARCHAR(255) REFERENCES discussions(id_conversation) ON DELETE SET NULL,
   content       TEXT NOT NULL CHECK (length(btrim(content)) > 0),
   is_read       BOOLEAN DEFAULT FALSE,
   created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -292,41 +366,41 @@ CREATE INDEX idx_messages_created_brin ON messages USING BRIN(created_at); -- In
 
 
 -- ---------------------------------------------------------
--- 10) REPORTING 
+-- 13) CATEGORY OF REPORT
 -- ---------------------------------------------------------
--- cette table sera utilisée dans une version ultérieure pour la modération
--- Table pour les signalements (reports)
+CREATE TABLE categoryOfReport (
+  id_category    INTEGER PRIMARY KEY,
+  name           VARCHAR(50) NOT NULL UNIQUE CHECK (name IN ('USER', 'REVIEW', 'MESSAGE', 'OTHER')),
+  created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at     TIMESTAMPTZ
+);
 
--- Un utilisateur peut signaler un autre utilisateur, une review, un message, etc.
--- Harcèlement / propos insultants
--- Contenu haineux / discriminatoire
--- Spam / publicité non sollicitée
--- Usurpation d’identité
--- Propagation de fausses informations
--- Partage d’informations personnelles (doxing)
--- Menaces / appels à la violence
--- Pornographie / contenu sexuel explicite
--- Contenu inapproprié pour mineurs
--- Violation du droit d’auteur
--- Escroquerie / tentative de fraude
--- Comportement agressif dans les messages privés
--- Commentaire diffamatoire
--- Harcèlement ciblé répétitif
--- Publication de coordonnées bancaires / sensibles
--- Contenu offensant lié à la religion
--- Violation des règles de la communauté
--- Non-respect des conditions d’utilisation (TOS)
--- Contenu trompeur (clickbait / phishing)
--- Autre — préciser dans details
+CREATE INDEX idx_categoryofreport_name ON categoryOfReport(name);
+
+-- ---------------------------------------------------------
+-- 13b) REASON OF REPORT
+-- ---------------------------------------------------------
+CREATE TABLE reaseonOfReport (
+  id_reason      INTEGER PRIMARY KEY,
+  name           VARCHAR(255) NOT NULL UNIQUE CHECK (length(btrim(name)) > 0),
+  created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at     TIMESTAMPTZ
+);
+
+CREATE INDEX idx_reaseonofreport_name ON reaseonOfReport(name);
+
+-- ---------------------------------------------------------
+-- 14) REPORTING 
+-- ---------------------------------------------------------
 
 CREATE TABLE reports (
   id_report     VARCHAR(42) PRIMARY KEY,
-  id_user       VARCHAR(42) REFERENCES users(id_user) ON DELETE SET NULL,-- Le champ id_user référence l'utilisateur qui a fait le signalement
-  report_type   VARCHAR(50) NOT NULL CHECK (report_type IN ('user', 'review', 'message', 'other')),-- Le champ report_type indique le type d'entité signalée
-  reported_id   VARCHAR(42), -- Le champ reported_id contient l'ID de l'entité signalée. ID de l'entité signalée (user, review, message, etc.)
-  reason        VARCHAR(255) NOT NULL CHECK (length(btrim(reason)) > 0),-- Le champ reason contient la raison du signalement
-  details       TEXT,-- Le champ details peut contenir des informations supplémentaires
-  status        VARCHAR(50) NOT NULL CHECK (status IN ('pending', 'in_review', 'resolved', 'dismissed')) DEFAULT 'pending',-- Le champ status indique l'état du signalement (en attente, en cours de traitement, résolu, rejeté)
+  id_user       VARCHAR(42) REFERENCES users(id_user) ON DELETE SET NULL,
+  report_type   INTEGER NOT NULL CHECK (report_type IN (1, 2, 3, 4)) REFERENCES categoryOfReport(id_category),
+  reported_id   VARCHAR(42),
+  reason        INTEGER NOT NULL REFERENCES reaseonOfReport(id_reason),
+  details       TEXT,
+  status        VARCHAR(50) NOT NULL CHECK (status IN ('pending', 'in_review', 'resolved', 'dismissed')) DEFAULT 'pending',
   created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at    TIMESTAMPTZ
 );
@@ -336,6 +410,20 @@ CREATE INDEX idx_reports_user ON reports(id_user);
 CREATE INDEX idx_reports_type_status ON reports(report_type, status);
 CREATE INDEX idx_reports_status ON reports(status) WHERE status = 'pending';
 
+-- ---------------------------------------------------------
+-- 13) TAGS
+-- ---------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS tagsOnBookhaslibrary (
+  id_tag VARCHAR(42) PRIMARY KEY,
+  id_bookhaslibrary VARCHAR(42) REFERENCES bookhaslibrary(id_bookhaslibrary) ON DELETE CASCADE,
+  tag_name VARCHAR(50) NOT NULL UNIQUE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ
+);
+
+CREATE INDEX idx_tags_bookhaslibrary ON tagsOnBookhaslibrary(id_bookhaslibrary);
+CREATE INDEX idx_tags_tag_name ON tagsOnBookhaslibrary(tag_name);
 
 -- ============================
 -- TRIGGERS
@@ -794,6 +882,176 @@ CREATE TRIGGER trg_detect_malicious_reviews
 BEFORE INSERT OR UPDATE ON reviews
 FOR EACH ROW
 EXECUTE FUNCTION detect_malicious_content();
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+-- ---------------------------------------------------------
+-- 6) FONCTION POUR OBTENIR LES STATISTIQUES D'UNE BIBLIOTHÈQUE
+-- ---------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION get_library_stats(library_id VARCHAR(42))
+RETURNS TABLE(
+  total_books BIGINT,
+  books_read BIGINT,
+  books_reading BIGINT,
+  books_to_read BIGINT,
+  avg_rating NUMERIC,
+  total_pages INTEGER,
+  books_lent BIGINT
+) AS $$
+BEGIN
+  RETURN QUERY
+  SELECT
+    COUNT(*)::BIGINT as total_books,
+    COUNT(*) FILTER (WHERE bhl.reading_status = 'read')::BIGINT as books_read,
+    COUNT(*) FILTER (WHERE bhl.reading_status = 'reading')::BIGINT as books_reading,
+    COUNT(*) FILTER (WHERE bhl.reading_status = 'to_read')::BIGINT as books_to_read,
+    AVG(b.avg_rating) as avg_rating,
+    SUM(COALESCE(b.page_count, 0))::INTEGER as total_pages,
+    COUNT(*) FILTER (WHERE bhl.lent_to IS NOT NULL)::BIGINT as books_lent
+  FROM bookhaslibrary bhl
+  LEFT JOIN books b ON bhl.id_book = b.id_book
+  WHERE bhl.id_library = library_id;
+END;
+$$ LANGUAGE plpgsql;
+
+COMMENT ON FUNCTION get_library_stats IS 'Retourne les statistiques d''une bibliothèque';
+
+-- ---------------------------------------------------------
+-- 7) FONCTION POUR DÉPLACER UN LIVRE ENTRE BIBLIOTHÈQUES
+-- ---------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION move_book_to_library(
+  book_id VARCHAR(42),
+  from_library_id VARCHAR(42),
+  to_library_id VARCHAR(42)
+)
+RETURNS BOOLEAN AS $$
+DECLARE
+  book_exists BOOLEAN;
+BEGIN
+  -- Vérifier si le livre existe déjà dans la bibliothèque de destination
+  SELECT EXISTS(
+    SELECT 1 FROM bookhaslibrary 
+    WHERE id_library = to_library_id AND id_book = book_id
+  ) INTO book_exists;
+  
+  IF book_exists THEN
+    RAISE EXCEPTION 'Le livre existe déjà dans la bibliothèque de destination';
+    RETURN FALSE;
+  END IF;
+  
+  -- Mettre à jour l'id_library
+  UPDATE bookhaslibrary
+  SET 
+    id_library = to_library_id,
+    updated_at = NOW()
+  WHERE id_library = from_library_id AND id_book = book_id;
+  
+  RETURN TRUE;
+END;
+$$ LANGUAGE plpgsql;
+
+COMMENT ON FUNCTION move_book_to_library IS 'Déplace un livre d''une bibliothèque à une autre';
+
+-- ---------------------------------------------------------
+-- 8) FONCTION POUR DÉTECTER LES DOUBLONS
+-- ---------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION find_duplicate_books(user_id VARCHAR(42))
+RETURNS TABLE(
+  book_id VARCHAR(42),
+  book_title VARCHAR(255),
+  library_count BIGINT,
+  library_names TEXT[]
+) AS $$
+BEGIN
+  RETURN QUERY
+  SELECT 
+    b.id_book,
+    b.title,
+    COUNT(DISTINCT bhl.id_library)::BIGINT as library_count,
+    ARRAY_AGG(DISTINCT l.name) as library_names
+  FROM bookhaslibrary bhl
+  JOIN books b ON bhl.id_book = b.id_book
+  JOIN libraries l ON bhl.id_library = l.id_library
+  WHERE l.id_user = user_id
+  GROUP BY b.id_book, b.title
+  HAVING COUNT(DISTINCT bhl.id_library) > 1
+  ORDER BY library_count DESC;
+END;
+$$ LANGUAGE plpgsql;
+
+COMMENT ON FUNCTION find_duplicate_books IS 'Trouve les livres présents dans plusieurs bibliothèques d''un utilisateur';
+
+-- ---------------------------------------------------------
+-- 9) CRÉER LES BIBLIOTHÈQUES PAR DÉFAUT POUR LES USERS EXISTANTS
+-- ---------------------------------------------------------
+
+-- Pour tous les utilisateurs existants qui n'ont pas encore de bibliothèques par défaut
+DO $$
+DECLARE
+  user_record RECORD;
+BEGIN
+  FOR user_record IN 
+    SELECT id_user FROM users 
+    WHERE id_user NOT IN (
+      SELECT DISTINCT id_user FROM libraries WHERE is_default = TRUE
+    )
+  LOOP
+    PERFORM create_default_libraries(user_record.id_user);
+  END LOOP;
+END $$;
+
+COMMIT;
+
+-- ========================================
+-- VÉRIFICATION
+-- ========================================
+
+-- Vérifier les nouvelles colonnes de libraries
+SELECT 
+  column_name, 
+  data_type, 
+  column_default,
+  is_nullable
+FROM information_schema.columns 
+WHERE table_name = 'libraries'
+ORDER BY ordinal_position;
+
+-- Vérifier les nouvelles colonnes de bookhaslibrary
+SELECT 
+  column_name, 
+  data_type, 
+  column_default,
+  is_nullable
+FROM information_schema.columns 
+WHERE table_name = 'bookhaslibrary'
+ORDER BY ordinal_position;
+
+-- Vérifier que tous les users ont leurs bibliothèques par défaut
+SELECT 
+  u.id_user,
+  u.pseudo,
+  COUNT(l.id_library) as nb_default_libraries
+FROM users u
+LEFT JOIN libraries l ON u.id_user = l.id_user AND l.is_default = TRUE
+GROUP BY u.id_user, u.pseudo
+ORDER BY nb_default_libraries ASC;
+
+
+
 
 
 

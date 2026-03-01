@@ -13,7 +13,7 @@ async function initRedisIfConfigured() {
 
   // Respecter la variable d'environnement pour désactiver Redis en dev/tests
   if (process.env.DISABLE_REDIS === 'true' || process.env.NODE_ENV === 'test') {
-    console.log('[RATE_LIMIT] Redis disabled by DISABLE_REDIS or test env');
+    //console.log('[RATE_LIMIT] Redis disabled by DISABLE_REDIS or test env');
     return;
   }
 
@@ -73,7 +73,7 @@ async function initRedisIfConfigured() {
     }
 
     useRedis = true;
-    console.log('✅ Redis connecté pour rate limiting');
+    //console.log('✅ Redis connecté pour rate limiting');
   } catch (err) {
     console.warn('⚠️ Impossible de connecter Redis, fallback vers MemoryStore pour rate limiting:', err?.message || err);
     useRedis = false;
@@ -153,30 +153,30 @@ export async function initRateLimiters() {
   // créer et stocker les instances une fois pour toutes
   limiterCache.set('general', makeLimiter({
     windowMs: 15 * 60 * 1000,
-    max: 100,
+    max: 2000, // Augmenté pour dev
     handler: defaultHandler,
   }));
 
   limiterCache.set('auth', makeLimiter({
     windowMs: 15 * 60 * 1000,
-    max: 5,
+    max: 80,
     handler: defaultHandler,
     skipSuccessfulRequests: true,
   }));
 
   limiterCache.set('mutation', makeLimiter({
     windowMs: 15 * 60 * 1000,
-    max: 20,
+    max: 1000, // Augmenté de 20 à 100 pour dev
     handler: defaultHandler,
   }));
 
   limiterCache.set('registration', makeLimiter({
     windowMs: 60 * 60 * 1000,
-    max: 3,
+    max: 50, // Augmenté de 3 à 5
     handler: defaultHandler,
   }));
 
-  console.log('[RATE_LIMIT] Limiters initialisés et mis en cache.');
+  //console.log('[RATE_LIMIT] Limiters initialisés et mis en cache.');
 }
 
 

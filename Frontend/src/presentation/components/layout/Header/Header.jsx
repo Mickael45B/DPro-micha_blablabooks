@@ -8,6 +8,8 @@ import Navigation from "../Navigation/navigation.jsx";
 import logoAvecTitre from '/logoAvecTitre.png';
 import logoSansTitre from '/logoSansTitre.png';
 import "./Header.css";
+import "../../../styles/accessibility-fix.css"; 
+import "../../../styles/burger-menu-fix.css"; 
 
 const Header = () => {
   const [isNavOpen, setIsNavOpen] = useState(false);
@@ -56,6 +58,12 @@ const Header = () => {
   useEffect(() => {
     if (isNavOpen) {
       document.body.style.overflow = 'hidden';
+      
+      // FORCE: S'assurer que le menu ne dépasse jamais 360px
+      if (navRef.current) {
+        navRef.current.style.maxWidth = '360px';
+        navRef.current.style.width = '360px';
+      }
     } else {
       document.body.style.overflow = '';
     }
@@ -125,19 +133,20 @@ const Header = () => {
                 aria-label="Aller au profil"
               >
                 <span ref={welcomeTextRef} className="connect">
-                  <span className="hello">Bonjour </span>
+                  <span className="hello">{`Bonjour `}</span>
                   {userState.pseudo || userState.name || 'Utilisateur'}
                 </span>
                 <i className="fas fa-user" />
               </button>
               
+              <span className="separation">|</span>  
+
               <button
                 className="header__logout"
                 type="button"
                 onClick={handleLogout}
                 aria-label="Se déconnecter"
               >
-                <span className="separation">|</span>
                 <span className="logoutsection">
                   <img className="logoutIcon" src="/log-out-outline.svg" alt="Logout" />
                 </span>

@@ -8,6 +8,9 @@
 extend type Query {
 
         # Type pour les résultats de recherche paginés
+        # Récupérer mes avis (utilisateur connecté)
+        getMyReviews(limit: Int, offset: Int): PaginatedReviews
+
         # Récupérer tous les avis
         getReviews(
             limit: Int, 
@@ -21,4 +24,30 @@ extend type Query {
 
         # Rechercher des avis par contenu avec pagination
         searchReviews(content: String!, limit: Int, offset: Int): PaginatedReviews
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        GetMyReviewForBook(id_book: ID!): Review
+
+
+
+
+
+
+
+        
 }

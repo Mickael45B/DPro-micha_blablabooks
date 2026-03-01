@@ -3,11 +3,11 @@
 	html {
 		width: 100vw; /* Largeur maximale de la fenêtre */
 		overflow-x: hidden; /* Empêche le débordement horizontal */
-		font-size: 16px;
+		/* font-size: 16px; */
 	}
 
 	body {
-		font-size: 16px; /* Ajuste la taille de la police pour les grands écrans */
+		/* font-size: 16px; Ajuste la taille de la police pour les grands écrans */
 		min-height: 1000px;
 	}
 
@@ -310,20 +310,6 @@
 		display: none;
 	}
 
-	.footer {
-		display: flex;
-		justify-content: center;
-		align-items: center;
-		width: 100vw;
-		padding: 1rem 0 2rem;
-	}
-
-	.footer-nav {
-		display: flex;
-		justify-content: center;
-		align-items: center;
-		gap: 2rem;
-	}
 
 	.social-media {
 		display: flex;
@@ -345,7 +331,7 @@
 	}
 
 	.book-card {
-		width: 160px;
+		width: 12rem;
 		padding: 1rem;
 	}
 
@@ -480,16 +466,18 @@
     width: 97%;
     height: 60vh;
 	background-color: var(--tertiary-start);
+	box-sizing: border-box;
 
 }
 .contextualMenu__action {
     display: flex;
     flex-direction: column;
-    justify-content: center;
+    /* justify-content: center; */
     align-items: center;
     width: 97%;
     height: 100%;
 	background-color: var(--tertiary-start);
+	box-sizing: border-box;
 }
 
 .footerContainer {

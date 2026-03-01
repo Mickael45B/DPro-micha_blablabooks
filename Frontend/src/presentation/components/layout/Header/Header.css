@@ -69,7 +69,7 @@ header {
   justify-content: center;
   background-color: transparent;
   color: #ffffff;
-  padding: 0.5rem 0.75rem;
+  /* padding: 0.5rem 0.75rem; */
   border-radius: 8px;
   border: 1px solid transparent;
   font-size: 0.9rem;
@@ -100,7 +100,7 @@ header {
   
   .header__auth,
   .header__logout {
-    padding: 0.5rem 1rem;
+    /* padding: 0.5rem 1rem; */
     font-size: 1rem;
   }
 }
@@ -180,9 +180,10 @@ header {
   position: fixed;
   top: 0;
   right: -100%;
-  width: 80%;
+  width: 85%;
   max-width: 400px;
   height: 100vh;
+  min-width: 0;
   background-color: var(--primary-end);
   transition: right var(--transition-speed) ease;
   z-index: calc(var(--burger-z-index) + 1);
@@ -191,10 +192,21 @@ header {
   box-shadow: -4px 0 20px rgba(0, 0, 0, 0.3);
   display: flex;
   flex-direction: column;
+  box-sizing: border-box;
+
+  transform: translateX(0);
 }
+
+/* Forcer tous les enfants directs à respecter la largeur */
+.header__nav > * {
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
 
 .header__nav--open {
   right: 0;
+  margin-right: calc(-1 * (100vw - 100%));
 }
 
 /* Bouton de fermeture */
@@ -227,6 +239,7 @@ header {
   margin-top: 4rem;
   padding: 1rem;
   flex: 1;
+  overflow-x: hidden;
   z-index: 1000;
 }
 

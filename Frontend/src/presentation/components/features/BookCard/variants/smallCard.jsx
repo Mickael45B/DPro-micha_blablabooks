@@ -35,6 +35,7 @@ const smallCard = ({ book, onShowSummary }) => {
     const handleDetailClick = (e) => {
         e.stopPropagation(); // Empêcher le clic sur la carte
         navigate(`/livres/${book.id_book}`);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
     return (
@@ -102,10 +103,6 @@ const smallCard = ({ book, onShowSummary }) => {
                     <i className="fas fa-arrow-right"></i>
                 </button>
 
-                {/* Indication de clic pour le résumé */}
-                <p className="book-card__hint">
-                    💡 Cliquez sur la carte pour voir le résumé
-                </p>
             </div>
         </div>
     );

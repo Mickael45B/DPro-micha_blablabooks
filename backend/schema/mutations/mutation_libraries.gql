@@ -1,4 +1,5 @@
-extend type Mutation {    # Ajouter une nouvelle bibliothèque
+extend type Mutation {    
+  # Ajouter une nouvelle bibliothèque
     addLibrary(input: CreateLibraryInput!): Library!
 
     # Mettre à jour une bibliothèque existante
@@ -9,4 +10,9 @@ extend type Mutation {    # Ajouter une nouvelle bibliothèque
 
     # Supprimer toutes les bibliothèques d'un utilisateur (administrateur uniquement)
     deleteAllLibrariesFromUser(id_user: ID!): Boolean!
+
+#   Réorganiser l'ordre des bibliothèques
+  reorderLibraries(library_ids: [ID!]!): Boolean!
+
+  
 }

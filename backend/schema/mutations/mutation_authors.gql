@@ -1,0 +1,22 @@
+type ManyAuthors {
+  authors: [Author!]!
+  httpStatus: Int
+}
+
+extend type Mutation {
+    #TABLE authors
+    # Ajouter un nouvel auteur
+    addAuthor(input: CreateAuthorInput!): Author!
+
+    # Mettre à jour un auteur existant
+    updateAuthor(input: UpdateAuthorInput!): Author!
+
+    # Supprimer un auteur par son ID
+    deleteAuthor(input: DeleteAuthorInput!): Boolean!
+
+    # Ajouter ou retirer des auteurs d'un livre
+    addAuthorsToBook(input: AddAuthorsToBookInput!): ManyAuthors!
+
+    # Retirer des auteurs d'un livre
+    removeAuthorsFromBook(input: RemoveAuthorsFromBookInput!): ManyAuthors!
+}

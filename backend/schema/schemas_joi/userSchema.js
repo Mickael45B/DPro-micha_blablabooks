@@ -1,5 +1,6 @@
 import e from "express";
 import Joi from "joi";
+// import { ref } from "process";
 
 //-----------------------------------------------------------
 // GENERAL SORTING SCHEMA
@@ -13,6 +14,11 @@ export const generalUserSchema = Joi.object({
     pseudo: Joi.string().pattern(new RegExp('^[A-Za-z0-9](?:[A-Za-z0-9_\' ]*[A-Za-z0-9])?$')).min(3).max(30),
     id_role: Joi.string().uuid(),
     status: Joi.number().integer().valid(1, 2, 3, 4, 5), // 1=actif, 2=bloqué par admin, 3=bloqué par l'utilisateur lui-même 4=bloqué par les 2 parties 5=supprimé
+    refresh_token: Joi.string().allow(null, ''),
+    last_login: Joi.date(),
+    code_passwordReset: Joi.string().max(64).allow(null, ''),
+    createDatetime_passwordReset: Joi.date().allow(null),
+    validity_passwordReset: Joi.number().integer().positive().allow(null),
     created_at: Joi.date(),// Date de création
     updated_at: Joi.date(),// Date de mise à jour
 });

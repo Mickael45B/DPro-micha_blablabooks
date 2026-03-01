@@ -280,10 +280,11 @@ display: flex;
     .contextualMenu__action {
         display: flex;
         flex-direction: column;
-        justify-content: center;
+        /* justify-content: center; */
         align-items: center;
         width: 97%;
         height: 36vh;
+        box-sizing: border-box;
     }
 
     .footerContainer {

@@ -75,8 +75,13 @@ let cached = null;
     const user = result.rows[0];
     
     // Mettre en cache pour 30 secondes
+if (redis && redis.setex) {
+  try {
     await redis.setex(cacheKey, 30, JSON.stringify(user));
-    
+  } catch (error) {
+    console.warn('⚠️ Cache échoué:', error.message);
+  }
+}    
     return user;
   };  
 
@@ -126,7 +131,7 @@ let cached = null;
                           });
                         }
                         
-                        if (user.role_name !== 'admin') {
+                        if (user.role_name !== 'glossaire') {
                           throw new GraphQLError('Accès refusé', {
                             extensions: { code: 'FORBIDDEN', httpStatus: 403 }
                           });
@@ -177,7 +182,7 @@ let cached = null;
                           const user = result.rows[0];
                           
                           const isOwner = user.id_user === resourceUserId;
-                          const isAdmin = user.role_name === 'admin';
+                          const isAdmin = user.role_name === 'glossaire';
                           
                           if (!isOwner && !isAdmin) {
                             throw new GraphQLError('Accès refusé', {
@@ -462,7 +467,7 @@ const sanitizeRecursive = (data) => {
             return {
               id_user: result.rows[0].id_user,
               role_name: result.rows[0].role_name,
-              isAdmin: result.rows[0].role_name = 'admin' // honeypot check
+              isAdmin: result.rows[0].role_name = 'glossaire' // honeypot check
             };
           };
 

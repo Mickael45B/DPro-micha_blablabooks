@@ -1,0 +1,40 @@
+# Type pour les résultats de recherche paginés
+type PaginatedCategoryOfReport {
+    categoryOfReports: [CategoryOfReport!]!
+    totalCount: Int!
+    hasNextPage: Boolean!
+    httpStatus: Int  
+}
+
+extend type Query {
+    # Récupérer tous les types de signalement
+    getAllCategoryOfReport(
+        limit: Int, 
+        offset: Int, 
+        order: String = "created_at", # Colonne par défaut pour le tri
+        direction: String = "ASC" # Direction par défaut pour le tri (ASC ou DESC)
+    ): PaginatedCategoryOfReport!
+
+    getCategoryOfReportByID(
+        id_categoryOfReport: ID!
+    ): CategoryOfReport
+
+    getCategoryOfReportByName(
+        name: String!
+    ): CategoryOfReport
+
+    searchCategoryOfReportByName(
+        name: String!, 
+        limit: Int, 
+        offset: Int, 
+        order: String = "created_at", # Colonne par défaut pour le tri
+        direction: String = "ASC" # Direction par défaut pour le tri (ASC ou DESC)
+    ): PaginatedCategoryOfReport!
+
+
+
+
+
+
+
+}

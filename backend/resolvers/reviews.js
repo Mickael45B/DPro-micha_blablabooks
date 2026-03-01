@@ -20,6 +20,16 @@ import { generalReviewSchema, generalOrderReviewSchema, searchReviewsSchema} fro
 import { sanitizeStrict} from './utils/helpers/helpers_securite.js';
 
 
+const toDateString = (v) => {
+  if (!v) return null;
+  if (v instanceof Date) return v.toISOString().split('T')[0];
+  if (typeof v === 'string') return v.split('T')[0];
+  return null;
+};
+
+
+
+
 export default {
   Query: {
     /**
@@ -69,21 +79,52 @@ export default {
         // ========================================
         // REQUETES BASE DE DONNEES
         // ======================================== 
+        const userId = context.user.id_user;
+        
         const result = await db.query(`
-          SELECT id_review, id_user, id_book, title_rating, rating, comment, created_at, updated_at
-          FROM reviews
+          SELECT 
+            r.id_review, 
+            r.id_user, 
+            r.id_book, 
+            r.title_rating, 
+            r.rating, 
+            r.comment, 
+            to_char(r.created_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') as created_at,
+            to_char(r.updated_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') as updated_at,
+            b.id_book as book_id,
+            b.title as book_title,
+            b.author as book_author,
+            b.vignetteimage as book_vignetteimage          
+          FROM reviews r
+          LEFT JOIN books b ON r.id_book = b.id_book
           ORDER BY ${safeOrder} ${safeDirection}
           LIMIT $1 OFFSET $2
-        `, [limit, offset]);
+          `, [limit, offset]);
 
         const countResult = await db.query("SELECT COUNT(*)::int as count FROM reviews");
         const totalCount = countResult.rows[0].count;
         // ========================================
         // DONNEES RECUPEREES
         // ======================================== 
-        console.log('getReviews : ',result.rows);
+
+        const reviews = result.rows.map(review => ({
+          id_review: review.id_review,
+          id_user: review.id_user,
+          title_rating: review.title_rating,
+          rating: review.rating,
+          comment: review.comment,
+          created_at: review.created_at,  // ✅ Déjà formaté par SQL
+          updated_at: review.updated_at,  // ✅ Déjà formaté par SQL
+          book: review.book_id ? {
+            id_book: review.book_id,
+            title: review.book_title,
+            author: review.book_author,
+            vignetteimage: review.book_vignetteimage
+          } : null
+        }));
+
         return {
-          reviews: result.rows,
+          reviews,
           totalCount,
           hasNextPage: offset + limit < totalCount,
           httpStatus: 200
@@ -149,6 +190,98 @@ export default {
         logAction: 'GET_ONE_REVIEW',
         requiresAuth: true,
         errorMessage: 'Erreur lors de la récupération de l\'avis'
+      }
+    ),
+
+    /**
+     * Récupère les avis de l'utilisateur connecté
+     * 🔒 Route protégée (utilisateur authentifié)
+     * @param {number} limit - Limite de résultats (par défaut 20)
+     * @param {number} offset - Décalage pour pagination (par défaut 0)
+     * @returns {object} { reviews, totalCount, hasNextPage, httpStatus }
+     * @throws {GraphQLError} Si l'utilisateur n'est pas authentifié (401)
+     * @throws {GraphQLError} Si une erreur se produit lors de la récupération (500)
+     */
+    getMyReviews: withSecureResolver(
+      async (_, { limit, offset }, context) => {
+        const id_user = context?.user?.id_user;
+
+        if (!id_user) {
+          throw new GraphQLError('Utilisateur non authentifié', {
+            extensions: { code: 'UNAUTHENTICATED', httpStatus: 401 }
+          });
+        }
+
+        // Valider les paramètres de pagination
+        const validLimit = Math.min(limit || 20, 100);
+        const validOffset = offset || 0;
+
+        try {
+          // Compter le nombre total d'avis de l'utilisateur
+          const countResult = await db.query(
+            'SELECT COUNT(*)::int AS total FROM reviews WHERE id_user = $1',
+            [id_user]
+          );
+          const totalCount = countResult.rows[0]?.total || 0;
+
+          // Récupérer les avis avec les informations du livre
+          const result = await db.query(
+            `SELECT 
+              r.id_review,
+              r.id_user,
+              r.title_rating,
+              r.rating,
+              r.comment,
+              to_char(r.created_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') as created_at,
+              to_char(r.updated_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') as updated_at,
+              b.id_book, 
+              b.title, 
+              b.author, 
+              b.vignetteimage
+             FROM reviews r
+             LEFT JOIN books b ON r.id_book = b.id_book
+             WHERE r.id_user = $1
+             ORDER BY r.created_at DESC
+             LIMIT $2 OFFSET $3`,
+            [id_user, validLimit, validOffset]
+          );
+
+          const reviews = result.rows.map(row => ({
+            id_review: row.id_review,
+            id_user: row.id_user,
+            title_rating: row.title_rating,
+            rating: row.rating,
+            comment: row.comment,
+            created_at: row.created_at,
+            updated_at: row.updated_at,
+            book: {
+              id_book: row.id_book,
+              title: row.title,
+              author: row.author,
+              vignetteimage: row.vignetteimage
+            }
+          }));
+
+          const hasNextPage = validOffset + validLimit < totalCount;
+
+          if (context?.res?.status) context.res.status(200);
+          return {
+            reviews,
+            totalCount,
+            hasNextPage,
+            httpStatus: 200
+          };
+        } catch (error) {
+          console.error('Erreur lors de la récupération des avis:', error);
+          throw new GraphQLError('Erreur lors de la récupération de vos avis', {
+            extensions: { code: 'INTERNAL_SERVER_ERROR', httpStatus: 500 }
+          });
+        }
+      },
+      {
+        logAction: 'GET_MY_REVIEWS',
+        requiresAuth: true,
+        errorMessage: 'Erreur lors de la récupération de vos avis'
       }
     ),
     
@@ -238,6 +371,81 @@ export default {
         errorMessage: 'Erreur lors de la recherche d\'avis'
       }
     ),
+
+    /**
+     * Récupère l'avis de l'utilisateur connecté pour un livre donné
+     * 🔒 Route protégée (utilisateur authentifié)
+     * @param {string} id_book - ID du livre
+     * @returns {object|null} Avis de l'utilisateur ou null s'il n'existe pas
+     * @throws {GraphQLError} Si l'utilisateur n'est pas authentifié (401)
+     */
+    GetMyReviewForBook: withSecureResolver(
+      async (_, { id_book, limit, offset }, context) => {
+        const currentUserId = context?.user?.id ?? context?.user?.id_user ?? null;
+        if (!currentUserId) {
+          throw new GraphQLError('Utilisateur non authentifié', {
+            extensions: { code: 'UNAUTHENTICATED', httpStatus: 401 }
+          });
+        }
+
+        const cleanBookId = sanitizeStrict(id_book);
+        const cleanUserId = sanitizeStrict(currentUserId);
+
+        const result = await db.query(`
+          SELECT 
+            id_review, 
+            id_user, 
+            id_book, 
+            title_rating, 
+            rating, 
+            comment, 
+            to_char(created_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') as created_at,
+            to_char(updated_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') as updated_at          
+          FROM reviews
+          WHERE id_book = $1 AND id_user = $2
+        `, [cleanBookId, cleanUserId]);
+
+
+        const countResult = await db.query(`
+          SELECT COUNT(*)::int as count FROM reviews
+          WHERE id_book = $1 AND id_user = $2
+        `, [cleanBookId, cleanUserId]);
+        const totalCount = countResult.rows[0].count;
+
+        if (context?.res?.status) context.res.status(200);
+        
+        // Retourner null si aucun avis trouvé
+        if (!result.rows[0]) {
+          return null;
+        }
+
+        const review = result.rows[0];
+        
+        return {
+          id_review: review.id_review,
+          id_user: review.id_user,
+          title_rating: review.title_rating,
+          rating: review.rating,
+          comment: review.comment,
+          created_at: review.created_at,
+          updated_at: review.updated_at,
+        };
+
+
+
+
+
+
+
+
+
+      },
+      {
+        logAction: 'GET_MY_REVIEW_FOR_BOOK',
+        requiresAuth: true,
+        errorMessage: 'Erreur lors de la récupération de votre avis'
+      }
+    ),
     
   },
 
@@ -291,8 +499,11 @@ export default {
           });
         }
 
+        // Utiliser l'ID du JWT si id_user n'est pas fourni dans l'input
+        const reviewUserId = input.id_user || currentUserId;
+
         // Vérifier que l'utilisateur crée un avis pour lui-même
-        if (currentUserId !== input.id_user) {
+        if (currentUserId !== reviewUserId) {
           throw new GraphQLError('Vous ne pouvez créer un avis qu\'en votre nom', {
             extensions: { code: 'FORBIDDEN', httpStatus: 403 }
           });
@@ -300,7 +511,7 @@ export default {
 
         // Sanitize inputs AVANT validation
         const cleanInput = {
-          id_user: sanitizeStrict(input.id_user),
+          id_user: sanitizeStrict(reviewUserId),
           id_book: sanitizeStrict(input.id_book),
           title_rating: sanitizeStrict(input.title_rating),
           rating: parseInt(input.rating),
@@ -318,13 +529,22 @@ export default {
         // REQUETES BASE DE DONNEES
         // ========================================         
         const result = await db.query(`
-          INSERT INTO reviews (id_review, id_user, id_book, title_rating, rating, comment) 
-          VALUES ($1, $2, $3, $4, $5, $6)
-          RETURNING *
+          INSERT INTO reviews (id_review, id_user, id_book, title_rating, rating, comment, created_at, updated_at) 
+          VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
+          RETURNING id_review, id_user, id_book, title_rating, rating, comment, 
+                    to_char(created_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') as created_at,
+                    to_char(updated_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') as updated_at
         `, [id, cleanInput.id_user, cleanInput.id_book, cleanInput.title_rating, cleanInput.rating, cleanInput.comment]);
+        
         // ========================================
         // DONNEES RECUPEREES
         // ======================================== 
+        if (!result.rows || !result.rows[0]) {
+          throw new GraphQLError('Erreur lors de la création de l\'avis', {
+            extensions: { code: 'INTERNAL_SERVER_ERROR', httpStatus: 500 }
+          });
+        }
+
         if (context?.res?.status) context.res.status(201);
         return result.rows[0];
     
@@ -376,6 +596,18 @@ export default {
         // RECUPERER LES DONNEES NESSESAIRES
         // ======================================== 
 
+        const toDateString = (v) => {
+          if (!v) return null;
+          if (v instanceof Date) return v.toISOString().split('T')[0];
+          if (typeof v === 'string') return v.split('T')[0];
+          return null;
+        };
+
+
+
+
+
+        const cleanIdReview = sanitizeStrict(input.id_review);        
         if (!cleanIdReview) {
           throw new GraphQLError('ID de l\'avis manquant', {
             extensions: { code: 'BAD_USER_INPUT', httpStatus: 400 }
@@ -444,7 +676,15 @@ export default {
           UPDATE reviews
           SET ${updates.join(", ")}
           WHERE id_review = $${paramIndex}
-          RETURNING *
+          RETURNING 
+            id_review,
+            id_user,
+            id_book,
+            title_rating,
+            comment,
+            rating,
+            to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as created_at,
+            to_char(updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as updated_at
         `, values);
 
         if (result.rows.length === 0) {
@@ -458,8 +698,18 @@ export default {
 
         if (context?.res?.status) context.res.status(200);
         // Return the Review object directly to match the GraphQL schema
-        return result.rows[0];
-    
+
+        const review = result.rows[0];
+        return {
+          id_review: review.id_review,
+          id_user: review.id_user,
+          id_book: review.id_book,
+          title_rating: review.title_rating,
+          comment: review.comment,
+          rating: review.rating,
+          created_at: review.created_at,
+          updated_at: review.updated_at
+        };    
     
       },
       {
@@ -545,8 +795,19 @@ export default {
     },
 
     book: async (parent) => {
-      const result = await findBy1ParameterOrThrow('books', 'id_book', parent.id_book, 'Livre non trouvé');
-      return result.data;
+      // Si le livre a déjà été préchargé (ex: via JOIN), le retourner
+      if (parent.book) {
+        return parent.book;
+      }
+
+      // Sinon, requêter la base de données
+      const result = await db.query(
+        'SELECT * FROM books WHERE id_book = $1',
+        [parent.id_book]
+      );
+
+      if (!result.rows[0]) return null;
+      return result.rows[0];
     },
   },
 };

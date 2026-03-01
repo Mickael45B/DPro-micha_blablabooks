@@ -13,6 +13,7 @@
     flex-direction: column;
     height: 100%;
     position: relative;
+    width: 8rem;
 }
 
 .book-card:hover {

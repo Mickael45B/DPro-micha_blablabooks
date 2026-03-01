@@ -1,0 +1,7 @@
+enum CategoryOfReport {
+    USER
+    REVIEW
+    MESSAGE
+    OTHER
+}
+

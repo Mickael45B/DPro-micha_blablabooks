@@ -3,14 +3,16 @@ type Report {
   id_report: ID!
   id_user: String!
   report_type: String!
-  reported_id: String!
+  reported_id: String
   reason: String!
   status: String!
-  details: String!
+  details: String
   created_at: Date!
   updated_at: Date
   # Relations
   whistleblower: User
   reported: User
+  category: CategoryOfReport
+  reasonOfReport: ReasonOfReport
 }
 

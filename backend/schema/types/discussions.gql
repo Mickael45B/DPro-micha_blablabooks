@@ -1,0 +1,20 @@
+
+
+
+type Discussion {
+  id_conversation:       ID!
+  subject:               String!
+  created_at:            Date!
+  updated_at:            Date
+  last_message_at:       Date
+  is_archived:           Boolean!
+  created_by:           User
+
+  # ✅ Champs enrichis (retournés par getUserDiscussions)
+  other_user_id:          ID
+  #last_message_content: String  
+  #unread_count:         Int     
+
+  # ✅ Relation : messages récupérés via Discussion.messages resolver
+  messages:              [Message!]!
+}

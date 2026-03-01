@@ -29,6 +29,58 @@ import { generalUserSchema, generalOrderUserSchema, searchUsersSchema} from '../
 // Importer les wrappers et helpers de sécurité
 import { sanitizeStrict} from './utils/helpers/helpers_securite.js';
 
+
+
+
+// ========================================
+// HELPERS POUR LA RÉINITIALISATION DE MOT DE PASSE
+// ========================================
+
+/**
+ * Génère un token JWT pour la réinitialisation du mot de passe
+ * @param {object} payload - { id_user }
+ * @returns {string} Token JWT
+ */
+const generatePasswordResetToken = (payload) => {
+  return generateAccessToken(
+    { ...payload, type: 'password_reset' },
+    false, // pas de rememberMe
+    '15m'  // expire dans 15 minutes
+  );
+};
+
+/**
+ * Envoie un email de réinitialisation de mot de passe
+ * @param {string} email - Email destinataire
+ * @param {string} token - Token de réinitialisation
+ */
+const sendPasswordResetEmail = async (email, token) => {
+  // TODO: Implémenter l'envoi d'email (ex: avec SendGrid, Mailgun, etc.)
+  const resetUrl = `${process.env.FRONTEND_URL}/reset-password?token=${token}`;
+  
+  //console.log(`📧 Email de réinitialisation envoyé à ${email}`);
+  //console.log(`🔗 Lien: ${resetUrl}`);
+  
+  // Exemple avec un service d'email fictif :
+  // await emailService.send({
+  //   to: email,
+  //   subject: 'Réinitialisation de votre mot de passe',
+  //   html: `<p>Cliquez sur ce lien pour réinitialiser votre mot de passe :</p>
+  //          <a href="${resetUrl}">${resetUrl}</a>`
+  // });
+};
+
+
+
+
+
+
+
+
+
+
+
+
 // ========================================
 // CONFIGURATION DES PIÈGES
 // ========================================
@@ -52,6 +104,27 @@ const initializationUser = {
   id_status: 1,
   created_at: new Date(),
   updated_at: new Date()
+};
+
+const toDateStringOrNull = (v) => {
+  if (!v) return null;
+  if (v instanceof Date) return v.toISOString().split('T')[0];
+  if (typeof v === 'string') return v.split('T')[0];
+  return null;
+};
+
+
+const toIsoOrNull = (v) => {
+  if (!v) return null;
+  if (v instanceof Date) {
+    // ✅ Retourner YYYY-MM-DD au lieu de ISO complet
+    return v.toISOString().split('T')[0];
+  }
+  if (typeof v === 'string') {
+    // ✅ Si c'est déjà une string ISO, extraire juste la date
+    return v.split('T')[0];
+  }
+  return null;
 };
 
 export default {
@@ -110,14 +183,20 @@ export default {
           LIMIT $1 OFFSET $2
         `, [limit, offset]);
         
+        const users = result.rows.map((u) => ({
+          ...u,
+          created_at: toIsoOrNull(u.created_at),
+          updated_at: toIsoOrNull(u.updated_at),
+        }));
+
         const countResult = await db.query('SELECT COUNT(*)::int as count FROM users');
         const totalCount = countResult.rows[0].count;
         // ========================================
         // DONNEES RECUPEREES
         // ======================================== 
-        console.log('getUsers : ',result.rows);
+        //console.log('getUsers : ',result.rows);
         return {
-          users: result.rows,
+          users,
           totalCount,
           hasNextPage: offset + limit < totalCount,
           httpStatus: 200
@@ -250,6 +329,12 @@ export default {
           LIMIT $2 OFFSET $3
         `, [searchPattern, cleanLimit, cleanOffset]);
 
+        const users = result.rows.map((u) => ({
+          ...u,
+          created_at: toIsoOrNull(u.created_at),
+          updated_at: toIsoOrNull(u.updated_at),
+        }));        
+
         const countResult = await db.query(`
           SELECT COUNT(*)::int as count FROM users
           WHERE LOWER(name) LIKE LOWER($1) OR LOWER(email) LIKE LOWER($1) OR LOWER(pseudo) LIKE LOWER($1)
@@ -258,7 +343,7 @@ export default {
         // DONNEES RECUPEREES
         // ========================================                
         return {
-          users: result.rows,
+          users,
           totalCount: countResult.rows[0].count,
           hasNextPage: cleanOffset + cleanLimit < countResult.rows[0].count,
           httpStatus: 200
@@ -402,7 +487,7 @@ export default {
           if (!result.rows || result.rows.length === 0) {
             throw new Error('Insertion utilisateur échouée');
           }
-          console.log('createUser - user created:', result.rows[0]);
+          //console.log('createUser - user created:', result.rows[0]);
           // Créer les bibliothèques par défaut pour l'utilisateur
           const createdLibraries = [];
           for (const libraryName of initializationUser.librariesStartup) {
@@ -414,7 +499,7 @@ export default {
             `, [libraryId, id, libraryName, initializationUser.libraryDefaultEditable]);
             createdLibraries.push(libRes.rows[0]);
           }
-          console.log('createUser - createdLibraries:', createdLibraries);
+          //console.log('createUser - createdLibraries:', createdLibraries);
           await db.query('COMMIT');
 
           // création du token JWT et connexion automatique (le nouvel utilisateur est connecté dès la création de son compte)
@@ -433,7 +518,7 @@ export default {
             email: user.email,
             isAdmin: false,
           });
-          console.log('createUser - accessToken generated', accessToken);
+          //console.log('createUser - accessToken generated', accessToken);
           const refreshToken = generateRefreshToken({ id_user: user.id_user });
 
           if (context?.res?.status) context.res.status(201);
@@ -617,7 +702,14 @@ export default {
         }
 
         if (context?.res?.status) context.res.status(200);
-        return result.rows[0];
+
+        const user = result.rows[0];
+        return {
+          ...user,
+          created_at: toDateStringOrNull(user.created_at),
+          updated_at: toDateStringOrNull(user.updated_at),
+        };
+
       },
       {
         logAction: 'UPDATE_USER',
@@ -680,15 +772,15 @@ export default {
         // ======================================== 
 
         const result = await db.query(
-          'DELETE FROM users WHERE id_user = $1 RETURNING id_user',
+          'DELETE FROM messages WHERE id_sender = $1 OR id_receiver = $1',
           [cleanIdUser]
         );
 
-        if (result.rows.length === 0) {
-          throw new GraphQLError('Utilisateur non trouvé', {
-            extensions: { code: 'NOT_FOUND', httpStatus: 404 }
-          });
-        }
+        // if (result.rows.length === 0) {
+        //   throw new GraphQLError('Utilisateur non trouvé', {
+        //     extensions: { code: 'NOT_FOUND', httpStatus: 404 }
+        //   });
+        // }
 
         // recuperer l'id de toutes les bibliothèques associées à l'utilisateur
         const librariesResult = await db.query(
@@ -714,18 +806,31 @@ export default {
 
           // supprimer tous les messages associés à cet utilisateur
           await db.query(
-            'DELETE FROM messages WHERE id_user = $1',
+            'DELETE FROM messages WHERE id_sender = $1 OR id_receiver = $1',
             [cleanIdUser]
           );
 
           // supprimer tous les rapports associés à cet utilisateur
           await db.query(
-            'DELETE FROM reports WHERE id_user = $1',
+            'DELETE FROM reports WHERE reported_id = $1 OR id_user = $1',
             [cleanIdUser]
           );
+
+          // Supprimer l'utilisateur
+          await db.query(
+            'DELETE FROM users WHERE id_user = $1 RETURNING *',
+            [cleanIdUser]
+          );          
         // ========================================
         // DONNEES RECUPEREES
         // ======================================== 
+
+        // if (result.rows.length === 0) {
+        //   throw new GraphQLError('Utilisateur non trouvé', {
+        //     extensions: { code: 'NOT_FOUND', httpStatus: 404 }
+        //   });
+        // }
+
         if (context && context.res && typeof context.res.status === 'function') {
           context.res.status(200);
         }
@@ -966,13 +1071,13 @@ export default {
         }
         
         const user = result.rows[0];
-        console.log('login - user found:', { 
-          id_user: user.id_user, 
-          email: user.email, 
-          pseudo: user.pseudo, 
-          role_name: user.role_name,
-          id_status: user.id_status 
-        });
+        //console.log('login - user found:', { 
+        //   id_user: user.id_user, 
+        //   email: user.email, 
+        //   pseudo: user.pseudo, 
+        //   role_name: user.role_name,
+        //   id_status: user.id_status 
+        // });
 
         // ========================================
         // 🚨 PIÈGE DE SÉCURITÉ #1 : DÉTECTER LES RÔLES PIÈGES
@@ -1014,7 +1119,7 @@ export default {
         // ========================================
         // 2. VÉRIFIER LE STATUT DU COMPTE
         // ========================================
-        console.log('login - user :', { user});
+        //console.log('login - user :', { user});
 
         if (user.id_status !== '1') {
           // Logger aussi les tentatives sur comptes bloqués
@@ -1058,10 +1163,10 @@ export default {
         // Mapper le rôle réel vers un nom obscurci pour le JWT
         const obscuredRole = REAL_ROLE_MAPPING[user.role_name] || 'lecteur';
         
-        console.log('login - generating token with obscured role:', {
-          real_role: user.role_name,
-          obscured_role: obscuredRole
-        });
+        //console.log('login - generating token with obscured role:', {
+          //real_role: user.role_name,
+          //obscured_role: obscuredRole
+        //});
         
         // Générer les tokens (durée selon rememberMe)
         const accessToken = generateAccessToken({
@@ -1247,7 +1352,132 @@ export default {
       },
       'Erreur lors de la déconnexion'
     ),
-    
+
+    /**
+     * 🔓 DÉBLOQUER SON COMPTE
+     * 🔒 Route protégée (utilisateur)
+     * @param {object} input - Données de l'utilisateur à débloquer
+     * @param {string} input.id_user - ID de l'utilisateur
+     * @returns {boolean} true si le déblocage a réussi, false sinon
+     * @throws {GraphQLError} Si l'utilisateur n'a pas les droits (401 ou 403)
+     * @throws {GraphQLError} Si une erreur se produit lors du déblocage de l'utilisateur (500)
+     */
+    unblockAccount: withSecureResolver(
+      async (_, { input, validated }, context) => {
+        const { id_user } = input || {};
+        if (!id_user) {
+          throw new GraphQLError('ID utilisateur requis', {
+            extensions: { code: 'BAD_USER_INPUT', httpStatus: 400 }
+          });
+        }
+        const cleanIdUser = sanitizeStrict(id_user);
+
+        // Vérifier que l'utilisateur existe
+        await findBy1ParameterOrThrow('users', 'id_user', cleanIdUser, 'Utilisateur non trouvé');
+        // Débloquer le compte
+        await db.query('UPDATE users SET id_status = 1, updated_at = CURRENT_TIMESTAMP WHERE id_user = $1', [cleanIdUser]);
+        if (context?.res?.status) context.res.status(200);
+        return true;
+      },
+      {
+        structureSchema: generalUserSchema,
+        sortingSchema: generalSortingSchema,
+        orderSchema: generalOrderUserSchema,
+        logAction: 'UNBLOCK_USER',
+        requiresAuth: true,
+        errorMessage: 'Erreur lors du déblocage de l\'utilisateur'
+      }
+    ),
+
+    /**
+     * 📩 DEMANDER LE DÉBLOCAGE DE SON COMPTE - Envoie une notification à l'admin
+     * 🔒 Route protégée (utilisateur)
+     * @param {object} input - Données de l'utilisateur demandant le déblocage
+     * @param {string} input.id_user - ID de l'utilisateur
+     * @returns {boolean} true si la demande a été enregistrée, false sinon
+     * @throws {GraphQLError} Si l'utilisateur n'a pas les droits (401 ou 403)
+     * @throws {GraphQLError} Si une erreur se produit lors de la demande de déblocage de l'utilisateur (500)
+     */
+    requestAdminUnblock: withSecureResolver(
+      async (_, { input, validated }, context) => {
+        const { id_user } = input || {};  
+        if (!id_user) {
+          throw new GraphQLError('ID utilisateur requis', {
+            extensions: { code: 'BAD_USER_INPUT', httpStatus: 400 }
+          });
+        }
+        const cleanIdUser = sanitizeStrict(id_user);
+
+        // Vérifier que l'utilisateur existe
+        await findBy1ParameterOrThrow('users', 'id_user', cleanIdUser, 'Utilisateur non trouvé');
+        // Logger la demande de déblocage
+        await logSecurityIncident({
+          type: 'UNBLOCK_REQUEST',
+          userId: cleanIdUser,
+          ip: context.req?.ip || 'unknown',
+          timestamp: new Date().toISOString()
+        });
+        if (context?.res?.status) context.res.status(200);
+        return true;
+      },
+      {
+        structureSchema: generalUserSchema,
+        sortingSchema: generalSortingSchema,
+        orderSchema: generalOrderUserSchema,
+        logAction: 'REQUEST_UNBLOCK', 
+        requiresAuth: true,
+        errorMessage: 'Erreur lors de la demande de déblocage de l\'utilisateur'
+      }
+    ),
+
+    /**
+     * 🔐 DEMANDER LA RÉINITIALISATION DE SON MOT DE PASSE - Envoie un email avec un lien de réinitialisation
+     * 🔒 Route protégée (non authentifié)
+     * @param {object} input - Données de l'utilisateur demandant la réinitialisation du mot de passe
+     * @param {string} input.email - Email de l'utilisateur
+     * @returns {boolean} true si la demande a été traitée, false sinon
+     * @throws {GraphQLError} Si une erreur se produit lors de la demande de réinitialisation du mot de passe (500)
+     * @remarks Cette fonction génère un token de réinitialisation et envoie un email à l'utilisateur avec un lien pour réinitialiser son mot de passe. Le token doit être vérifié dans une mutation séparée qui permet de définir un nouveau mot de passe sans fournir l'ancien.
+     */
+    requestPasswordReset: withSecureResolver(
+      async (_, { input, validated }, context) => {
+        const { email } = input || {};
+        if (!email) {
+          throw new GraphQLError('Email requis', {
+            extensions: { code: 'BAD_USER_INPUT', httpStatus: 400 }
+          });
+        }
+        const cleanEmail = sanitizeStrict(email);
+
+        // Vérifier que l'utilisateur existe
+        const userResult = await findBy1ParameterOrThrow('users', 'email', cleanEmail, 'Utilisateur non trouvé');
+        const user = userResult?.data ?? userResult;
+        // Générer un token de réinitialisation (ex: JWT avec une courte durée de vie)
+        const resetToken = generatePasswordResetToken({ id_user: user.id_user }); 
+        // Envoyer un email avec le lien de réinitialisation 
+        await sendPasswordResetEmail(user.email, resetToken);
+        if (context?.res?.status) context.res.status(200);
+        return true;
+      },
+      {
+        structureSchema: generalUserSchema,
+        sortingSchema: generalSortingSchema,
+        orderSchema: generalOrderUserSchema,
+        logAction: 'REQUEST_PASSWORD_RESET',
+        requiresAuth: false,
+        errorMessage: 'Erreur lors de la demande de réinitialisation du mot de passe'
+      }
+    ),
+
+
+
+
+
+
+
+
+
+
   },
 
   User: {

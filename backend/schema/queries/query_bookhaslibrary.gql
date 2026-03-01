@@ -76,4 +76,32 @@ extend type Query {
         direction: String = "ASC" # Direction par défaut pour le tri (ASC ou DESC)
     ): PaginatedBooksInMyLibrary!
 
+  #Récupérer les livres d'une bibliothèque avec filtres
+  getBooksInLibrary(
+    id_library: ID!
+    filter: BookInLibraryFilterInput
+    ): [BookHasLibrary!]!
+  
+  # Rechercher dans toutes mes bibliothèques
+    searchInAllLibraries(search: String!): [BookHasLibrary!]!
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    IsBookInFavorites(id_book: ID!): Boolean!
+
+
+
+
+
 }

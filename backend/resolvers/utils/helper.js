@@ -10,8 +10,18 @@ import e from "express";
 import Joi from "joi";
 
 
-
-
+const toDateString = (date) => {
+  if (!date) return null;
+  if (typeof date === 'string') {
+    // Si c'est déjà au format YYYY-MM-DD, on garde
+    if (/^\d{4}-\d{2}-\d{2}$/.test(date)) return date;
+    const parsed = new Date(date);
+    if (!isNaN(parsed.getTime())) return parsed.toISOString().split('T')[0];
+    return null;
+  }
+  if (date instanceof Date) return date.toISOString().split('T')[0];
+  return null;
+};
 
 
 
@@ -23,8 +33,8 @@ import Joi from "joi";
 // rôles et leurs tables de référence pour l'obscurcissement
 export const initialization = {
     roleObscurite: {
-        admin: "TableDesMatieres",
-        user: "sommaire"
+        admin: "glossaire",
+        user: "premieredecouverture"
     },
 };
 
@@ -54,7 +64,7 @@ export const generalSortingSchema = Joi.object({
  * @throws {GraphQLError} Si non trouvée (404)
  */
 export const findBy1ParameterOrThrow = async (database, columnSearch, value, errorMessage) => {
-// console.log(`findBy1ParameterOrThrow called with database=${database}, columnSearch=${columnSearch}, value=${value}`);
+//console.log(`findBy1ParameterOrThrow called with database=${database}, columnSearch=${columnSearch}, value=${value}`);
 // sécuriser les identifiants (accepte "schema.table" ou "table")
   const identPartRx = /^[A-Za-z_][A-Za-z0-9_]*$/;
   const isValidQualified = (ident) => ident.split('.').every(p => identPartRx.test(p));
@@ -68,8 +78,8 @@ export const findBy1ParameterOrThrow = async (database, columnSearch, value, err
 
   // Construire la requête en gérant le cas NULL ou UNDEFINED
   const queryText = (value === null || typeof value === 'undefined')
-    ? `SELECT * FROM ${database} WHERE ${columnSearch} IS NULL`
-    : `SELECT * FROM ${database} WHERE ${columnSearch} = $1`;
+    ? `SELECT * FROM ${database} WHERE ${columnSearch} IS NULL `
+    : `SELECT * FROM ${database} WHERE ${columnSearch} = $1 `;
 // console.log('Constructed query:', queryText);
 // Exécuter la requête
   try {
@@ -82,21 +92,29 @@ export const findBy1ParameterOrThrow = async (database, columnSearch, value, err
         extensions: { code: 'NOT_FOUND', httpStatus: 404 },
       });
     }
-
+//console.log('Raw database result:', request.rows[0]);
     // ⭐ NETTOYER LES VALEURS {} VIDES
     const cleanedRow = Object.fromEntries(
       Object.entries(request.rows[0]).map(([key, value]) => {
-        // Si c'est un objet vide {}, le remplacer par null
-        if (value && typeof value === 'object' && Object.keys(value).length === 0) {
-          return [key, null];
-        }
-        return [key, value];
+        // ✅ Si c'est un objet vide {} (mais PAS une Date ou Array), le remplacer par null
+       if (
+         value && 
+         typeof value === 'object' && 
+         !(value instanceof Date) && 
+         !Array.isArray(value) && 
+         Object.keys(value).length === 0
+       ) {
+         return [key, null];
+       }
+      
+        // Convertir les dates
+        if (value instanceof Date) {
+          return [key, toDateString(value)];
+        }       
+        //console.log(`Cleaning key=${key}, value=${value}`);
+        return [key, value];      
       })
     );
-
-
-
-
 
     // Tout est OK
     return { data: cleanedRow, httpStatus: 200 };
@@ -146,7 +164,7 @@ export const verifyUserInDB = async (context) => {
     id_user: result.rows[0].id_user,
     role_name: result.rows[0].role_name,// Mettre le rôle obscurci
     // role_name: initialization.roleObscurite[result.rows[0].role_name] || result.rows[0].role_name,
-    isAdmin: result.rows[0].role_name = 'admin' // honeypot check
+    isAdmin: result.rows[0].role_name = 'glossaire' // honeypot check
   };
 };
 
@@ -196,7 +214,7 @@ if (!user) {
     });
 }
 
-if (user.role_name !== 'admin') {
+if (user.role_name !== 'glossaire') {
     throw new GraphQLError('Accès refusé', {
     extensions: { code: 'FORBIDDEN', httpStatus: 403 }
     });
@@ -247,7 +265,7 @@ if (result.rows.length === 0) {
 const user = result.rows[0];
 
 const isOwner = user.id_user === resourceUserId;
-const isAdmin = user.role_name === 'admin';
+const isAdmin = user.role_name === 'glossaire';
 
 if (!isOwner && !isAdmin) {
     throw new GraphQLError('Accès refusé', {
@@ -399,30 +417,40 @@ export const withErrorHandling = (resolverFn, errorMessage) => {
       // =============================================
         let validatedDataInput = {};
         
+        //console.log('[withSecureResolver] Processing', logAction, '| args:', JSON.stringify(args).slice(0, 200));
+        
         if (structureSchema) {
+          //console.log('[withSecureResolver] Validating structureSchema');
           validatedDataInput = { 
             ...validatedDataInput, 
             ...validateWithJoi(structureSchema, args.input || args) 
           };
+          //console.log('[withSecureResolver] After structureSchema:', JSON.stringify(validatedDataInput).slice(0, 200));
         }
         
         if (sortingSchema) {
+          //console.log('[withSecureResolver] Validating sortingSchema');
           const sorting = validateWithJoi(sortingSchema, {
             limit: args.limit,
             offset: args.offset,
             direction: args.direction
           });
           validatedDataInput = { ...validatedDataInput, ...sorting };
+          //console.log('[withSecureResolver] After sortingSchema:', JSON.stringify(validatedDataInput).slice(0, 200));
         }
         
         if (orderSchema) {
+          //console.log('[withSecureResolver] Validating orderSchema');
           const order = validateWithJoi(orderSchema, { order: args.order });
           validatedDataInput = { ...validatedDataInput, ...order };
+          //console.log('[withSecureResolver] After orderSchema:', JSON.stringify(validatedDataInput).slice(0, 200));
         }
 
         if (specificSchema) {
+          //console.log('[withSecureResolver] Validating specificSchema');
           const specificData = validateWithJoi(specificSchema, args || {});
           validatedDataInput = { ...validatedDataInput, ...specificData };
+          //console.log('[withSecureResolver] After specificSchema:', JSON.stringify(validatedDataInput).slice(0, 200));
         }
         // =============================================
         // 3. DÉTECTION DES PATTERNS MALVEILLANTS (AVANT SANITIZATION)
@@ -478,7 +506,9 @@ export const withErrorHandling = (resolverFn, errorMessage) => {
         // =============================================
         // 5. EXÉCUTION DU RESOLVER
         // =============================================
+        //console.log('[withSecureResolver] Calling resolver for', logAction);
         const result = await resolverFn(parent, { ...args, validated: sanitizedData }, context, info);
+        //console.log('[withSecureResolver] Resolver returned, result:', result === null ? 'null' : (typeof result));
 
         // =============================================
         // 6. VALIDATION DES OUTPUTS (contre les injections de second ordre)

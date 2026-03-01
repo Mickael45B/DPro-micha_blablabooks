@@ -20,4 +20,11 @@ extend type Query {        # Type pour les résultats de recherche paginés
 
         # Rechercher des utilisateurs par nom ou pseudo avec pagination
         searchUsers(nameOrPseudo: String!, limit: Int, offset: Int): PaginatedUsers
+
+
+        # Recupérer les utilisateurs récemment actifs (dernière connexion dans les 7 derniers jours)
+        getRecentlyActiveUsers(limit: Int, offset: Int): PaginatedUsers
+
+        # Récupérer les utilisateurs qui on un code de réinitialisation de mot de passe valide (admin seulement)
+        getUsersWithValidPasswordResetCode(limit: Int, offset: Int): PaginatedUsers
 }

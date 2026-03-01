@@ -11,13 +11,13 @@ import fitTextToOneLine from '../../../../../../infrastructure/utils/helpers/dyn
 const Thumbnail = ({ book, onShowSummary }) => {
     const navigate = useNavigate();
     const titleRef = useRef(null);
-
     // Fonction pour décoder les entités HTML
     const decodeHtml = (html) => {
         const txt = document.createElement('textarea');
         txt.innerHTML = html;
         return txt.value;
-    };
+    };    
+
     // Gestion du clic sur la carte (afficher le résumé)
     const handleCardClick = (e) => {
         // Éviter la propagation si on clique sur le bouton "Voir le détail"
@@ -83,7 +83,7 @@ const Thumbnail = ({ book, onShowSummary }) => {
                     aria-label={`Voir les détails de ${decodeHtml(book.title)}`}
                 >
                     <i className="fas fa-book-open"></i>
-                    <span>Voir le détail</span>
+                    <div><span className='voir_le_Thumbnail'>Voir le </span><span>détail</span></div>
                     <i className="fas fa-arrow-right"></i>
                 </button>
 

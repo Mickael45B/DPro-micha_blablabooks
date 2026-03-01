@@ -14,7 +14,7 @@
     height: 100%;
     position: relative;
     padding: 1rem;
-    width: 250px;
+    width: 8rem;
 }
 
 .thumbnail:hover {
@@ -54,13 +54,13 @@
     position: absolute;
     top: 10px;
     right: 10px;
-    background-color: rgba(215, 53, 92, 0.9);
+    background-color: var(--primary-start);
     color: white;
     padding: 0.25rem 0.75rem;
     border-radius: 20px;
     font-size: 0.75rem;
     font-weight: 600;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 2px 8px var(--primary-start);
 }
 
 /* ========================================
@@ -88,7 +88,9 @@
 }
 
 
-
+.voir_le_Thumbnail{
+    display: none;
+}
 
 
 
@@ -168,7 +170,7 @@
     width: fit-content;
     padding: 0.75rem 1rem;
     margin-top: auto;
-    background: linear-gradient(135deg, var(--color-primary, #d7355c) 0%, #c02d4f 100%);
+    background: var(--primary-start);
     color: white;
     border: none;
     border-radius: 8px;
@@ -176,11 +178,11 @@
     font-weight: 600;
     cursor: pointer;
     transition: all 0.3s ease;
-    box-shadow: 0 2px 8px rgba(215, 53, 92, 0.3);
+    box-shadow: 0 2px 8px var(--primary-start);
 }
 
 .thumbnail__detail-link:hover {
-    background: linear-gradient(135deg, #c02d4f 0%, #a02543 100%);
+    background: var(--primary-end);
     box-shadow: 0 4px 12px rgba(215, 53, 92, 0.4);
     transform: translateY(-2px);
 }
@@ -270,4 +272,11 @@
     .thumbnail__hint {
         font-size: 0.7rem;
     }
+}
+@media (min-width: 600px) {
+    
+
+.voir_le_Thumbnail{
+    display: block;
+}
 }

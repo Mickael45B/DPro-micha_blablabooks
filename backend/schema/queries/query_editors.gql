@@ -1,0 +1,44 @@
+# Type pour les résultats de recherche paginés
+
+type PaginatedEditors {
+    editors: [Editor!]!
+    totalCount: Int!
+    hasNextPage: Boolean!
+    httpStatus: Int  
+}
+
+extend type Query {
+    # Récupérer tous les éditeurs
+    getAllEditors(
+        limit: Int, 
+        offset: Int, 
+        order: String = "created_at", # Colonne par défaut pour le tri
+        direction: String = "ASC" # Direction par défaut pour le tri (ASC ou DESC)
+    ): PaginatedEditors!
+
+    getEditorByID(
+        id_editor: ID!
+    ): Editor
+
+    getEditorByName(
+        name: String!
+    ): Editor
+
+    searchEditorByName(
+        name: String!, 
+        limit: Int, 
+        offset: Int, 
+        order: String = "created_at", # Colonne par défaut pour le tri
+        direction: String = "ASC" # Direction par défaut pour le tri (ASC ou DESC)
+    ): PaginatedEditors!
+
+    searchEditors(
+        name: String!, 
+        limit: Int, 
+        offset: Int, 
+        order: String = "created_at", # Colonne par défaut pour le tri
+        direction: String = "ASC" # Direction par défaut pour le tri (ASC ou DESC)
+    ): PaginatedEditors!
+
+
+}

@@ -16,6 +16,9 @@ extend type Mutation {
     # Mettre à jour le statut "favori" d'un livre dans une bibliothèque
     updateFavoriteStatusInBookHasLibrary(input: UpdateFavoriteStatusInBookHasLibraryInput!): BookHasLibrary!
 
+    # Mettre à jour la progression de lecture
+    updateProgressPercentage(id_bookhaslibrary: ID!, progress_percentage: Int!): BookHasLibrary!
+
     # Supprimer une relation par son ID
     deleteBookHasLibrary(input: DeleteBookHasLibraryInput!): Boolean!
 
@@ -24,4 +27,16 @@ extend type Mutation {
 
     # Retirer des livres d'une bibliothèque
     removeBooksFromLibrary(input: RemoveBooksFromLibraryInput!): ManyBooksFromLibrary!
+
+    #Déplacer un livre d'une bibliothèque à une autre
+    moveBookToLibrary(input: MoveBookInput!): Boolean!
+
+    #Déplacer plusieurs livres en une fois
+    bulkMoveBooks(input: BulkMoveInput!): Int!
+
+    #Réorganiser les livres dans une bibliothèque
+    reorderBooksInLibrary(id_library: ID!, book_ids: [ID!]!): Boolean!
+
+
+
 }

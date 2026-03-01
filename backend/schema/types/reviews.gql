@@ -3,11 +3,11 @@ type Review {
   id_review: ID!
   id_user: String!
   id_book: String!
-  title_rating: String!
+  title_rating: String
   rating: Int!
   comment: String!
-  created_at: Date!
-  updated_at: Date
+  created_at: DateTime!
+  updated_at: DateTime
   # Relations
   user: User
   book: Book

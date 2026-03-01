@@ -1,0 +1,17 @@
+input CreateAuthorInput {
+    id_reason: ID!
+    name: String!
+    created_at: DateTime
+    updated_at: DateTime
+}
+
+input UpdateAuthorInput {
+    id_reason: ID!
+    name: String!
+    created_at: DateTime
+    updated_at: DateTime
+}
+
+input DeleteAuthorInput {
+  id_reason: ID!
+}

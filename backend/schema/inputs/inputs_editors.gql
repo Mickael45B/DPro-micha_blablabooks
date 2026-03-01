@@ -1,0 +1,27 @@
+input CreateEditorInput {
+  id_editor: ID
+  name: String!
+  created_at: DateTime
+  updated_at: DateTime
+}
+
+input UpdateEditorInput {
+  id_editor: ID!
+  name: String
+  created_at: DateTime
+  updated_at: DateTime
+}
+
+input DeleteEditorInput {
+  id_editor: ID!
+}
+
+input AddEditorsToBookInput {
+  id_book: ID!
+  editor_ids: [ID!]!
+}
+
+input RemoveEditorsFromBookInput {
+  id_book: ID!
+  editor_ids: [ID!]!
+}

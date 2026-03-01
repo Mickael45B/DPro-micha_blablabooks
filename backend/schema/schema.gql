@@ -1,6 +1,7 @@
 schema {
   query: Query
   mutation: Mutation
+  subscription: Subscription
 
 }
 
@@ -12,9 +13,14 @@ type Mutation {
   _empty: String
 }
 
+type Subscription {
+  _empty: String
+}
+
 schema {
   query: Query
   mutation: Mutation
+  subscription: Subscription
 }
 
 type Query {

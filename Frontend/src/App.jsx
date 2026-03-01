@@ -9,6 +9,8 @@ import { Toaster } from 'react-hot-toast';
 import apolloClient from './data/apollo/apolloClient.js';
 import AuthProvider from './infrastructure/context/AuthContext.jsx';
 
+
+
 // Composants
 import Hubrouters from './infrastructure/router/routes.jsx';
 import  BottomBar from './presentation/components/layout/BottomBar.jsx';

@@ -1,0 +1,21 @@
+# Mutation séparée pour le mot de passe
+input ChangePasswordInput {
+  newPassword: String! 
+}
+
+input LoginInput {
+  emailOrPseudo: String!
+  password: String!
+  rememberMe: Boolean
+}
+
+input AdminResetPasswordInput {
+  id_user: ID!
+  newPassword: String!
+}
+
+
+
+
+
+# POUR LA CREATION DE COMPTE, voir l'input CreateUserInput dans inputs_users.gql pour éviter les redondances et mieux organiser le code

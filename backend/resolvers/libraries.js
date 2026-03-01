@@ -48,10 +48,10 @@ export default {
         // RECUPERER LES DONNEES NESSESAIRES
         // ======================================== 
         try {
-          console.log('DEBUG resolver addLibrary - start');
-          console.log('context keys:', Object.keys(context || {}));
-          console.log('context (short):', JSON.stringify(context && { userId: context.userId, id_user: context.id_user, user: context.user }, null, 2));
-          console.log('validated:', context.user.id_user);
+          //console.log('DEBUG resolver addLibrary - start');
+          //console.log('context keys:', Object.keys(context || {}));
+          //console.log('context (short):', JSON.stringify(context && { userId: context.userId, id_user: context.id_user, user: context.user }, null, 2));
+          //console.log('validated:', context.user.id_user);
         } catch (e) {
           console.error('DEBUG log error', e);
         }
@@ -96,6 +96,53 @@ export default {
     ),
     
     /**
+     * Récupère les bibliothèques de l'utilisateur authentifié
+     * 🔒 Route protégée - Retourne les bibliothèques de l'utilisateur courant
+     * @param {object} filter - Filtres optionnels
+     * @returns {array} Liste des bibliothèques
+     */
+    getMyLibraries: withSecureResolver(
+      async (_, { filter, validated }, context) => {
+        // Récupérer l'ID de l'utilisateur du contexte
+        const userId =
+          context?.user?.id_user ||
+          context?.user?.id ||
+          context?.userId ||
+          context?.id_user ||
+          null;
+
+        if (!userId) {
+          throw new GraphQLError('Utilisateur non authentifié', {
+            extensions: { code: 'UNAUTHENTICATED', httpStatus: 401 }
+          });
+        }
+
+        const cleanUserId = sanitizeStrict(userId);
+
+        // Récupérer les bibliothèques de l'utilisateur
+        const result = await db.query(`
+          SELECT id_library, name, description, is_editable, is_default, is_public, color, sort_order, id_user, 
+                 to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as created_at,
+                 to_char(updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as updated_at
+          FROM libraries
+          WHERE id_user = $1
+          ORDER BY sort_order ASC, created_at DESC
+        `, [cleanUserId]);
+
+        if (context?.res?.status) context.res.status(200);
+        return result.rows || [];
+      },
+      {
+        structureSchema: generalLibrarySchema,
+        sortingSchema: generalSortingSchema,
+        orderSchema: generalOrderLibrarySchema,
+        logAction: 'GET_MY_LIBRARIES',
+        requiresAuth: true,
+        errorMessage: "Erreur lors de la récupération de vos bibliothèques"
+      }
+    ),
+
+    /**
      * Récupère les bibliothèques d'un utilisateur
      * 🔒 Route protégée - L'utilisateur ne peut voir que ses propres bibliothèques (sauf admin)
      * @param {string} id_user - ID de l'utilisateur
@@ -134,13 +181,13 @@ export default {
         // ======================================== 
         const { validated = {} } = args;
 
- // Détecter si l'appelant est admin
+        // Détecter si l'appelant est admin
         const currentRole =
           context?.user?.role ||
           context?.user?.role_name ||
           context?.user?.roleName ||
           null;
-        const isAdmin = currentRole === 'admin' || !!context?.user?.isAdmin;
+        const isAdmin = currentRole === 'glossaire' || !!context?.user?.isAdmin;
 
         // Si admin : peut fournir validated.id_user ou args.id_user ; sinon on prend l'id du contexte
         const requestedId = (isAdmin ? (validated.id_user || args.id_user) : null) || (context?.user?.id_user || context?.user?.id || null);
@@ -270,6 +317,39 @@ export default {
     ),
     
     /**
+     * Récupère les bibliothèques d'un utilisateur par son ID
+     * 🔒 Route protégée - L'utilisateur ne peut voir que ses propres bibliothèques (sauf admin)
+     * @param {string} id_user - ID de l'utilisateur
+     * @returns {array} Liste des bibliothèques
+     */
+    getLibrariesByIdUser: withSecureResolver(
+      async (_, { id_user, validated }, context) => {
+        const cleanUserId = sanitizeStrict(id_user);  
+
+        const result = await db.query(`
+          SELECT id_library, name, is_editable, id_user, created_at, updated_at 
+          FROM libraries
+          WHERE id_user = $1
+        `, [cleanUserId]);
+
+        return {
+          libraries: result.rows,
+          httpStatus: 200,
+        };
+      },
+      {
+        structureSchema: generalLibrarySchema,
+        sortingSchema: generalSortingSchema,
+        orderSchema: generalOrderLibrarySchema,
+        logAction: 'GET_LIBRARY_BY_ID_USER',
+        requiresAuth: true,
+        errorMessage: 'Erreur lors de la récupération des bibliothèques de l\'utilisateur'
+      }
+    ),
+
+
+
+    /**
      * Recherche des bibliothèques par nom
      * 🔓 Route publique
      * @param {string} name - Terme de recherche
@@ -350,6 +430,11 @@ export default {
         errorMessage: 'Erreur lors de la recherche de la bibliothèque'
       }
     ),
+
+
+
+
+
   },
   
   Mutation: {
@@ -627,6 +712,55 @@ export default {
         errorMessage: 'Erreur lors de la suppression de la bibliothèque'
       }
     ),
+
+    /**
+     * Réorganise l'ordre des bibliothèques pour un utilisateur
+     * 🔒 Route protégée - L'utilisateur peut réorganiser ses propres bibliothèques
+     * @param {array} library_ids - Liste ordonnée des IDs de bibliothèques
+     * @returns {boolean} true si succès
+     */
+    reorderLibraries: withSecureResolver(
+      async (_, { library_ids }, context) => {
+        //console.log('📚 reorderLibraries called with:', { library_ids, userId: context?.user?.id_user });
+
+        if (!library_ids || library_ids.length === 0) {
+          throw new GraphQLError('La liste des bibliothèques est requise', {
+            extensions: { code: 'BAD_REQUEST', httpStatus: 400 }
+          });
+        }
+
+        const userId = context?.user?.id_user;
+        if (!userId) {
+          throw new GraphQLError('Utilisateur non authentifié', {
+            extensions: { code: 'UNAUTHORIZED', httpStatus: 401 }
+          });
+        }
+
+        // Mettre à jour l'ordre de chaque bibliothèque
+        for (let i = 0; i < library_ids.length; i++) {
+          const libraryId = sanitizeStrict(library_ids[i]);
+          const sortOrder = i;
+
+          await db.query(
+            `UPDATE libraries 
+             SET sort_order = $1, updated_at = NOW() 
+             WHERE id_library = $2 AND id_user = $3`,
+            [sortOrder, libraryId, userId]
+          );
+        }
+
+        //console.log('✅ Libraries reordered successfully');
+        return true;
+      },
+      {
+        structureSchema: generalLibrarySchema,
+        sortingSchema: generalSortingSchema,
+        orderSchema: generalOrderLibrarySchema,
+        logAction: 'REORDER_LIBRARIES',
+        requiresAuth: true,
+        errorMessage: 'Erreur lors de la réorganisation des bibliothèques'
+      }
+    ),
     
   },
   
@@ -649,6 +783,105 @@ export default {
         throw err;
       }
       
+    },
+
+    /**
+     * Résout le champ "books" d'une bibliothèque
+     * @param {object} parent - Objet bibliothèque parent
+     * @returns {array} Liste des livres de la bibliothèque
+     */
+    books: async (parent) => {
+      if (!parent?.id_library) return [];
+      
+      try {
+        const result = await db.query(`
+          SELECT bhl.id_bookhaslibrary, bhl.id_library, bhl.id_book, bhl.is_favorite, bhl.is_read,
+                 to_char(bhl.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as created_at,
+                 to_char(bhl.updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as updated_at,
+                 b.id_book as book_id, b.title, b.description, b.isbn, b.publication_date, b.bookimage, b.vignetteimage,
+                 to_char(b.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as book_created_at,
+                 to_char(b.updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as book_updated_at
+          FROM bookhaslibrary bhl
+          JOIN books b ON bhl.id_book = b.id_book
+          WHERE bhl.id_library = $1
+          ORDER BY bhl.created_at DESC
+        `, [parent.id_library]);
+        
+        return result.rows || [];
+      } catch (err) {
+        console.error('Erreur lors de la récupération des livres de la bibliothèque:', err);
+        return [];
+      }
+    },
+
+    /**
+     * Résout le champ "stats" d'une bibliothèque
+     * @param {object} parent - Objet bibliothèque parent
+     * @returns {object} Statistiques de la bibliothèque
+     */
+    stats: async (parent) => {
+      if (!parent?.id_library) {
+        return {
+          total_books: 0,
+          books_read: 0,
+          books_reading: 0,
+          books_to_read: 0,
+          avg_rating: 0,
+          total_pages: 0,
+          books_lent: 0
+        };
+      }
+
+      try {
+        const result = await db.query(`
+          SELECT 
+            COUNT(bhl.id_bookhaslibrary) as total_books,
+            SUM(CASE WHEN bhl.is_read = TRUE THEN 1 ELSE 0 END) as books_read,
+            SUM(CASE WHEN bhl.is_read = FALSE AND bhl.is_favorite = TRUE THEN 1 ELSE 0 END) as books_reading,
+            SUM(CASE WHEN bhl.is_read = FALSE THEN 1 ELSE 0 END) as books_to_read,
+            COALESCE(ROUND(AVG(b.avg_rating)::numeric, 2), 0) as avg_rating,
+            0 as total_pages,
+            0 as books_lent
+          FROM bookhaslibrary bhl
+          LEFT JOIN books b ON bhl.id_book = b.id_book
+          WHERE bhl.id_library = $1
+          GROUP BY bhl.id_library
+        `, [parent.id_library]);
+
+        if (result.rows.length === 0) {
+          return {
+            total_books: 0,
+            books_read: 0,
+            books_reading: 0,
+            books_to_read: 0,
+            avg_rating: 0,
+            total_pages: 0,
+            books_lent: 0
+          };
+        }
+
+        const row = result.rows[0];
+        return {
+          total_books: parseInt(row.total_books) || 0,
+          books_read: parseInt(row.books_read) || 0,
+          books_reading: parseInt(row.books_reading) || 0,
+          books_to_read: parseInt(row.books_to_read) || 0,
+          avg_rating: parseFloat(row.avg_rating) || 0,
+          total_pages: 0,
+          books_lent: 0
+        };
+      } catch (err) {
+        console.error('Erreur lors du calcul des stats de la bibliothèque:', err);
+        return {
+          total_books: 0,
+          books_read: 0,
+          books_reading: 0,
+          books_to_read: 0,
+          avg_rating: 0,
+          total_pages: 0,
+          books_lent: 0
+        };
+      }
     },
 
   },

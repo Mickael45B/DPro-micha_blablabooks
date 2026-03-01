@@ -1,13 +1,23 @@
 # Type pour représenter une relation entre un livre et une bibliothèque
+#BookInLibrary
 type BookHasLibrary {
   id_bookhaslibrary: ID!
-  id_book: String!
-  id_library: String!
+  id_library: ID!
+  id_book: ID!
   is_read: Boolean!
   is_favorite: Boolean!
-  created_at: Date! 
-  updated_at: Date
+  positionInLibrary: Int
+  reading_status: String
+  progress_percentage: Int!
+  personal_note: String
+  started_at: DateTime
+  finished_at: DateTime
+  lent_to: String
+  lent_at: DateTime
+  created_at: DateTime!
+  updated_at: DateTime
   # Relations
-  book: Book!
   library: Library!
+  book: Book!
+  tags: [String!]
 }

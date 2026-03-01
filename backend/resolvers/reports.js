@@ -20,7 +20,102 @@ import { generalReportSchema, generalOrderReportSchema, searchReportsByUserSchem
 // Importer les wrappers et helpers de sécurité
 import { sanitizeStrict} from './utils/helpers/helpers_securite.js';
 
+const toDateString = (v) => {
+  if (!v) return null;
+  if (v instanceof Date) return v.toISOString().split('T')[0];
+  if (typeof v === 'string') return v.split('T')[0];
+  return null;
+};
 
+/**
+ * Mappe les enums GraphQL ReportType vers les ID de categoryOfReport
+ */
+const mapReportTypeToId = (reportType) => {
+  const mapping = {
+    'USER': 1,
+    'REVIEW': 2,
+    'MESSAGE': 3,
+    'OTHER': 4
+  };
+  return mapping[reportType] || null;
+};
+
+/**
+ * Mappe les descriptions textuelles de raison vers les ID de reaseonOfReport
+ * Pour simplifier, on va chercher dans la base ou utiliser un mapping par défaut
+ */
+const mapReasonToId = async (reasonText) => {
+  // Mapping des raisons courantes
+  const commonMappings = {
+    'Spam ou publicité non sollicitée': 3,
+    'Contenu inapproprié ou offensant': 2,
+    'Harcèlement ou insultes': 1,
+    'Violation de droits d\'auteur': 10,
+    'Autre raison': 11
+  };
+
+  // Si c'est une raison connue, retourner l'ID
+  if (commonMappings[reasonText]) {
+    return commonMappings[reasonText];
+  }
+
+  // Sinon, chercher dans la base par nom
+  try {
+    const result = await db.query(
+      'SELECT id_reason FROM reaseonOfReport WHERE reason_name ILIKE $1 LIMIT 1',
+      [reasonText]
+    );
+    if (result.rows.length > 0) {
+      return result.rows[0].id_reason;
+    }
+  } catch (err) {
+    console.error('Erreur lors de la recherche de raison:', err);
+  }
+
+  // Par défaut, retourner "Autre"
+  return 11;
+};
+
+/**
+ * Transforme un rapport brut de la BD en remplaçant les IDs par les noms
+ * @param {object} report - Rapport de la BD
+ * @returns {object} Rapport transformé avec noms au lieu d'IDs
+ */
+const transformReportData = async (report) => {
+  if (!report) return null;
+
+  // Si les noms ne sont pas chargés, faire les requêtes
+  let reportTypeName = report.report_type_name;
+  let reasonName = report.reason_name;
+
+  if (!reportTypeName && report.report_type) {
+    const typeResult = await db.query(
+      'SELECT name FROM categoryOfReport WHERE id_category = $1',
+      [report.report_type]
+    );
+    reportTypeName = typeResult.rows[0]?.name || report.report_type;
+  }
+
+  if (!reasonName && report.reason) {
+    const reasonResult = await db.query(
+      'SELECT name FROM reaseonOfReport WHERE id_reason = $1',
+      [report.reason]
+    );
+    reasonName = reasonResult.rows[0]?.name || report.reason;
+  }
+
+  return {
+    id_report: report.id_report,
+    id_user: report.id_user,
+    report_type: reportTypeName || report.report_type,
+    reported_id: report.reported_id,
+    reason: reasonName || report.reason,
+    status: report.status,
+    details: report.details,
+    created_at: toDateString(report.created_at),
+    updated_at: toDateString(report.updated_at)
+  };
+};
 
 
 
@@ -73,8 +168,21 @@ export default {
         // REQUETES BASE DE DONNEES
         // ======================================== 
         const result = await db.query(`
-          SELECT id_report, id_user, report_type, reported_id, reason, status, details, created_at, updated_at
-          FROM reports
+          SELECT 
+            r.id_report, 
+            r.id_user, 
+            r.report_type,
+            c.name AS report_type_name,
+            r.reported_id, 
+            r.reason,
+            ro.name AS reason_name,
+            r.status, 
+            r.details, 
+            r.created_at, 
+            r.updated_at
+          FROM reports r
+          LEFT JOIN categoryOfReport c ON r.report_type = c.id_category
+          LEFT JOIN reaseonOfReport ro ON r.reason = ro.id_reason
           ORDER BY ${safeOrder} ${safeDirection}
           LIMIT $1 OFFSET $2
         `, [limit, offset]);
@@ -84,9 +192,22 @@ export default {
         // ========================================
         // DONNEES RECUPEREES
         // ======================================== 
-        console.log('Fetched reports:', result.rows);
+        //console.log('Fetched reports:', result.rows);
+
+        const reports = result.rows.map(report => ({
+          id_report: report.id_report,
+          id_user: report.id_user,
+          report_type: report.report_type_name || report.report_type, // Utiliser le nom, sinon l'ID
+          reported_id: report.reported_id,
+          reason: report.reason_name || report.reason, // Utiliser le nom, sinon l'ID
+          status: report.status,
+          details: report.details,
+          created_at: toDateString(report.created_at),
+          updated_at: toDateString(report.updated_at)
+        }));
+
         return {
-          reports: result.rows,
+          reports,
           totalCount,
           hasNextPage: offset + limit < totalCount,
           httpStatus: 200
@@ -141,17 +262,107 @@ export default {
         // ========================================
         // REQUETES BASE DE DONNEES
         // ======================================== 
-            const report = await findBy1ParameterOrThrow('reports', 'id_report', sanitizedId, 'Rapport non trouvé');
+        const report = await findBy1ParameterOrThrow('reports', 'id_report', sanitizedId, 'Rapport non trouvé');
+        const transformedReport = await transformReportData(report.data);
         // ========================================
         // DONNEES RECUPEREES
         // ========================================        
         if (context?.res?.status) context.res.status(200);
-        return report.data;
+        return transformedReport;
       },
       {
         logAction: 'GET_ONE_REPORT',
         requiresAuth: true,
         errorMessage: 'Erreur lors de la récupération du rapport'
+      }
+    ),
+
+    /**
+     * Récupère les signalements de l'utilisateur connecté
+     * 🔒 Route protégée (utilisateur authentifié)
+     * @param {number} limit - Limite de résultats (par défaut 20)
+     * @param {number} offset - Décalage pour pagination (par défaut 0)
+     * @returns {object} { reports, totalCount, hasNextPage, httpStatus }
+     * @throws {GraphQLError} Si l'utilisateur n'est pas authentifié (401)
+     * @throws {GraphQLError} Si une erreur se produit lors de la récupération (500)
+     */
+    getMyReports: withSecureResolver(
+      async (_, { limit, offset }, context) => {
+        const id_user = context?.user?.id_user;
+
+        if (!id_user) {
+          throw new GraphQLError('Utilisateur non authentifié', {
+            extensions: { code: 'UNAUTHENTICATED', httpStatus: 401 }
+          });
+        }
+
+        // Valider les paramètres de pagination
+        const validLimit = Math.min(limit || 20, 100);
+        const validOffset = offset || 0;
+
+        try {
+          // Compter le nombre total de signalements de l'utilisateur
+          const countResult = await db.query(
+            'SELECT COUNT(*)::int AS total FROM reports WHERE id_user = $1',
+            [id_user]
+          );
+          const totalCount = countResult.rows[0]?.total || 0;
+
+          // Récupérer les signalements avec pagination
+          const result = await db.query(
+            `SELECT 
+              r.id_report, 
+              r.id_user, 
+              r.report_type,
+              c.name AS report_type_name,
+              r.reported_id, 
+              r.reason,
+              ro.name AS reason_name,
+              r.status, 
+              r.details, 
+              r.created_at, 
+              r.updated_at
+             FROM reports r
+             LEFT JOIN categoryOfReport c ON r.report_type = c.id_category
+             LEFT JOIN reaseonOfReport ro ON r.reason = ro.id_reason
+             WHERE r.id_user = $1
+             ORDER BY r.created_at DESC
+             LIMIT $2 OFFSET $3`,
+            [id_user, validLimit, validOffset]
+          );
+
+          const reports = result.rows.map(row => ({
+            id_report: row.id_report,
+            id_user: row.id_user,
+            report_type: row.report_type_name || row.report_type,
+            reported_id: row.reported_id,
+            reason: row.reason_name || row.reason,
+            details: row.details,
+            status: row.status,
+            created_at: toDateString(row.created_at),
+            updated_at: toDateString(row.updated_at)
+          }));
+
+          const hasNextPage = validOffset + validLimit < totalCount;
+
+          if (context?.res?.status) context.res.status(200);
+          return {
+            reports,
+            totalCount,
+            hasNextPage,
+            httpStatus: 200
+          };
+        } catch (error) {
+          console.error('Erreur lors de la récupération des signalements:', error);
+          throw new GraphQLError('Erreur lors de la récupération des signalements', {
+            extensions: { code: 'INTERNAL_SERVER_ERROR', httpStatus: 500 }
+          });
+        }
+      },
+      {
+        logAction: 'GET_MY_REPORTS',
+        requiresAuth: true,
+        errorMessage: 'Erreur lors de la récupération de vos signalements'
       }
     ),
     
@@ -189,7 +400,7 @@ export default {
         
         const currentUserId = context?.user?.id ?? context?.user?.id_user ?? null;
         const isAdminFlag =
-          Boolean(context && (context.isAdmin || context.user?.isAdmin || context.user?.role === 'admin'));
+          Boolean(context && (context.isAdmin || context.user?.isAdmin || context.user?.role === 'glossaire'));
         if (!currentUserId) {
           throw new GraphQLError('Utilisateur non authentifié', {
             extensions: { code: 'UNAUTHENTICATED', httpStatus: 401 }
@@ -485,7 +696,7 @@ export default {
         const cleanContent = sanitizeStrict(args.content || '');
 
         // Validate status if provided
-        const validStatuses = ['pending', 'reviewed', 'resolved'];
+        const validStatuses = ['PENDING', 'IN_REVIEW', 'RESOLVED', 'DISMISSED'];
         if (cleanStatus && !validStatuses.includes(cleanStatus)) {
           throw new GraphQLError('Statut invalide', { extensions: { code: 'BAD_USER_INPUT', httpStatus: 400 } });
         }
@@ -562,6 +773,27 @@ export default {
       }
     ),
   
+    getMyPendingReportsCount: withSecureResolver(
+      async (_, { validated }, context) => {
+        const { id_user } = context.user;
+
+        const result = await db.query(`
+          SELECT COUNT(*)::int AS pending_count
+          FROM reports
+          WHERE id_user = $1 
+            AND status NOT IN ('resolved', 'dismissed')
+        `, [id_user]);
+
+        return result.rows[0]?.pending_count || 0;
+      },
+      {
+        logAction: 'GET_PENDING_REPORTS_COUNT',
+        requiresAuth: true,
+        errorMessage: 'Erreur lors du comptage des signalements en cours'
+      }
+    ),
+
+
   },
 
   Mutation: {
@@ -613,22 +845,41 @@ export default {
           });
         }
 
-        if (currentUserId !== input.id_user) {
+        // Utiliser automatiquement l'ID de l'utilisateur connecté si non fourni
+        // ou vérifier que l'utilisateur ne crée pas de rapport au nom d'un autre
+        const reportingUserId = input.id_user || currentUserId;
+        
+        if (input.id_user && currentUserId !== input.id_user && !context.isAdmin) {
           throw new GraphQLError('Vous ne pouvez pas créer un rapport pour un autre utilisateur', {
             extensions: { code: 'FORBIDDEN', httpStatus: 403 }
           });
         }
 
+        // Mettre à jour input.id_user avant validation
+        input.id_user = reportingUserId;
+
+        // Mapper les enums GraphQL vers les ID de la base de données
+        const reportTypeId = mapReportTypeToId(input.report_type);
+        if (!reportTypeId) {
+          throw new GraphQLError('Type de rapport invalide', {
+            extensions: { code: 'BAD_REQUEST', httpStatus: 400 }
+          });
+        }
+
+        const reasonId = await mapReasonToId(input.reason);
+
         // Validation des données d'entrée
         validateReportInput(input);
 
         // Sanitize inputs
-        input.id_user = sanitizeStrict(input.id_user);
-        input.report_type = sanitizeStrict(input.report_type);
-        input.reported_id = sanitizeStrict(input.reported_id);
-        input.reason = sanitizeStrict(input.reason);
-        input.details = input.details ? sanitizeStrict(input.details) : null;
-        input.status = sanitizeStrict(input.status || 'pending');
+        const cleanInput = {
+          id_user: sanitizeStrict(reportingUserId),
+          report_type: reportTypeId, // Utiliser l'ID mappé
+          reported_id: input.reported_id ? sanitizeStrict(input.reported_id) : null,
+          reason: reasonId, // Utiliser l'ID mappé
+          details: input.details ? sanitizeStrict(input.details) : null,
+          status: sanitizeStrict(input.status || 'pending')
+        };
 
         // ========================================
         // REQUETES BASE DE DONNEES
@@ -640,19 +891,23 @@ export default {
           RETURNING *
         `, [
           id,
-          input.id_user,
-          input.report_type,
-          input.reported_id,
-          input.reason,
-          input.details || null,
-          input.status,
+          cleanInput.id_user,
+          cleanInput.report_type,
+          cleanInput.reported_id,
+          cleanInput.reason,
+          cleanInput.details,
+          cleanInput.status,
         ]);
         // ========================================
         // DONNEES RECUPEREES
         // ======================================== 
         
-        if (context?.res?.status) context.res.status(201);
-        return result.rows[0];
+        if (context?.res?.status) context.res.status(200);
+        return {
+          ...result.rows[0],
+          created_at: toDateString(result.rows[0].created_at),
+          updated_at: toDateString(result.rows[0].updated_at)
+        };
     
       },
       {
@@ -719,8 +974,12 @@ export default {
         let paramIndex = 1;
 
         if (input.status !== undefined) {
-          const validStatuses = ['pending', 'reviewed', 'resolved'];
+          const validStatuses = ['PENDING', 'IN_REVIEW', 'RESOLVED', 'DISMISSED'];
+          
           const cleanStatus = sanitizeStrict(input.status);
+
+      // ✅ Convertir le statut en minuscules pour correspondre à la contrainte DB
+        const dbStatus = cleanStatus ? cleanStatus.toLowerCase() : cleanStatus;
           
           if (!validStatuses.includes(cleanStatus)) {
             throw new GraphQLError('Statut invalide', {
@@ -729,8 +988,9 @@ export default {
           }
         
           updates.push(`status = $${paramIndex++}`);
-          values.push(cleanStatus);
+          values.push(dbStatus);
         }
+
 
         if (input.details !== undefined) {
           const cleanDetails = input.details ? sanitizeStrict(input.details) : null;
@@ -783,7 +1043,17 @@ export default {
         }
 
         if (context?.res?.status) context.res.status(201);
-        return result.rows[0];
+
+        const report = result.rows[0];
+        return {
+          id_report: report.id_report,
+          report_type: report.report_type,
+          reason: report.reason,
+          details: report.details,
+          status: report.status,
+          created_at: toDateString(report.created_at),
+          updated_at: toDateString(report.updated_at)
+        };
       },
       {
         logAction: 'UPDATE_BOOK_IN_LIBRARY',
@@ -883,23 +1153,31 @@ export default {
         throw err;
       }    
     },
+
+    category: async (parent) => {
+      if (!parent?.id_category) return null;
+      try {
+        const result = await findBy1ParameterOrThrow('categories_of_reports', 'id_category', parent.id_category, 'Catégorie non trouvée');
+        return result?.data ?? result;
+      } catch (err) {
+        if (err && err.extensions && err.extensions.code === 'NOT_FOUND') return null;
+        throw err;
+      }
+    },
+
+    reasonOfReport: async (parent) => {
+      if (!parent?.id_reason_of_report) return null;
+      try {
+        const result = await findBy1ParameterOrThrow('reasons_of_reports', 'id_reason_of_report', parent.id_reason_of_report, 'Raison non trouvée');
+        return result?.data ?? result;
+      } catch (err) {
+        if (err && err.extensions && err.extensions.code === 'NOT_FOUND') return null;
+        throw err;
+      }
+    },
+
   },
 };
-
-// type de données
-// longeur mini
-//longeur maxi
-// données requises
-
-
-
-
-
-
-
-
-
-
 
 /**
  * Valide les données d'un rapport 
@@ -957,8 +1235,10 @@ export const validateReportInput = (input) => {
     });
   }
 
-  if (!input.reported_id || input.reported_id.trim().length === 0) {
-    throw new GraphQLError('ID de l\'élément signalé manquant', {
+  // reported_id est optionnel (peut être vide pour certains types de signalements)
+  // Validation seulement si fourni
+  if (input.reported_id && input.reported_id.trim && input.reported_id.trim().length === 0) {
+    throw new GraphQLError('ID de l\'élément signalé invalide', {
       extensions: { 
         code: 'BAD_REQUEST',
         httpStatus: 400

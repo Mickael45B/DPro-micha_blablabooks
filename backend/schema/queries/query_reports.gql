@@ -17,6 +17,9 @@ extend type Query {        # Type pour les résultats de recherche paginés
         # Récupérer un rapport par son ID
         getReport(id_report: ID!): Report 
 
+        # Récupérer mes signalements (utilisateur actuel)
+        getMyReports(limit: Int, offset: Int): PaginatedReports!
+
         # Rechercher des rapports par utilisateur avec pagination
         searchReportsByUser(id_user: ID!, limit: Int, offset: Int): PaginatedReports!
 

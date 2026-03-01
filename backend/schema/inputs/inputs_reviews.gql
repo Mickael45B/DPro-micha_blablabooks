@@ -1,5 +1,5 @@
 input CreateReviewInput {
-  id_user: String!
+  id_user: String
   id_book: String!
   title_rating: String!
   comment: String!

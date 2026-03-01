@@ -1,0 +1,22 @@
+type LibraryStats {
+  total_books: Int!
+  books_read: Int!
+  books_reading: Int!
+  books_to_read: Int!
+  avg_rating: Float
+  total_pages: Int
+  books_lent: Int!
+}
+
+type Statistics {
+  id_statistic: ID
+  total_books: Int!
+  books_read: Int!
+  books_reading: Int!
+  books_to_read: Int!
+  avg_rating: Float
+  total_pages: Int
+  books_lent: Int!
+  created_at: Date
+  updated_at: Date
+}

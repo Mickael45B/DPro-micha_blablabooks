@@ -54,16 +54,24 @@
 /* ==============================================
    MODE MOBILE (Menu burger)
    ============================================== */
+.navigation--mobile {
+  max-width: 100%;
+  overflow-x: hidden;
+  box-sizing: border-box;
+}   
 .navigation--mobile .navigation__list {
-  padding: 0;
-  gap: .5rem;
-  padding: 2rem;
+  padding: 1rem;
+  gap: 1rem;
+  max-width: 100%;
+  overflow-x: hidden;
   box-sizing: border-box;
 }
 
 .navigation--mobile .navigation__item {
   animation: slideInRight 0.3s ease forwards;
   opacity: 0;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 /* Animation décalée pour chaque item */

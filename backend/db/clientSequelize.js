@@ -4,10 +4,6 @@ import { Sequelize } from "sequelize";
 import dotenv from "dotenv";
 dotenv.config();
 
-console.log("DB_NAME", process.env.DB_NAME);
-console.log("DB_USERNAME", process.env.DB_USERNAME);
-console.log("DB_PASSWORD", process.env.DB_PASSWORD);
-console.log("DB_HOST", process.env.DB_HOST);
 const sequelize = new Sequelize(
 	process.env.DB_NAME,
 	process.env.DB_USERNAME,
@@ -29,7 +25,7 @@ const sequelize = new Sequelize(
 sequelize
   .authenticate()
   .then(() => {
-    console.log("Connexion à la base de données réussie !");
+    //console.log("Connexion à la base de données réussie !");
   })
   .catch((err) => {
     console.error("Impossible de se connecter à la base de données :", err);

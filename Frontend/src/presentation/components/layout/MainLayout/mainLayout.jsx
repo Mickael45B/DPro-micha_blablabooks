@@ -3,7 +3,7 @@
  * Gère l'affichage conditionnel des sections selon la taille d'écran
  * 
  * @param {React.ReactNode} children - Contenu principal à afficher
- * @param {React.ReactNode} contextualMenu - Contenu du menu contextuel (côté droit)
+ * @param {React.ReactNode} contextualMenuAction - Contenu personnalisé du menu d'action (côté droit, optionnel)
  * @param {boolean} showSearch - Afficher/masquer la barre de recherche (défaut: true)
  * @param {boolean} showBreadcrumb - Afficher/masquer le breadcrumb (défaut: true)
  * @param {string} customBreadcrumb - Breadcrumb personnalisé (optionnel)
@@ -14,10 +14,14 @@ import Header from '../Header/Header.jsx';
 import Navigation from '../Navigation/navigation.jsx';
 import { getUserFromToken } from '../../../../data/graphql/queries/auth.jsx';
 import './mainLayout.css';
+import { useQuery } from '@apollo/client';
+import { GET_BOOKS } from '../../../../data/graphql/queries/queriesBooks.jsx';
+import { GET_NUMBER_OF_USERS, GET_NUMBER_OF_REVIEWS } from '../../../../data/graphql/queries/connecting.jsx';
+
 
 const MainLayout = ({ 
   children, 
-  contextualMenu = null,
+  contextualMenuAction = null,
   showSearch = true,
   showBreadcrumb = true,
   customBreadcrumb = null
@@ -25,6 +29,31 @@ const MainLayout = ({
   const location = useLocation();
   const userState = getUserFromToken();
   
+    // Requête pour récupérer les livres
+    const { data, loading, error } = useQuery(GET_BOOKS, {
+        variables: {
+            limit: 100,
+            offset: 0
+        },
+        fetchPolicy: 'network-only'
+    });
+
+    const { data: usersData } = useQuery(GET_NUMBER_OF_USERS, {
+        variables: {
+            limit: 5,
+            offset: 0
+        },
+        fetchPolicy: 'network-only'
+    });
+
+    const { data: reviewsData } = useQuery(GET_NUMBER_OF_REVIEWS, {
+        variables: {
+            limit: 5,
+            offset: 0
+        },
+        fetchPolicy: 'network-only'
+    });
+
   // Vérifier l'authentification et le rôle
   const isAuthenticated = !!userState;
   const userRole = userState?.groupe || null;
@@ -52,51 +81,20 @@ const MainLayout = ({
     return pathMap[location.pathname] || 'Page';
   };
 
-  // Menu contextuel par défaut
-  const defaultContextualMenu = (
-    <>
-      <div className="contextualMenu__info">
-
-
-
-        <h2 className="footerContainer__title">
-          Rejoignez une communauté de passionnés de lecture
-        </h2>
-        <div className="footerContainer__stats">
-          <div className="stat">
-            <span className="stat__number">10K+</span>
-            <span className="stat__label">Livres</span>
-          </div>
-          <div className="stat">
-            <span className="stat__number">5K+</span>
-            <span className="stat__label">Lecteurs</span>
-          </div>
-          <div className="stat">
-            <span className="stat__number">15K+</span>
-            <span className="stat__label">Avis</span>
-          </div>
-        </div>
-
-
-
-
-
-
-
-      </div>
-      <div className="contextualMenu__action">
-        <h3>🚀 Commencez maintenant</h3>
-        {!isAuthenticated ? (
-          <a href="/inscription" className="cta-button">
-            Créer un compte
-          </a>
-        ) : (
-          <a href="/mybiblilbooks" className="cta-button">
-            Ma bibliothèque
-          </a>
-        )}
-      </div>
-    </>
+  // Menu d'action par défaut (CTA standard)
+  const defaultContextualMenuAction = (
+    <div className="contextualMenu__action">
+      <h3>🚀 Commencez maintenant</h3>
+      {!isAuthenticated ? (
+        <a href="/inscription" className="cta-button">
+          Créer un compte
+        </a>
+      ) : (
+        <a href="/mybiblilbooks" className="cta-button">
+          Ma bibliothèque
+        </a>
+      )}
+    </div>
   );
 
   return (
@@ -140,9 +138,21 @@ const MainLayout = ({
           {showBreadcrumb && (
             <section className="mainContainer__breadcrumb">
               <nav className="breadcrumb">
-                <i className="fas fa-home"></i>
+
+                {/* l'icone maison est un lien vers l'acceuil */}
+                <a href="/" aria-label="Accueil">
+                  <i className="fas fa-home"></i>
+                </a>
+
                 <span className="breadcrumb__separator">/</span>
-                <span className="breadcrumb__current">{getBreadcrumb()}</span>
+                
+                <span className="breadcrumb__current"
+                onClick={() => window.location.reload()}
+                style={{ cursor: 'pointer' }}
+                title="Cliquer pour actualiser"
+                aria-label="Breadcrumb actuel"
+                >{getBreadcrumb()}</span>
+
               </nav>
             </section>
           )}
@@ -155,7 +165,33 @@ const MainLayout = ({
 
         {/* MENU CONTEXTUEL - Desktop uniquement (≥ 900px) */}
         <div className="mainContainer__contextualMenu">
-          {contextualMenu || defaultContextualMenu}
+
+          {/* Stats toujours affichées */}
+          <div className="contextualMenu__info">
+            <h2 className="footerContainer__title">
+              Rejoignez une communauté de passionnés de lecture
+            </h2>
+            <div className="footerContainer__stats">
+              <div className="stat">
+                <span className="stat__number">{data?.getBooks?.totalCount || 0}</span>
+                <span className="stat__label">Livres</span>
+              </div>
+
+              <div className="stat">
+                <span className="stat__number">{usersData?.getTotalUsersCount || 0}</span>
+                <span className="stat__label">Lecteurs</span>
+              </div>
+
+              <div className="stat">
+                <span className="stat__number">{reviewsData?.getTotalReviewsCount || 0}</span>
+                <span className="stat__label">Avis</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Section d'action personnalisable ou par défaut */}
+          {contextualMenuAction || defaultContextualMenuAction}
+
         </div>
       </div>
 

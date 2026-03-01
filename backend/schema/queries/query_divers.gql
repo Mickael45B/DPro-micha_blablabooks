@@ -1,0 +1,8 @@
+  extend type Query {
+
+  
+  #Obtenir les statistiques d'une bibliothèque
+  getLibraryStats(id_library: ID!): LibraryStats
+  
+
+  }

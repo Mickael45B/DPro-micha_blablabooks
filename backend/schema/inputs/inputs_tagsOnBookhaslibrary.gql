@@ -1,0 +1,20 @@
+input AddTagsToBookHasLibraryInput {
+    id_tag: String!
+    id_bookhaslibrary: String!
+    tag_name: String!
+    created_at: DateTime!
+    updated_at: DateTime
+}
+
+input UpdateTagsOnBookHasLibraryInput {
+    id_tag: String!
+    id_bookhaslibrary: String!
+    tag_name: String!
+    created_at: DateTime!
+    updated_at: DateTime
+}
+
+input RemoveTagsFromBookHasLibraryInput {
+    id_tag: String!
+    id_bookhaslibrary: String!  
+}

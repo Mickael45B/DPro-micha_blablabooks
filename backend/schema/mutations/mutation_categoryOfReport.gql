@@ -1,0 +1,15 @@
+type ManyCategoriesOfReport {
+  categoriesOfReport: [CategoryOfReport!]!
+  httpStatus: Int
+}
+
+extend type Mutation {
+    # Ajouter une nouvelle catégorie de rapport
+    addCategoryOfReport(input: CreateCategoryOfReportInput!): CategoryOfReport!
+
+    # Mettre à jour une catégorie de rapport existante
+    updateCategoryOfReport(input: UpdateCategoryOfReportInput!): CategoryOfReport!
+
+    # Supprimer une catégorie de rapport par son ID
+    deleteCategoryOfReport(input: DeleteCategoryOfReportInput!): Boolean!
+}

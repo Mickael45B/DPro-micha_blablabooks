@@ -1,0 +1,1429 @@
+scalar Date
+
+scalar DateTime
+
+type PageInfo {
+  hasNextPage: Boolean!
+  hasPreviousPage: Boolean!
+  startCursor: String
+  endCursor: String
+  totalCount: Int!
+  pageNumber: Int
+  totalPages: Int
+}
+
+schema {
+  query: Query
+  mutation: Mutation
+  subscription: Subscription
+}
+
+type Query {
+  _empty: String
+  getAllAuthors(limit: Int, offset: Int, order: String = "created_at", direction: String = "ASC"): PaginatedAuthors!
+  getAuthorByID(id_author: ID!): Author
+  getAuthorByName(name: String!): Author
+  searchAuthorsByName(name: String!, limit: Int, offset: Int, order: String = "created_at", direction: String = "ASC"): PaginatedAuthors!
+  getAllBooksAllLibrariesForAdmin(limit: Int, offset: Int, order: String = "created_at", direction: String = "ASC"): PaginatedBooksInLibrary!
+  get_AllBooksAllLibrariesForAdmin(limit: Int, offset: Int, order: String = "created_at", direction: String = "ASC"): PaginatedBooksInLibrary!
+  getAllBooksInAllMyLibraries(limit: Int, offset: Int, order: String = "created_at", direction: String = "ASC"): PaginatedBooksInMyLibrary!
+  getAllBooksIn1Library(id_library: ID!, limit: Int, offset: Int, order: String = "created_at", direction: String = "ASC"): PaginatedBooksInLibrary!
+  getBookInLibrary(id_bookhaslibrary: ID!, limit: Int, offset: Int, order: String = "created_at", direction: String = "ASC"): BookHasLibrary
+  searchBooksInLibrary(titleOrAuthor: String!, limit: Int, offset: Int): PaginatedBooksInLibrary!
+  getMyBooksInLibraries(limit: Int, offset: Int, order: String = "created_at", direction: String = "ASC"): PaginatedBooksInLibrary!
+  getAllBookInLibrariesOfUserForAdmin(id_user: ID!, limit: Int, offset: Int, order: String = "created_at", direction: String = "ASC"): PaginatedBooksInMyLibrary!
+  getBooksInLibrary(id_library: ID!, filter: BookInLibraryFilterInput): [BookHasLibrary!]!
+  searchInAllLibraries(search: String!): [BookHasLibrary!]!
+  getBooks(pagination: PaginationInput, filter: BookFilter, sort: BookSort): PaginatedBooks
+  getBook(id_book: ID!): Book
+  searchBooks(titleOrAuthor: String!, limit: Int, offset: Int): PaginatedBooks
+  getAllCategoryOfReport(limit: Int, offset: Int, order: String = "created_at", direction: String = "ASC"): PaginatedCategoryOfReport!
+  getCategoryOfReportByID(id_category: ID!): CategoryOfReport
+  getCategoryOfReportByName(name: String!): CategoryOfReport
+  searchCategoryOfReportByName(name: String!, limit: Int, offset: Int, order: String = "created_at", direction: String = "ASC"): PaginatedCategoryOfReport!
+  getLibraryStats(id_library: ID!): LibraryStats
+  getAllEditors(limit: Int, offset: Int, order: String = "created_at", direction: String = "ASC"): PaginatedEditors!
+  getEditorByID(id_editor: ID!): Editor
+  getEditorByName(name: String!): Editor
+  searchEditorByName(name: String!, limit: Int, offset: Int, order: String = "created_at", direction: String = "ASC"): PaginatedEditors!
+  getAllGenres(limit: Int, offset: Int, order: String = "created_at", direction: String = "ASC"): PaginatedGenres!
+  getGenreByID(id_genre: ID!): Genre
+  getGenreByName(name: String!): Genre
+  searchGenreByName(name: String!, limit: Int, offset: Int, order: String = "created_at", direction: String = "ASC"): PaginatedGenres!
+  getLibraries(limit: Int, offset: Int, order: String = "created_at", direction: String = "ASC"): PaginatedLibraries
+  getUserLibraries(limit: Int, offset: Int, order: String = "created_at", direction: String = "ASC"): PaginatedLibraries
+  getLibrary(id_library: ID!): Library
+  getMyLibraries(filter: LibraryFilterInput): [Library!]!
+  getPublicLibraries(id_user: ID!): [Library!]!
+  searchLibraries(name: String!, limit: Int, offset: Int): PaginatedLibraries
+  getMessages(limit: Int, offset: Int, order: String = "created_at", direction: String = "ASC"): PaginatedMessages
+  getMessage(id_message: ID!): Message
+  getUserMessages(userId: ID, type: String, limit: Int, offset: Int): PaginatedMessages
+  searchMessages(content: String!, limit: Int, offset: Int): PaginatedMessages
+  getAllPasswordResets(limit: Int, offset: Int, order: String = "created_at", direction: String = "ASC"): PaginatedPasswordResets!
+  getPasswordResetByID(id_passwordReset: ID!): PasswordReset
+  getPasswordResetByEmail(email: String!): [PasswordReset!]!
+  searchPasswordResetByEmail(email: String!, limit: Int, offset: Int, order: String = "created_at", direction: String = "ASC"): PaginatedPasswordResets!
+  getPermissions(limit: Int, offset: Int, order: String = "created_at", direction: String = "ASC"): PaginatedPermissions
+  getPermission(id_permission: ID!): Permission
+  searchPermissions(name: String!, limit: Int, offset: Int): PaginatedPermissions!
+  getAllReasonOfReport(limit: Int, offset: Int, order: String = "created_at", direction: String = "ASC"): PaginatedReasonOfReport!
+  getReasonOfReportByID(id_reasonOfReport: ID!): ReasonOfReport
+  getReasonOfReportByName(name: String!): ReasonOfReport
+  searchReasonOfReportByName(name: String!, limit: Int, offset: Int, order: String = "created_at", direction: String = "ASC"): PaginatedReasonOfReport!
+  getReports(limit: Int, offset: Int, order: String = "created_at", direction: String = "ASC"): PaginatedReports!
+  getReport(id_report: ID!): Report
+  searchReportsByUser(id_user: ID!, limit: Int, offset: Int): PaginatedReports!
+  searchReportsByStatus(status: String!, limit: Int, offset: Int): PaginatedReports!
+  searchReportsByDetailsOrReason(content: String!, limit: Int, offset: Int): PaginatedReports!
+  searchReports(id_report: ID, id_user: ID, status: String, content: String, limit: Int, offset: Int): PaginatedReports!
+  getReviews(limit: Int, offset: Int, order: String = "created_at", direction: String = "ASC"): PaginatedReviews
+  getReview(id_review: ID!): Review
+  searchReviews(content: String!, limit: Int, offset: Int): PaginatedReviews
+  getRoles(limit: Int, offset: Int, order: String = "created_at", direction: String = "ASC"): PaginatedRoles
+  getRole(id_role: ID!): Role
+  searchRoles(role_name: String!, limit: Int, offset: Int): PaginatedRoles!
+  getPermissionsRoles(limit: Int, offset: Int, order: String = "created_at", direction: String = "ASC"): PaginatedRoleHasPermissions
+  getPermissionRole(id_rolehaspermission: ID!): RoleHasPermissions
+  searchPermissionsRoles(name: String!, limit: Int, offset: Int): PaginatedRoleHasPermissions!
+  getStatistics(limit: Int, offset: Int, order: String = "created_at", direction: String = "ASC"): PaginatedStatistics!
+  getStatisticsByID(id_statistics: ID!): Statistics
+  searchStatisticsByName(name: String!, limit: Int, offset: Int, order: String = "created_at", direction: String = "ASC"): PaginatedStatistics!
+  getStatuses(limit: Int, offset: Int, order: String = "created_at", direction: String = "ASC"): PaginatedStatuses
+  getStatus(id_status: ID!): Status
+  searchStatuses(status_name: String!, limit: Int, offset: Int): PaginatedStatuses!
+  getAllTagsOnBookHasLibrary(id_book: ID!, id_library: ID!, limit: Int, offset: Int, order: String = "created_at", direction: String = "ASC"): PaginatedTagsOnBookHasLibrary!
+  getTagsOnBookHasLibraryByID(id_tagsOnBookHasLibrary: ID!): TagsOnBookHasLibrary
+  getTagsOnBookHasLibraryByTag(tag: String!): [TagsOnBookHasLibrary!]!
+  searchTagsOnBookHasLibraryByTag(tag: String!, limit: Int, offset: Int, order: String = "created_at", direction: String = "ASC"): PaginatedTagsOnBookHasLibrary!
+  getUsers(limit: Int, offset: Int, order: String = "created_at", direction: String = "ASC"): PaginatedUsers
+  getUser(id_user: ID!): User
+  searchUsers(nameOrPseudo: String!, limit: Int, offset: Int): PaginatedUsers
+  getRecentlyActiveUsers(limit: Int, offset: Int): PaginatedUsers
+  getUsersWithValidPasswordResetCode(limit: Int, offset: Int): PaginatedUsers
+}
+
+type Mutation {
+  _empty: String
+  adminResetPassword(input: AdminResetPasswordInput!): Boolean!
+  changePassword(input: ChangePasswordInput!): Boolean!
+  createPasswordResetCode(input: CreatePasswordResetCodeInput!): Boolean!
+  updateUserRole(input: UpdateUserRoleInput!): User!
+  resetPasswordWithCode(input: ResetPasswordWithCodeInput!): Boolean!
+  deletePasswordResetCode(input: DeletePasswordResetCodeInput!): Boolean!
+  login(input: LoginInput!): AuthPayload!
+  refreshToken(refresh_token: String!): TokenPayload!
+  lastLogin(last_login: String!): TokenPayload!
+  logout: Boolean!
+  addAuthor(input: CreateAuthorInput!): Authors!
+  updateAuthor(input: UpdateAuthorInput!): Authors!
+  deleteAuthor(input: DeleteAuthorInput!): Boolean!
+  addAuthorsToBook(input: AddAuthorsToBookInput!): ManyAuthors!
+  removeAuthorsFromBook(input: RemoveAuthorsFromBookInput!): ManyAuthors!
+  addBookHasLibrary(input: CreateBookHasLibraryInput!): BookHasLibrary!
+  updateLibraryInBookHasLibrary(input: UpdateLibraryInBookHasLibraryInput!): BookHasLibrary!
+  updateReadStatusInBookHasLibrary(input: UpdateReadStatusInBookHasLibraryInput!): BookHasLibrary!
+  updateFavoriteStatusInBookHasLibrary(input: UpdateFavoriteStatusInBookHasLibraryInput!): BookHasLibrary!
+  deleteBookHasLibrary(input: DeleteBookHasLibraryInput!): Boolean!
+  addBooksToLibrary(input: AddBooksToLibraryInput!): ManyBooksFromLibrary!
+  removeBooksFromLibrary(input: RemoveBooksFromLibraryInput!): ManyBooksFromLibrary!
+  moveBookToLibrary(input: MoveBookInput!): Boolean!
+  bulkMoveBooks(input: BulkMoveInput!): Int!
+  addBook(input: CreateBookInput!): Book!
+  updateBook(input: UpdateBookInput!): Book!
+  deleteBook(input: DeleteBookInput!): Boolean!
+  addCategoryOfReport(input: CreateCategoryOfReportInput!): CategoryOfReport!
+  updateCategoryOfReport(input: UpdateCategoryOfReportInput!): CategoryOfReport!
+  deleteCategoryOfReport(input: DeleteCategoryOfReportInput!): Boolean!
+  addEditor(input: CreateEditorInput!): Editors!
+  updateEditor(input: UpdateEditorInput!): Editors!
+  deleteEditor(input: DeleteEditorInput!): Boolean!
+  addEditorsToBook(input: AddEditorsToBookInput!): ManyEditors!
+  removeEditorsFromBook(input: RemoveEditorsFromBookInput!): ManyEditors!
+  addGenre(input: CreateGenreInput!): Genres!
+  updateGenre(input: UpdateGenreInput!): Genres!
+  deleteGenre(input: DeleteGenreInput!): Boolean!
+  addLibrary(input: CreateLibraryInput!): Library!
+  updateLibrary(input: UpdateLibraryInput!): Library!
+  deleteLibrary(input: DeleteLibraryInput!): Boolean!
+  deleteAllLibrariesFromUser(id_user: ID!): Boolean!
+  reorderLibraries(library_ids: [ID!]!): Boolean!
+  addMessage(input: CreateMessageInput!): Message!
+  updateMessage(input: UpdateMessageInput!): Message!
+  deleteMessage(input: DeleteMessageInput!): Boolean!
+  markMessageAsRead(input: MarkMessageAsReadInput!): Message!
+  requestPasswordReset(input: RequestPasswordResetInput!): Boolean!
+  resetPassword(input: ResetPasswordInput!): Boolean!
+  verifyResetCode(input: VerifyResetCodeInput!): Boolean!
+  deleteUser(input: DeleteUserInput!): Boolean!
+  register(input: CreateUserInput!): AuthPayload!
+  unblockAccount(input: UnblockAccountInput!): Boolean!
+  requestAdminUnblock(input: RequestAdminUnblockInput!): Boolean!
+  addPermission(input: CreatePermissionInput!): Permission!
+  updatePermission(input: UpdatePermissionInput!): Permission!
+  deletePermission(input: DeletePermissionInput!): Boolean!
+  addReport(input: CreateReportInput!): Report!
+  updateReport(input: UpdateReportInput!): Report!
+  deleteReport(input: DeleteReportInput!): Boolean!
+  addReview(input: CreateReviewInput!): Review!
+  updateReview(input: UpdateReviewInput!): Review!
+  deleteReview(input: DeleteReviewInput!): Boolean!
+  addRole(input: CreateRoleInput!): Role!
+  updateRole(input: UpdateRoleInput!): Role!
+  deleteRole(input: DeleteRoleInput!): Boolean!
+  addPermissionRole(input: CreateRoleHasPermissionInput!): RoleHasPermissions!
+  updatePermissionRole(input: UpdateRoleHasPermissionInput!): RoleHasPermissions!
+  deletePermissionRole(input: DeleteRoleHasPermissionInput!): Boolean!
+  addStatistic(input: CreateStatisticInput!): Statistics!
+  updateStatistic(input: UpdateStatisticInput!): Statistics!
+  deleteStatistic(input: DeleteStatisticInput!): Boolean!
+  createStatus(input: CreateStatusInput!): Status!
+  updateStatus(input: UpdateStatusInput!): Status!
+  deleteStatus(input: DeleteStatusInput!): Boolean!
+  addTagsToBookHasLibrary(input: AddTagsToBookHasLibraryInput!): ManyTagsOnBookHasLibrary!
+  updateTagsOnBookHasLibrary(input: UpdateTagsOnBookHasLibraryInput!): Many
+  removeTagsFromBookHasLibrary(input: RemoveTagsFromBookHasLibraryInput!): ManyTagsOnBookHasLibrary!
+  createUser(input: CreateUserInput!): AuthPayload!
+  updateUser(input: UpdateUserInput!): User!
+  toggleUserStatus(input: ToggleUserStatusInput!): User!
+}
+
+"""
+Auth payload renvoyé lors de l'authentification / inscription.
+En développement on expose accessToken + refresh_token dans la réponse.
+En production, préférez stocker le refresh token en cookie HttpOnly (voir commentaires
+dans les resolvers) pour réduire la surface d'attaque.
+"""
+type AuthPayload {
+  user: User!
+  last_login: String!
+  refresh_token: String!
+  accessToken: String!
+  libraries: [Library!]!
+}
+
+type TokenPayload {
+  last_login: String!
+  refresh_token: String!
+}
+
+type BookHasLibraryConnection {
+  edges: [BookHasLibraryEdge!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+
+type BookHasLibraryEdge {
+  node: BookHasLibrary!
+  cursor: String!
+}
+
+type BookConnection {
+  books: [BookEdge!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+  edges: [BookEdge!]!
+}
+
+type BookEdge {
+  node: Book!
+  cursor: String!
+}
+
+type LibraryConnection {
+  edges: [LibraryEdge!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+
+type LibraryEdge {
+  node: Library!
+  cursor: String!
+}
+
+type MessageConnection {
+  edges: [MessageEdge!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+
+type MessageEdge {
+  node: Message!
+  cursor: String!
+}
+
+type PermissionConnection {
+  edges: [PermissionEdge!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+
+type PermissionEdge {
+  node: Permission!
+  cursor: String!
+}
+
+type ReportConnection {
+  edges: [ReportEdge!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+
+type ReportEdge {
+  node: Report!
+  cursor: String!
+}
+
+type ReviewConnection {
+  edges: [ReviewEdge!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+
+type ReviewEdge {
+  node: Review!
+  cursor: String!
+}
+
+type RoleConnection {
+  edges: [RoleEdge!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+
+type RoleEdge {
+  node: Role!
+  cursor: String!
+}
+
+type RoleHasPermissionConnection {
+  edges: [RoleHasPermissionEdge!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+
+type RoleHasPermissionEdge {
+  node: RoleHasPermissions!
+  cursor: String!
+}
+
+type PaginatedUsers {
+  users: [User!]!
+  totalCount: Int!
+  hasNextPage: Boolean!
+  httpStatus: Int
+}
+
+enum BookHasLibraryOrderBy {
+  ID_LIBRARY
+  ID_BOOK
+}
+
+enum BookOrderBy {
+  TITLE
+  AUTHOR
+  PUBLICATION_DATE
+  AVG_RATING
+  NB_REVIEWS
+  IS_IN_FAVORITE
+  IS_IN_LIBRARY
+  CREATED_AT
+  GENRE
+}
+
+enum BookGenre {
+  FICTION
+  NON_FICTION
+  SCIENCE_FICTION
+  FANTASY
+  ROMANCE
+  THRILLER
+  MYSTERY
+  BIOGRAPHY
+  HISTORY
+  SCIENCE
+  OTHER
+}
+
+enum AgeLimit {
+  ALL_AGES
+  TEEN_13_PLUS
+  MATURE_16_PLUS
+  ADULT_18_PLUS
+}
+
+enum CategoryOfReport {
+  USER
+  REVIEW
+  MESSAGE
+  OTHER
+}
+
+enum OrderDirection {
+  ASC
+  DESC
+}
+
+scalar JSON
+
+enum ReadingStatus {
+  to_read
+  reading
+  read
+  reread
+}
+
+enum LibrarySortField {
+  name
+  created_at
+  updated_at
+  total_books
+  sort_order
+}
+
+enum BookInLibrarySortField {
+  title
+  author
+  created_at
+  rating
+  progress_percentage
+  started_at
+  finished_at
+}
+
+enum SortDirection {
+  ASC
+  DESC
+}
+
+enum ViewMode {
+  grid
+  list
+}
+
+enum LibraryOrderBy {
+  NAME
+  CREATED_AT
+}
+
+enum MessageOrderBy {
+  ID_SENDER
+  ID_RECEIVER
+  SUBJECT
+  CONTENT
+  IS_READ
+  UPDATED_AT
+}
+
+enum MessageFilter {
+  ID_SENDER
+  ID_RECEIVER
+  SUBJECT
+  CONTENT
+  IS_READ
+  CREATED_AT
+  UPDATED_AT
+}
+
+enum MessageSearchBy {
+  SUBJECT
+  CONTENT
+}
+
+enum MessageSubject {
+  NOUVELLE_FONCTIONNALITE
+  PROBLEME_CONNEXION
+  MISE_A_JOUR_PREFERENCES
+  INVITATION_BIBLIOTHEQUE
+  CONFIRMATION_SUPPRESSION
+  MESSAGE_PRIVE
+  NOTIFICATION_SECURITE
+  SUGGESTIONS_LECTURE
+  RAPPORT_SIGNALE
+  BIENVENUE_COMMUNAUTE
+}
+
+enum PermissionOrderBy {
+  PERMISSION_NAME
+}
+
+type ReasonOfReport {
+  id_reason: ID!
+  name: String!
+  created_at: Date
+  updated_at: Date
+  reports: [Report!]!
+}
+
+enum ReportType {
+  USER
+  REVIEW
+  MESSAGE
+  OTHER
+}
+
+enum ReportStatus {
+  PENDING
+  IN_REVIEW
+  RESOLVED
+  DISMISSED
+}
+
+enum ReportOrderBy {
+  CREATED_AT
+  STATUS
+  REPORT_TYPE
+}
+
+enum ReportReason {
+  HARASSMENT_INSULTS
+  HATEFUL_DISCRIMINATORY_CONTENT
+  SPAM_UNSOLICITED_ADVERTISING
+  IDENTITY_IMPERSONATION
+  SPREADING_FALSE_INFORMATION
+  SHARING_PERSONAL_INFORMATION
+  THREATS_CALLS_TO_VIOLENCE
+  PORNOGRAPHY_EXPLICIT_CONTENT
+  INAPPROPRIATE_CONTENT_FOR_MINORS
+  COPYRIGHT_VIOLATION
+  SCAM_FRAUD_ATTEMPT
+  AGGRESSIVE_BEHAVIOR_IN_PRIVATE_MESSAGES
+  DEFAMATORY_COMMENT
+  TARGETED_REPEATED_HARASSMENT
+  PUBLICATION_OF_SENSITIVE_BANK_DETAILS
+  OFFENSIVE_CONTENT_RELATED_TO_RELIGION
+  COMMUNITY_RULES_VIOLATION
+  TERMS_OF_SERVICE_VIOLATION
+  MISLEADING_CONTENT_CLICKBAIT_PHISHING
+  OTHER_SPECIFY_IN_DETAILS
+}
+
+enum ReviewOrderBy {
+  CREATED_AT
+  RATING
+  ID_USER
+  ID_BOOK
+}
+
+enum RoleOrderBy {
+  NAME
+  CREATED_AT
+}
+
+enum RoleHasPermissionOrderBy {
+  ID_ROLE
+  ID_PERMISSION
+  CREATED_AT
+}
+
+enum StatusOrderBy {
+  STATUS_NAME
+  CREATED_AT
+  UPDATED_AT
+}
+
+enum UserOrderBy {
+  NAME
+  EMAIL
+  PSEUDO
+  ROLE
+  ID_STATUS
+  CREATED_AT
+}
+
+enum UserStatus {
+  ACTIVE
+  BLOCKED_BY_ADMIN
+  BLOCKED_BY_USER
+  BLOCKED_BY_BOTH
+  DELETED
+}
+
+input CreateAuthorInput {
+  id_author: ID
+  name: String!
+  created_at: DateTime
+  updated_at: DateTime
+  id_reason: ID!
+}
+
+input UpdateAuthorInput {
+  id_author: ID!
+  name: String!
+  created_at: DateTime
+  updated_at: DateTime
+  id_reason: ID!
+}
+
+input DeleteAuthorInput {
+  id_author: ID!
+  id_reason: ID!
+}
+
+input AddAuthorsToBookInput {
+  id_book: ID!
+  author_ids: [ID!]!
+}
+
+input RemoveAuthorsFromBookInput {
+  id_book: ID!
+  author_ids: [ID!]!
+}
+
+input CreateBookHasLibraryInput {
+  id_book: ID!
+  id_library: ID!
+  id_bookhaslibrary: ID!
+  is_read: Boolean
+  is_favorite: Boolean!
+  progress_percentage: Int
+  personal_note: String
+  started_at: DateTime
+  finished_at: DateTime
+  lent_to: String
+  lent_at: DateTime
+  created_at: DateTime
+  updated_at: DateTime
+  tags: [String!]
+}
+
+input MoveBookInput {
+  id_book: ID!
+  from_library_id: ID!
+  to_library_id: ID!
+}
+
+input BulkMoveInput {
+  book_ids: [ID!]!
+  from_library_id: ID!
+  to_library_id: ID!
+}
+
+input LibraryFilterInput {
+  search: String
+  is_default: Boolean
+  is_public: Boolean
+  sort_field: LibrarySortField
+  sort_direction: SortDirection
+}
+
+input BookInLibraryFilterInput {
+  search: String
+  reading_status: ReadingStatus
+  is_favorite: Boolean
+  tags: [String!]
+  min_rating: Float
+  max_rating: Float
+  lent: Boolean
+  sort_field: BookInLibrarySortField
+  sort_direction: SortDirection
+}
+
+input UpdateBookInLibraryInput {
+  id_book: ID!
+  id_library: ID!
+  id_bookhaslibrary: ID!
+  is_read: Boolean
+  is_favorite: Boolean!
+  progress_percentage: Int
+  personal_note: String
+  started_at: DateTime
+  finished_at: DateTime
+  lent_to: String
+  lent_at: DateTime
+  created_at: DateTime
+  updated_at: DateTime
+  tags: [String!]
+}
+
+input UpdateLibraryInBookHasLibraryInput {
+  id_bookhaslibrary: ID
+  libraryId: ID
+}
+
+input UpdateReadStatusInBookHasLibraryInput {
+  id_bookhaslibrary: ID!
+}
+
+input UpdateFavoriteStatusInBookHasLibraryInput {
+  id_bookhaslibrary: ID!
+}
+
+input DeleteBookHasLibraryInput {
+  id_bookhaslibrary: ID!
+}
+
+input AddBooksToLibraryInput {
+  books: [CreateBookHasLibraryInput!]!
+}
+
+input RemoveBooksFromLibraryInput {
+  libraryId: ID!
+  bookIds: [ID!]!
+}
+
+input MarkBookAsReadInput {
+  idBookHasLibrary: ID!
+  isRead: Boolean!
+}
+
+input ToggleFavoriteInput {
+  idBookHasLibrary: ID!
+  isFavorite: Boolean!
+}
+
+input CreateBookInput {
+  title: String!
+  author: String
+  genre: String
+  isbn: String
+  publication_date: Date
+  editor: String
+  vignetteimage: String
+  bookimage: String
+  age_limit: Int
+  description: String
+  series: String
+}
+
+input UpdateBookInput {
+  title: String
+  author: String
+  genre: String
+  isbn: String
+  publication_date: String
+  editor: String
+  vignetteimage: String
+  bookimage: String
+  age_limit: Int
+  description: String
+  series: String
+  minRating: Float
+  maxRating: Float
+}
+
+input BookFilter {
+  title: String
+  author: String
+  genre: String
+  minRating: Float
+  maxRating: Float
+  ageLimit: Int
+  publicationDate: DateRangeInput
+  minAge: Int
+  maxAge: Int
+  inLibrary: Boolean
+  isFavorite: Boolean
+}
+
+input BookSort {
+  orderBy: BookOrderBy!
+  direction: OrderDirection!
+}
+
+input CreateCategoryOfReportInput {
+  name: String!
+}
+
+input UpdateCategoryOfReportInput {
+  name: String
+}
+
+input DeleteCategoryOfReportInput {
+  id_category: ID!
+}
+
+input PaginationInput {
+  first: Int
+  after: String
+  last: Int
+  before: String
+  limit: Int
+  offset: Int
+}
+
+input DateRangeInput {
+  startDate: Date
+  endDate: Date
+}
+
+input CreateLibraryInput {
+  name: String!
+  is_editable: Boolean!
+  id_user: ID!
+  is_default: Boolean!
+  color: String!
+  is_public: Boolean!
+  description: String
+  sort_order: Int
+  created_at: DateTime
+  updated_at: DateTime
+}
+
+input UpdateLibraryInput {
+  name: String!
+  is_editable: Boolean!
+  id_user: ID!
+  is_default: Boolean!
+  color: String!
+  is_public: Boolean!
+  description: String
+  sort_order: Int
+  created_at: DateTime
+  updated_at: DateTime
+}
+
+input DeleteLibraryInput {
+  id_library: ID!
+}
+
+input CreateMessageInput {
+  content: String!
+  id_sender: String!
+  id_receiver: String!
+  subject: String!
+}
+
+input UpdateMessageInput {
+  id_message: ID!
+  content: String
+  subject: String
+}
+
+input DeleteMessageInput {
+  id_message: ID!
+}
+
+input MarkMessageAsReadInput {
+  id_message: ID!
+}
+
+input SendMessageInput {
+  receiverId: ID!
+  subject: String!
+  content: String!
+}
+
+input RequestPasswordResetInput {
+  email: String!
+}
+
+input ResetPasswordInput {
+  resetCode: String!
+  newPassword: String!
+}
+
+input VerifyResetCodeInput {
+  resetCode: String!
+}
+
+input AdminResetPasswordInput {
+  newPassword: String!
+  id_user: ID!
+}
+
+input ChangePasswordInput {
+  currentPassword: String!
+  newPassword: String!
+}
+
+input CreatePasswordResetCodeInput {
+  email: String!
+}
+
+input ResetPasswordWithCodeInput {
+  resetCode: String!
+  newPassword: String!
+}
+
+input DeletePasswordResetCodeInput {
+  resetCode: String!
+}
+
+input UpdateUserRoleInput {
+  id_user: ID!
+  id_role: ID!
+}
+
+input CreatePermissionInput {
+  name: String!
+}
+
+input UpdatePermissionInput {
+  id_permission: ID!
+  name: String
+}
+
+input DeletePermissionInput {
+  id_permission: ID!
+}
+
+input CreateReportInput {
+  id_user: String
+  report_type: ReportType
+  reported_id: String
+  reason: String
+  details: String
+  status: ReportStatus
+}
+
+input UpdateReportInput {
+  id_report: ID!
+  id_user: String
+  report_type: ReportType
+  reported_id: String
+  reason: String
+  details: String
+  status: ReportStatus
+}
+
+input DeleteReportInput {
+  id_report: ID!
+}
+
+input ReportFilterInput {
+  reportType: ReportType
+  status: ReportStatus
+  reportedId: ID
+}
+
+input CreateReviewInput {
+  id_user: String!
+  id_book: String!
+  title_rating: String!
+  comment: String!
+  rating: Int!
+}
+
+input UpdateReviewInput {
+  id_review: ID!
+  id_user: String
+  id_book: String
+  title_rating: String
+  comment: String
+  rating: Int
+}
+
+input DeleteReviewInput {
+  id_review: ID!
+}
+
+input ReviewFilterInput {
+  idBook: ID
+  idUser: ID
+  minRating: Int
+  maxRating: Int
+}
+
+input CreateRoleInput {
+  role_name: String!
+}
+
+input UpdateRoleInput {
+  id_role: ID!
+  role_name: String
+}
+
+input DeleteRoleInput {
+  id_role: ID!
+}
+
+input CreateRoleHasPermissionInput {
+  id_rolehaspermission: ID
+  id_role: ID!
+  id_permission: ID!
+}
+
+input UpdateRoleHasPermissionInput {
+  id_rolehaspermission: ID!
+  id_role: ID
+  id_permission: ID
+}
+
+input DeleteRoleHasPermissionInput {
+  id_rolehaspermission: ID!
+}
+
+input CreateStatisticInput {
+  total_books: Int!
+  books_read: Int!
+  books_reading: Int!
+  books_to_read: Int!
+  avg_rating: Float
+  total_pages: Int
+  books_lent: Int!
+}
+
+input UpdateStatisticInput {
+  total_books: Int!
+  books_read: Int!
+  books_reading: Int!
+  books_to_read: Int!
+  avg_rating: Float
+  total_pages: Int
+  books_lent: Int!
+}
+
+input DeleteStatisticInput {
+  id_statistic: ID!
+}
+
+input CreateStatusInput {
+  status_name: String!
+}
+
+input UpdateStatusInput {
+  id_status: ID!
+  status_name: String!
+}
+
+input DeleteStatusInput {
+  id_status: ID!
+}
+
+input StatusSortInput {
+  orderBy: StatusOrderBy!
+  direction: OrderDirection!
+}
+
+input AddTagsToBookHasLibraryInput {
+  id_tag: String!
+  id_bookhaslibrary: String!
+  tag_name: String!
+  created_at: DateTime!
+  updated_at: DateTime
+}
+
+input UpdateTagsOnBookHasLibraryInput {
+  id_tag: String!
+  id_bookhaslibrary: String!
+  tag_name: String!
+  created_at: DateTime!
+  updated_at: DateTime
+}
+
+input RemoveTagsFromBookHasLibraryInput {
+  id_tag: String!
+  id_bookhaslibrary: String!
+}
+
+input CreateUserInput {
+  name: String!
+  email: String!
+  password: String!
+  pseudo: String!
+}
+
+input UpdateUserInput {
+  name: String
+  email: String
+  pseudo: String
+}
+
+input DeleteUserInput {
+  id_user: ID!
+}
+
+input AdminCreateUserInput {
+  name: String
+  email: String!
+  password: String!
+  pseudo: String!
+  idRole: ID
+  isActive: Boolean
+}
+
+input AdminUpdateUserInput {
+  idUser: ID!
+  name: String
+  email: String
+  pseudo: String
+  idRole: ID
+  isActive: Boolean
+}
+
+input LoginInput {
+  emailOrPseudo: String!
+  password: String!
+  rememberMe: Boolean
+}
+
+type ManyAuthors {
+  authors: [Authors!]!
+  httpStatus: Int
+}
+
+type ManyBooksFromLibrary {
+  booksInLibrary: [BookHasLibrary!]!
+  httpStatus: Int
+}
+
+type ManyCategoriesOfReport {
+  categoriesOfReport: [CategoryOfReport!]!
+  httpStatus: Int
+}
+
+extend type Subscription {
+  """S'abonner aux changements d'une bibliothèque"""
+  libraryUpdated(id_library: ID!): Library!
+  """S'abonner aux changements dans toutes mes bibliothèques"""
+  myLibrariesUpdated: Library!
+}
+
+type ManyEditors {
+  editors: [Editors!]!
+  httpStatus: Int
+}
+
+type ManyGenres {
+  genres: [Genres!]!
+  httpStatus: Int
+}
+
+type ManyStatistics {
+  statistics: [Statistics!]!
+  httpStatus: Int
+}
+
+type ManyTagsOnBookHasLibrary {
+  tagsOnBookHasLibrary: [TagsOnBookHasLibrary!]!
+  httpStatus: Int
+}
+
+type PaginatedAuthors {
+  authors: [Author!]!
+  totalCount: Int!
+  hasNextPage: Boolean!
+  httpStatus: Int
+}
+
+type PaginatedBooksInLibrary {
+  books: [BookHasLibrary!]!
+  totalCount: Int!
+  hasNextPage: Boolean!
+  httpStatus: Int
+}
+
+type LibraryWithBooks {
+  id_library: ID!
+  name: String
+  bookCount: Int!
+  books: [BookHasLibrary!]!
+}
+
+type PaginatedBooksInMyLibrary {
+  libraries: [LibraryWithBooks!]!
+}
+
+type PaginatedBooks {
+  books: [Book!]!
+  bookEdges: [BookEdge!]!
+  nodes: [Book!]!
+  totalCount: Int!
+  hasNextPage: Boolean!
+  httpStatus: Int
+}
+
+type PaginatedCategoryOfReport {
+  categoryOfReports: [CategoryOfReport!]!
+  totalCount: Int!
+  hasNextPage: Boolean!
+  httpStatus: Int
+}
+
+type PaginatedEditors {
+  editors: [Editor!]!
+  totalCount: Int!
+  hasNextPage: Boolean!
+  httpStatus: Int
+}
+
+type PaginatedGenres {
+  genres: [Genre!]!
+  totalCount: Int!
+  hasNextPage: Boolean!
+  httpStatus: Int
+}
+
+type PaginatedLibraries {
+  libraries: [Library!]!
+  totalCount: Int!
+  hasNextPage: Boolean!
+  httpStatus: Int
+}
+
+type PaginatedMessages {
+  messages: [Message!]!
+  totalCount: Int!
+  hasNextPage: Boolean!
+  httpStatus: Int
+}
+
+type PaginatedPasswordResets {
+  passwordResets: [PasswordReset!]!
+  totalCount: Int!
+  hasNextPage: Boolean!
+  httpStatus: Int
+}
+
+type PaginatedPermissions {
+  permissions: [Permission!]!
+  totalCount: Int!
+  hasNextPage: Boolean!
+  httpStatus: Int
+}
+
+type PaginatedReasonOfReport {
+  reasonOfReports: [ReasonOfReport!]!
+  totalCount: Int!
+  hasNextPage: Boolean!
+  httpStatus: Int
+}
+
+type PaginatedReports {
+  reports: [Report!]!
+  totalCount: Int!
+  hasNextPage: Boolean!
+  httpStatus: Int
+}
+
+type PaginatedReviews {
+  reviews: [Review!]!
+  totalCount: Int!
+  hasNextPage: Boolean!
+  httpStatus: Int
+}
+
+type PaginatedRoles {
+  roles: [Role!]!
+  totalCount: Int!
+  hasNextPage: Boolean!
+  httpStatus: Int
+}
+
+type PaginatedRoleHasPermissions {
+  roleHasPermissions: [RoleHasPermissions!]!
+  totalCount: Int!
+  hasNextPage: Boolean!
+  httpStatus: Int
+}
+
+type PaginatedStatistics {
+  statistics: [Statistics]!
+  totalCount: Int!
+  hasNextPage: Boolean!
+  httpStatus: Int
+}
+
+type PaginatedStatuses {
+  status: [Status!]!
+  totalCount: Int!
+  hasNextPage: Boolean!
+  httpStatus: Int
+}
+
+type PaginatedTagsOnBookHasLibrary {
+  tagsOnBookHasLibrary: [TagsOnBookHasLibrary!]!
+  totalCount: Int!
+  hasNextPage: Boolean!
+  httpStatus: Int
+}
+
+type Author {
+  id_author: ID!
+  name: String!
+  created_at: Date
+  updated_at: Date
+  books: [Book!]!
+}
+
+type BookHasLibrary {
+  id_bookhaslibrary: ID!
+  id_library: ID!
+  id_book: ID!
+  is_read: Boolean!
+  is_favorite: Boolean!
+  progress_percentage: Int!
+  personal_note: String
+  started_at: DateTime
+  finished_at: DateTime
+  lent_to: String
+  lent_at: DateTime
+  created_at: DateTime!
+  updated_at: DateTime
+  library: Library!
+  book: Book!
+  tags: [String]!
+}
+
+type Book {
+  id_book: ID!
+  title: String!
+  isbn: String
+  publication_date: String
+  author: String
+  editor: String
+  genre: String
+  vignetteimage: String
+  bookimage: String
+  age_limit: Int
+  description: String
+  series: String
+  is_in_favorite: Int
+  nb_reviews: Int
+  is_in_library: Int
+  avg_rating: Float
+  created_at: Date
+  updated_at: Date
+  reviews: [Review!]!
+}
+
+type categoryOfReport {
+  id_categoryofreport: ID!
+  name: String!
+  created_at: String!
+  updated_at: String
+  Reports: [report]
+}
+
+type Editor {
+  id_editor: ID!
+  name: String!
+  created_at: Date
+  updated_at: Date
+  books: [Book!]!
+}
+
+type Genre {
+  id_genre: ID!
+  name: String!
+  created_at: Date
+  updated_at: Date
+  books: [Book!]!
+}
+
+type Library {
+  id_library: ID!
+  name: String!
+  description: String
+  is_editable: Boolean!
+  is_default: Boolean!
+  is_public: Boolean!
+  color: String!
+  sort_order: Int!
+  id_user: ID!
+  created_at: DateTime!
+  updated_at: DateTime
+  user: User
+  books: [BookHasLibrary!]!
+  stats: LibraryStats
+}
+
+type Message {
+  id_message: ID!
+  id_sender: String!
+  id_receiver: String!
+  subject: String!
+  content: String!
+  is_read: Boolean!
+  created_at: Date!
+  updated_at: Date
+  sender: User
+  receiver: User
+}
+
+type Permission {
+  id_permission: ID!
+  permission_name: String!
+  created_at: Date!
+  updated_at: Date
+}
+
+type Report {
+  id_report: ID!
+  id_user: String!
+  report_type: String!
+  reported_id: String!
+  reason: String!
+  status: String!
+  details: String!
+  created_at: Date!
+  updated_at: Date
+  whistleblower: User
+  reported: User
+}
+
+type Review {
+  id_review: ID!
+  id_user: String!
+  id_book: String!
+  title_rating: String
+  rating: Int!
+  comment: String!
+  created_at: Date!
+  updated_at: Date
+  user: User
+  book: Book
+}
+
+type Role {
+  id_role: ID!
+  role_name: String!
+  created_at: Date!
+  updated_at: Date
+}
+
+type RoleHasPermissions {
+  id_rolehaspermission: ID!
+  id_role: ID!
+  id_permission: ID!
+  created_at: Date!
+  updated_at: Date
+  role: Role
+  permissions: Permission!
+}
+
+type LibraryStats {
+  total_books: Int!
+  books_read: Int!
+  books_reading: Int!
+  books_to_read: Int!
+  avg_rating: Float
+  total_pages: Int
+  books_lent: Int!
+}
+
+type Status {
+  id_status: ID!
+  status_name: String!
+  created_at: Date!
+  updated_at: Date
+}
+
+type TagsOnBookHasLibrary {
+  id_tag: String!
+  id_bookhaslibrary: String!
+  tag_name: String!
+  created_at: DateTime!
+  updated_at: DateTime
+  book: Book!
+}
+
+type User {
+  id_user: ID!
+  name: String
+  email: String!
+  password: String
+  pseudo: String!
+  id_role: String
+  id_status: Int!
+  refresh_token: String
+  last_login: DateTime
+  code_passwordReset: String
+  createDatetime_passwordReset: DateTime
+  validity_passwordReset: Int
+  created_at: Date!
+  updated_at: Date
+  role: Role
+  status: Status
+}

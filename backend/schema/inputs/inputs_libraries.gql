@@ -1,15 +1,31 @@
 input CreateLibraryInput {
   name: String!
-  isEditable: Boolean 
-  id_user: String!
+  is_editable: Boolean!
+  id_user: ID!
+  is_default: Boolean!
+  color: String!
+  is_public: Boolean!
+  description: String
+  sort_order: Int
+  created_at: DateTime
+  updated_at: DateTime
 }
 
 input UpdateLibraryInput {
-  id_library: ID!
-  name: String
-  isEditable: Boolean
+  name: String!
+  is_editable: Boolean!
+  id_user: ID!
+  is_default: Boolean!
+  color: String!
+  is_public: Boolean!
+  description: String
+  sort_order: Int
+  created_at: DateTime
+  updated_at: DateTime
 }
 
 input DeleteLibraryInput {
   id_library: ID!
 }
+
+

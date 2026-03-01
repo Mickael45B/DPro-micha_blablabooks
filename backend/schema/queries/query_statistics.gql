@@ -1,0 +1,31 @@
+# Type pour les résultats de recherche paginés
+type PaginatedStatistics {
+    statistics: [Statistics]!
+    totalCount: Int!
+    hasNextPage: Boolean!
+    httpStatus: Int  
+}
+
+extend type Query {
+    # Récupérer les statistiques de signalement
+    getStatistics(
+        limit: Int, 
+        offset: Int, 
+        order: String = "created_at", # Colonne par défaut pour le tri
+        direction: String = "ASC" # Direction par défaut pour le tri (ASC ou DESC)
+    ): PaginatedStatistics!
+
+    getStatisticsByID(
+        id_statistics: ID!
+    ): Statistics
+
+    searchStatisticsByName(
+        name: String!, 
+        limit: Int, 
+        offset: Int, 
+        order: String = "created_at", # Colonne par défaut pour le tri
+        direction: String = "ASC" # Direction par défaut pour le tri (ASC ou DESC)
+    ): PaginatedStatistics!
+
+
+}

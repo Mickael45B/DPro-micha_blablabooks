@@ -32,15 +32,32 @@ const AdvancedSearch = ({ filters, onFilterChange, onReset }) => {
                     onChange={(e) => onFilterChange('genre', e.target.value)}
                 >
                     <option value="">Tous les genres</option>
-                    <option value="Fantasy">Fantasy</option>
-                    <option value="Romance">Romance</option>
-                    <option value="Thriller">Thriller</option>
-                    <option value="Contemporain">Contemporain</option>
-                    <option value="Historique">Historique</option>
-                    <option value="Science-fiction">Science-fiction</option>
-                    <option value="Policier">Policier</option>
+                    <option value="Dystopie">Dystopie</option>
+                    <option value="Conte">Conte</option>
                     <option value="Philosophie">Philosophie</option>
+                    <option value="Science-fiction">Science-fiction</option>
+                    <option value="Fantastique">Fantastique</option>
+                    <option value="Romance">Romance</option>
+                    <option value="Policier/Thriller">Policier/Thriller</option>
+                    <option value="Horreur">Horreur</option>
+                    <option value="Aventure">Aventure</option>
+                    <option value="Historique">Historique</option>
+                    <option value="Poésie">Poésie</option>
+                    <option value="Biographie">Biographie</option>
+                    <option value="Classique">Classique</option>
+                    <option value="Spiritualité">Spiritualité</option>
+                    <option value="Essai">Essai</option>
+                    <option value="Humour">Humour</option>
+                    <option value="Manga/BD">Manga/BD</option>
+                    <option value="Jeunesse">Jeunesse</option>
+                    <option value="New Adult">New Adult</option>
+                    <option value="Roman initiatique">Roman initiatique</option>
+                    <option value="Young Adult">Young Adult</option>
+                    <option value="Drame">Drame</option>
+                    <option value="Épopée">Épopée</option>
                     <option value="Développement personnel">Développement personnel</option>
+                    <option value="Contemporain">Contemporain</option>
+
                 </select>
             </div>
 
@@ -62,7 +79,7 @@ const AdvancedSearch = ({ filters, onFilterChange, onReset }) => {
                         value={filters.yearTo}
                         onChange={(e) => onFilterChange('yearTo', e.target.value)}
                         min="1900"
-                        max="2025"
+                        max={new Date().getFullYear()}
                     />
                 </div>
             </div>
@@ -105,12 +122,30 @@ const AdvancedSearch = ({ filters, onFilterChange, onReset }) => {
     );
 };
 
-// Composant pour afficher le résumé d'un livre
+const useIsMobile = () => {
+    const [isMobile, setIsMobile] = useState(false);
+
+    useEffect(() => {
+        const checkMobile = () => {
+            setIsMobile(window.innerWidth <= 900);
+        };
+        checkMobile();
+        window.addEventListener('resize', checkMobile);
+        return () => window.removeEventListener('resize', checkMobile);
+    }, []);
+
+    return isMobile;
+};
+
 const BookSummary = ({ book }) => {
+    const navigate = useNavigate();
+
     if (!book) {
         return (
-            <div className="book-summary-empty">
-                <p>👈 Cliquez sur une carte pour voir le résumé</p>
+            <div className="book-summary">
+                <div className="book-summary-empty">
+                    <p>📖 Sélectionnez un livre pour voir son résumé</p>
+                </div>
             </div>
         );
     }
@@ -125,7 +160,7 @@ const BookSummary = ({ book }) => {
         <div className="book-summary">
             <div className="book-summary__header">
                 <img 
-                    src={`/images/vignettesImages/${book.vignetteimage}`}
+                    src={`/images/booksImages/${book.bookimage}`} 
                     alt={decodeHtml(book.title)}
                     className="book-summary__image"
                     onError={(e) => {
@@ -133,31 +168,85 @@ const BookSummary = ({ book }) => {
                     }}
                 />
             </div>
-
+            
             <div className="book-summary__content">
                 <h3 className="book-summary__title">{decodeHtml(book.title)}</h3>
                 
                 <div className="book-summary__meta">
-                    <p><strong>Auteur:</strong> {decodeHtml(book.author)}</p>
-                    <p><strong>Éditeur:</strong> {decodeHtml(book.editor)}</p>
-                    <p><strong>Genre:</strong> {book.genre}</p>
-                    {book.avg_rating && (
-                        <p><strong>Note:</strong> ⭐ {book.avg_rating.toFixed(1)} ({book.nb_reviews} avis)</p>
-                    )}
+                    <div className="book-summary__meta-item">
+                        <i className="fas fa-user"></i>
+                        <div>
+                            <span className="book-summary__meta-label">Auteur</span>
+                            <span className="book-summary__meta-value">{decodeHtml(book.author)}</span>
+                        </div>
+                    </div>
+
+                    <div className="book-summary__meta-item">
+                        <i className="fas fa-tag"></i>
+                        <div>
+                            <span className="book-summary__meta-label">Genre</span>
+                            <span className="book-summary__meta-value">{decodeHtml(book.genre)}</span>
+                        </div>
+                    </div>
+
+                    <div className="book-summary__meta-item">
+                        <i className="fas fa-calendar"></i>
+                        <div>
+                            <span className="book-summary__meta-label">Publication</span>
+                            <span className="book-summary__meta-value">
+                                {new Date(book.publication_date).toLocaleDateString('fr-FR')}
+                            </span>
+                        </div>
+                    </div>
+
+                    <div className="book-summary__meta-item">
+                        <i className="fas fa-users"></i>
+                        <div>
+                            <span className="book-summary__meta-label">Public cible</span>
+                            <span className="book-summary__meta-value">
+                                {book.age_limit ? `${book.age_limit}+ ans` : 'Tous publics'}
+                            </span>
+                        </div>
+                    </div>
+                    {/* par éditeur */}
+                    <div className="book-summary__meta-item">
+                        <i className="fas fa-building"></i>
+                        <div>
+                            <span className="book-summary__meta-label">Éditeur</span>
+                            <span className="book-summary__meta-value">{decodeHtml(book.publisher)}</span>
+                        </div>
+                    </div>
                 </div>
 
-                <div className="book-summary__description">
-                    <h4>Résumé</h4>
-                    <p>{decodeHtml(book.description)}</p>
+                <div className="book-summary__stats">
+                    <div className="book-summary__stat">
+                        <i className="fas fa-star"></i>
+                        <span>{book.avg_rating ? `${book.avg_rating}/5` : 'Non noté'}</span>
+                    </div>
+                    <div className="book-summary__stat">
+                        <i className="fas fa-book-open"></i>
+                        <span>{book.pagecount} pages</span>
+                    </div>
                 </div>
+
+                {book.description && (
+                    <div className="book-summary__description">
+                        <h4>📖 Résumé</h4>
+                        <p>{decodeHtml(book.description)}</p>
+                    </div>
+                )}
 
                 <div className="book-summary__actions">
                     <a 
                         href={`/livres/${book.id_book}`}
                         className="book-summary__link"
+                        onClick={(e) => {
+                            e.preventDefault();
+                            navigate(`/livres/${book.id_book}`);
+                        }}
                     >
-                        <i className="fas fa-book-open"></i>
-                        Voir tous les détails
+                        <i className="fas fa-arrow-right"></i>
+                        Voir les détails
                     </a>
                 </div>
             </div>
@@ -166,18 +255,8 @@ const BookSummary = ({ book }) => {
 };
 
 const LibraryPage = () => {
-    const [allBooks, setAllBooks] = useState([]);
-    const [selectedBook, setSelectedBook] = useState(null);
-    
-    // États pour la pagination
-    const [currentPage, setCurrentPage] = useState(1);
-    const [booksPerPage, setBooksPerPage] = useState(12);
-    
-    // États pour le tri
-    const [sortBy, setSortBy] = useState('title');
-    const [sortOrder, setSortOrder] = useState('asc');
-    
-    // États pour les filtres
+    const navigate = useNavigate();
+    const isMobile = useIsMobile();
     const [filters, setFilters] = useState({
         searchText: '',
         genre: '',
@@ -187,10 +266,18 @@ const LibraryPage = () => {
         minRating: ''
     });
 
-    // 🔧 Requête GraphQL
+    // ✅ FIX : Tri par défaut = genre
+    const [sortBy, setSortBy] = useState('genre');
+    const [sortOrder, setSortOrder] = useState('asc');
+    const [currentPage, setCurrentPage] = useState(1);
+    const [booksPerPage, setBooksPerPage] = useState(12);
+    const [allBooks, setAllBooks] = useState([]);
+    const [selectedBook, setSelectedBook] = useState(null);
+
+    // 🔧 Requête pour récupérer les livres
     const { data, loading, error } = useQuery(GET_BOOKS, {
         variables: {
-            limit: 1000,
+            limit: 100,
             offset: 0
         },
         fetchPolicy: 'network-only'
@@ -255,6 +342,10 @@ const LibraryPage = () => {
             let compareA, compareB;
 
             switch (sortBy) {
+                case 'genre':
+                    compareA = a.genre || '';
+                    compareB = b.genre || '';
+                    break;
                 case 'title':
                     compareA = a.title.toLowerCase();
                     compareB = b.title.toLowerCase();
@@ -283,17 +374,37 @@ const LibraryPage = () => {
         return sorted;
     }, [filteredBooks, sortBy, sortOrder]);
 
+    // Regrouper les livres par genre si le tri est par genre
+    const groupedBooks = useMemo(() => {
+        if (sortBy !== 'genre') return null;
+
+        const groups = {};
+        sortedBooks.forEach(book => {
+            const genre = book.genre || 'Sans genre';
+            if (!groups[genre]) {
+                groups[genre] = [];
+            }
+            groups[genre].push(book);
+        });
+
+        return groups;
+    }, [sortedBooks, sortBy]);
+
     // 📄 Pagination avec useMemo
     const displayedBooks = useMemo(() => {
+        if (sortBy === 'genre') {
+            // Pas de pagination si tri par genre (affichage par sections)
+            return sortedBooks;
+        }
         const indexOfLastBook = currentPage * booksPerPage;
         const indexOfFirstBook = indexOfLastBook - booksPerPage;
         return sortedBooks.slice(indexOfFirstBook, indexOfLastBook);
-    }, [currentPage, booksPerPage, sortedBooks]);
+    }, [currentPage, booksPerPage, sortedBooks, sortBy]);
 
     // Retour à la page 1 quand les filtres changent
     useEffect(() => {
         setCurrentPage(1);
-    }, [filters]);
+    }, [filters, sortBy]);
 
     const totalPages = Math.ceil(sortedBooks.length / booksPerPage);
 
@@ -313,11 +424,10 @@ const LibraryPage = () => {
     };
 
     const handleShowSummary = (book) => {
-        console.log('📖 Livre sélectionné:', book.title);
         setSelectedBook(book);
     };
 
-    // Menu contextuel avec recherche avancée ET résumé
+    //  Menu contextuel passé à MainLayout
     const contextualMenu = (
         <>
             <div className="contextualMenu__action">
@@ -327,16 +437,12 @@ const LibraryPage = () => {
                     onReset={handleResetFilters}
                 />
             </div>
-            <div className="contextualMenu__info" style={{ marginTop: '1.5rem' }}>
-                <h3>📖 Aperçu du livre</h3>
-                <BookSummary book={selectedBook} />
-            </div>
         </>
     );
 
     if (loading) {
         return (
-            <MainLayout contextualMenu={contextualMenu}>
+            <MainLayout contextualMenuAction={contextualMenu}>
                 <div className="library-page">
                     <div style={{ textAlign: 'center', padding: '3rem' }}>
                         <p>Chargement des livres...</p>
@@ -348,7 +454,7 @@ const LibraryPage = () => {
 
     if (error) {
         return (
-            <MainLayout contextualMenu={contextualMenu}>
+            <MainLayout contextualMenuAction={contextualMenu}>
                 <div className="library-page">
                     <div style={{ textAlign: 'center', padding: '3rem', color: 'red' }}>
                         <p>❌ Erreur lors du chargement : {error.message}</p>
@@ -359,17 +465,22 @@ const LibraryPage = () => {
     }
 
     return (
-        <>
+        <MainLayout contextualMenuAction={isMobile ? null : contextualMenu}>
             <div className="library-page">
                 {/* En-tête */}
                 <div className="library-header">
+
                     <div className="library-stats">
-                        <h1 className="library-title">📚 Catalogue</h1>
-                        <p className="library-count">
-                            {sortedBooks.length} livre{sortedBooks.length > 1 ? 's' : ''} trouvé{sortedBooks.length > 1 ? 's' : ''}
-                            {sortedBooks.length !== allBooks.length && ` sur ${allBooks.length}`}
-                        </p>
+                        <h2 className="library-title">📚 Catalogue</h2>
                     </div>
+
+                    {/* Menu sur mobile */}
+                    {isMobile && (
+                        <div className="mobile-search-container">
+                            {contextualMenu }
+                        </div>
+                    )}
+
 
                     {/* Contrôles */}
                     <div className="library-controls">
@@ -380,6 +491,7 @@ const LibraryPage = () => {
                                 value={sortBy}
                                 onChange={(e) => setSortBy(e.target.value)}
                             >
+                                <option value="genre">Genre</option>
                                 <option value="title">Titre</option>
                                 <option value="author">Auteur</option>
                                 <option value="date">Date de publication</option>
@@ -395,98 +507,136 @@ const LibraryPage = () => {
                             </button>
                         </div>
 
-                        <div className="pagination-controls">
-                            <label htmlFor="books-per-page">Livres par page:</label>
-                            <select
-                                id="books-per-page"
-                                value={booksPerPage}
-                                onChange={(e) => {
-                                    setBooksPerPage(Number(e.target.value));
-                                    setCurrentPage(1);
-                                }}
-                            >
-                                <option value="12">12</option>
-                                <option value="24">24</option>
-                                <option value="36">36</option>
-                                <option value="48">48</option>
-                            </select>
-                        </div>
+                        {/* Pagination controls - cachés si tri par genre */}
+                        {sortBy !== 'genre' && (
+                            <div className="pagination-controls">
+                                <label htmlFor="books-per-page">Livres par page:</label>
+                                <select
+                                    id="books-per-page"
+                                    value={booksPerPage}
+                                    onChange={(e) => {
+                                        setBooksPerPage(Number(e.target.value));
+                                        setCurrentPage(1);
+                                    }}
+                                >
+                                    <option value="12">12</option>
+                                    <option value="24">24</option>
+                                    <option value="36">36</option>
+                                    <option value="48">48</option>
+                                </select>
+                            </div>
+                        )}
                     </div>
+
+                    <p className="library-count">
+                        {sortedBooks.length} livre{sortedBooks.length > 1 ? 's' : ''} trouvé{sortedBooks.length > 1 ? 's' : ''}
+                        {sortedBooks.length !== allBooks.length && ` sur ${allBooks.length}`}
+                    </p>
+
+
+
                 </div>
 
-                {/* Grille de livres */}
-                {displayedBooks.length > 0 ? (
-                    <div className="book-grid">
-                        {displayedBooks.map((book) => (
-                            <SmallCard 
-                                key={book.id_book} 
-                                book={book}
-                                onShowSummary={handleShowSummary}
-                            />
-                        ))}
-                    </div>
-                ) : (
-                    <div className="no-results">
-                        <p>😔 Aucun livre ne correspond à vos critères de recherche.</p>
-                        <button onClick={handleResetFilters}>
-                            Réinitialiser les filtres
-                        </button>
-                    </div>
-                )}
-
-                {/* Pagination */}
-                {totalPages > 1 && (
-                    <div className="pagination">
-                        <button
-                            onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                            disabled={currentPage === 1}
-                            className="pagination-btn"
-                        >
-                            ← Précédent
-                        </button>
-
-                        <div className="pagination-pages">
-                            {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => {
-                                if (
-                                    page === 1 ||
-                                    page === totalPages ||
-                                    (page >= currentPage - 2 && page <= currentPage + 2)
-                                ) {
-                                    return (
-                                        <button
-                                            key={page}
-                                            onClick={() => setCurrentPage(page)}
-                                            className={`pagination-page ${currentPage === page ? 'active' : ''}`}
-                                        >
-                                            {page}
-                                        </button>
-                                    );
-                                } else if (page === currentPage - 3 || page === currentPage + 3) {
-                                    return <span key={page} className="pagination-ellipsis">...</span>;
-                                }
-                                return null;
-                            })}
+                {/* Affichage conditionnel selon le tri */}
+                {sortBy === 'genre' && groupedBooks ? (
+                    // Affichage par sections de genre
+                    Object.keys(groupedBooks).sort().map(genre => (
+                        <div key={genre} className="genre-section">
+                            <h2 className="genre-section__title">
+                                <span className="genre-icon">📚</span>
+                                {genre}
+                                <span className="genre-count">
+                                    ({groupedBooks[genre].length} livre{groupedBooks[genre].length > 1 ? 's' : ''})
+                                </span>
+                            </h2>
+                            <div className="book-grid">
+                                {groupedBooks[genre].map((book) => (
+                                    <SmallCard 
+                                        key={book.id_book} 
+                                        book={book}
+                                        onShowSummary={handleShowSummary}
+                                    />
+                                ))}
+                            </div>
                         </div>
+                    ))
+                ) : (
+                    // Affichage normal avec pagination
+                    <>
+                        {displayedBooks.length > 0 ? (
+                            <div className="book-grid">
+                                {displayedBooks.map((book) => (
+                                    <SmallCard 
+                                        key={book.id_book} 
+                                        book={book}
+                                        onShowSummary={handleShowSummary}
+                                    />
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="no-results">
+                                <p>😔 Aucun livre ne correspond à vos critères de recherche.</p>
+                                <button onClick={handleResetFilters}>
+                                    Réinitialiser les filtres
+                                </button>
+                            </div>
+                        )}
 
-                        <button
-                            onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                            disabled={currentPage === totalPages}
-                            className="pagination-btn"
-                        >
-                            Suivant →
-                        </button>
-                    </div>
-                )}
+                        {/* Pagination - seulement si pas de tri par genre */}
+                        {totalPages > 1 && (
+                            <div className="pagination">
+                                <button
+                                    onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                                    disabled={currentPage === 1}
+                                    className="pagination-btn"
+                                >
+                                    ← Précédent
+                                </button>
 
-                {/* Info pagination */}
-                {totalPages > 0 && (
-                    <div className="pagination-info">
-                        Page {currentPage} sur {totalPages} • 
-                        Affichage de {((currentPage - 1) * booksPerPage) + 1} à {Math.min(currentPage * booksPerPage, sortedBooks.length)} livres
-                    </div>
+                                <div className="pagination-pages">
+                                    {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => {
+                                        if (
+                                            page === 1 ||
+                                            page === totalPages ||
+                                            (page >= currentPage - 2 && page <= currentPage + 2)
+                                        ) {
+                                            return (
+                                                <button
+                                                    key={page}
+                                                    onClick={() => setCurrentPage(page)}
+                                                    className={`pagination-page ${currentPage === page ? 'active' : ''}`}
+                                                >
+                                                    {page}
+                                                </button>
+                                            );
+                                        } else if (page === currentPage - 3 || page === currentPage + 3) {
+                                            return <span key={page} className="pagination-ellipsis">...</span>;
+                                        }
+                                        return null;
+                                    })}
+                                </div>
+
+                                <button
+                                    onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                                    disabled={currentPage === totalPages}
+                                    className="pagination-btn"
+                                >
+                                    Suivant →
+                                </button>
+                            </div>
+                        )}
+
+                        {/* Info pagination */}
+                        {totalPages > 0 && (
+                            <div className="pagination-info">
+                                Page {currentPage} sur {totalPages} • 
+                                Affichage de {((currentPage - 1) * booksPerPage) + 1} à {Math.min(currentPage * booksPerPage, sortedBooks.length)} livres
+                            </div>
+                        )}
+                    </>
                 )}
             </div>
-        </>
+        </MainLayout>
     );
 };
 

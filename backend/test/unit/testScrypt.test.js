@@ -20,7 +20,7 @@ describe('hash() - Tests unitaires', () => {
     const [salt, key] = hashed.split(':');
     assert.equal(salt.length, 32, 'Le salt devrait faire 32 caractères hex (16 bytes)');
     assert.equal(key.length, 128, 'La clé devrait faire 128 caractères hex (64 bytes)');
-    console.log('Generated hash:', hashed);
+    //console.log('Generated hash:', hashed);
   });
 
   it('devrait générer des hashs différents pour le même mot de passe', async () => {

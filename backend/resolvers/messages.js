@@ -14,6 +14,14 @@ import { generalOrderMessagesSchema, searchMessagesSchema, generalMessagesSchema
 // Validation des ordres valides pour les messages
 const generalValidationOrder = ['created_at', 'id_message', 'id_sender', 'id_receiver', 'is_read', 'updated_at'];
 
+const toDateString = (v) => {
+  if (!v) return null;
+  if (v instanceof Date) return v.toISOString().split('T')[0];
+  if (typeof v === 'string') return v.split('T')[0];
+  return null;
+};
+
+
 export default {
   Query: {
     /**
@@ -70,9 +78,17 @@ export default {
         // ========================================
         // DONNEES RECUPEREES
         // ======================================== 
-             
+        const messages = result.rows.map(message => ({
+          ...message,
+          created_at: toDateString(message.created_at),
+          updated_at: toDateString(message.updated_at)
+        }));
+
+
+
+
         return {
-          messages: result.rows,
+          messages,
           totalCount,
           hasNextPage: offset + limit < totalCount,
           httpStatus: 200
@@ -302,6 +318,26 @@ export default {
       }
     ),
     
+    getMyUnreadMessagesCount: withSecureResolver(
+      async (_, { validated }, context) => {
+        const { id_user } = context.user;
+
+        const result = await db.query(`
+          SELECT COUNT(*)::int AS unread_count
+          FROM messages
+          WHERE id_receiver = $1 
+            AND is_read = FALSE
+        `, [id_user]);
+
+        return result.rows[0]?.unread_count || 0;
+      },
+      {
+        logAction: 'GET_UNREAD_MESSAGES_COUNT',
+        requiresAuth: true,
+        errorMessage: 'Erreur lors du comptage des messages non lus'
+      }
+    ),
+
   },
 
   Mutation: {
@@ -403,7 +439,11 @@ export default {
         // DONNEES RECUPEREES
         // ======================================== 
         if (context?.res?.status) context.res.status(201);
-        return result.rows[0];
+        return {
+          ...result.rows[0],
+          created_at: toDateString(result.rows[0].created_at),
+          updated_at: toDateString(result.rows[0].updated_at)
+        };
     
       },
       {
@@ -524,10 +564,11 @@ export default {
         // ========================================
         // DONNEES RECUPEREES
         // ======================================== 
-
+        if (context?.res?.status) context.res.status(200);
         return {
-          data: result.rows[0],
-          httpStatus: 200
+          ...result.rows[0],
+          created_at: toDateString(result.rows[0].created_at),
+          updated_at: toDateString(result.rows[0].updated_at)
         };
     
       },
@@ -698,6 +739,39 @@ export default {
         throw err;
       }
       
+    },
+
+    discussion: async (parent) => {
+      // parent.subject contient l'id_conversation
+      if (!parent?.subject) return null;
+      try {
+        const result = await findBy1ParameterOrThrow('discussions', 'id_conversation', parent.subject, 'Discussion non trouvée');
+        return result?.data ?? result;
+      } catch (err) {
+        // si discussion supprimée / non trouvée -> retourner null au lieu d'échouer tout le query
+        if (err && err.extensions && err.extensions.code === 'NOT_FOUND') return null;
+        throw err;
+      }
+    },
+
+    subject: async (parent) => {
+      // Si parent.subject_text existe déjà (préchargé), le retourner
+      if (parent?.subject_text) {
+        return parent.subject_text;
+      }
+
+      // Sinon, récupérer le sujet textuel de la discussion via l'id_conversation
+      if (!parent?.subject) return null;
+      try {
+        const result = await db.query(
+          'SELECT subject FROM discussions WHERE id_conversation = $1 LIMIT 1',
+          [parent.subject]
+        );
+        return result.rows[0]?.subject || parent.subject; // Retourner le sujet textuel ou l'ID en fallback
+      } catch (err) {
+        console.error('Error fetching discussion subject:', err);
+        return parent.subject; // Retourner l'ID en fallback si erreur
+      }
     },
     
   },

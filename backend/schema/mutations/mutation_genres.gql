@@ -1,0 +1,22 @@
+type ManyGenres {
+  genres: [Genre!]!
+  httpStatus: Int
+}
+
+extend type Mutation {
+    #TABLE genres
+    # Ajouter un nouveau genre
+    addGenre(input: CreateGenreInput!): Genre!
+
+  # Ajouter plusieurs genres à un livre
+  addGenresToBook(input: CreateGenreInput!): ManyGenres!
+
+  # Supprimer plusieurs genres d'un livre
+  removeGenresFromBook(input: DeleteGenreInput!): ManyGenres!
+
+    # Mettre à jour un genre existant
+    updateGenre(input: UpdateGenreInput!): Genre!
+
+    # Supprimer un genre par son ID
+    deleteGenre(input: DeleteGenreInput!): Boolean!
+}

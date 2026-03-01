@@ -59,7 +59,7 @@ export default function fitTextToOneLine(el, options = {}) {
   // Si le texte ne rentre toujours pas même à la taille minimale,
   // on garde l'ellipsis pour tronquer
   if (el.scrollWidth > el.clientWidth) {
-    console.log(`fitTextToOneLine: texte trop long même à ${min}px, ellipsis appliqué`);
+    //console.log(`fitTextToOneLine: texte trop long même à ${min}px, ellipsis appliqué`);
   }
 
   return size;

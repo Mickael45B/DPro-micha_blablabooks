@@ -16,20 +16,21 @@ const StyledRating = styled(Rating)(({ theme }) => ({
 }));
 
 // Composant fonctionnel pour afficher le StyledRating
-const RatingStar = ({ name, defaultValue, size }) => {
-	const value = defaultValue || 0; // Valeur par défaut si avgRating est null ou undefined
+const RatingStar = ({ name, value, defaultValue, size, readOnly }) => {
+	const ratingValue = value ?? defaultValue ?? 0; // Priorité: value > defaultValue > 0
 
 	return (
 		<Box sx={{ display: "flex", alignItems: "center" }}>
 			<Rating
 				className="custom-rating"
-				name="text-feedback"
-				value={value}
-				readOnly
+				name={name || "text-feedback"}
+				value={ratingValue}
+				readOnly={readOnly !== false} // true par défaut
 				precision={0.5}
+				size={size || "medium"}
 				emptyIcon={<StarIcon style={{ opacity: 0.55 }} fontSize="inherit" />}
 			/>
-			<Box sx={{ ml: 2 }}>{value}</Box>
+			<Box sx={{ ml: 2 }}>{ratingValue}</Box>
 		</Box>
 	);
 };
